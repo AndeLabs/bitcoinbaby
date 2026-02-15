@@ -3,12 +3,12 @@
 /**
  * BitcoinBaby - Pixel Art 8-bit Theme
  * Estilo visual inspirado en NES/SNES
+ *
+ * Fonts loaded via <link> in layout.tsx:
+ * - Press Start 2P (headings)
+ * - Pixelify Sans (body)
+ * - VT323 (monospace)
  */
-
-/* ========================================
-   FONTS
-   ======================================== */
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;500;600;700&family=VT323&display=swap');
 
 /* ========================================
    THEME CONFIGURATION
