@@ -1,0 +1,24 @@
+{
+  "name": "@bitcoinbaby/bitcoin",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "bitcoinjs-lib": "^6.1.0",
+    "bip39": "^3.1.0",
+    "bip32": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "@bitcoinbaby/config": "workspace:*"
+  }
+}

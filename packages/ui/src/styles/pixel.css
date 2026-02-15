@@ -1,0 +1,324 @@
+/**
+ * BitcoinBaby - Pixel Art 8-bit Styles
+ *
+ * Estilo visual inspirado en NES/SNES con toques modernos.
+ */
+
+/* ========================================
+   FONTS
+   ======================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;500;600;700&family=VT323&display=swap');
+
+/* ========================================
+   CSS VARIABLES
+   ======================================== */
+
+:root {
+  /* Backgrounds */
+  --pixel-bg-dark: #0f0f1b;
+  --pixel-bg-medium: #1a1a2e;
+  --pixel-bg-light: #2d2d44;
+
+  /* Primary (Bitcoin Gold) */
+  --pixel-primary: #f7931a;
+  --pixel-primary-light: #ffc107;
+  --pixel-primary-dark: #e67e00;
+
+  /* Secondary (Baby Blue) */
+  --pixel-secondary: #4fc3f7;
+  --pixel-secondary-light: #81d4fa;
+  --pixel-secondary-dark: #29b6f6;
+
+  /* Success */
+  --pixel-success: #4ade80;
+  --pixel-success-dark: #22c55e;
+
+  /* Error */
+  --pixel-error: #ef4444;
+  --pixel-error-dark: #dc2626;
+
+  /* Text */
+  --pixel-text: #ffffff;
+  --pixel-text-muted: #9ca3af;
+  --pixel-text-dark: #1f2937;
+
+  /* Borders */
+  --pixel-border: #374151;
+  --pixel-shadow: #000000;
+
+  /* Baby States */
+  --baby-sleeping: #6366f1;
+  --baby-hungry: #f97316;
+  --baby-happy: #fbbf24;
+  --baby-learning: #8b5cf6;
+  --baby-evolving: #ec4899;
+
+  /* Mining */
+  --mining-active: #22c55e;
+  --mining-idle: #6b7280;
+  --mining-boost: #f59e0b;
+
+  /* Fonts */
+  --font-pixel: 'Press Start 2P', cursive;
+  --font-pixel-body: 'Pixelify Sans', sans-serif;
+  --font-pixel-mono: 'VT323', monospace;
+}
+
+/* ========================================
+   BASE STYLES
+   ======================================== */
+
+/* Pixel rendering for images */
+img,
+canvas,
+.sprite,
+[data-pixel] {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Selection */
+::selection {
+  background: var(--pixel-primary);
+  color: var(--pixel-text-dark);
+}
+
+/* ========================================
+   ANIMATIONS
+   ======================================== */
+
+/* Blink (cursor, alerts) */
+@keyframes pixel-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Float (idle baby) */
+@keyframes pixel-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* Pulse (mining active) */
+@keyframes pixel-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--mining-active); }
+  50% { box-shadow: 0 0 0 8px transparent; }
+}
+
+/* Shake (error) */
+@keyframes pixel-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+/* Slide up (entry) */
+@keyframes pixel-slide-up {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Sprite walk (4 frames) */
+@keyframes pixel-sprite-4 {
+  from { background-position-x: 0; }
+  to { background-position-x: -256px; }
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+/* Animations */
+.animate-pixel-blink { animation: pixel-blink 1s steps(1) infinite; }
+.animate-pixel-float { animation: pixel-float 2s ease-in-out infinite; }
+.animate-pixel-pulse { animation: pixel-pulse 2s ease-in-out infinite; }
+.animate-pixel-shake { animation: pixel-shake 0.3s ease-in-out; }
+.animate-pixel-slide-up { animation: pixel-slide-up 0.3s ease-out; }
+
+/* Fonts */
+.font-pixel { font-family: var(--font-pixel); }
+.font-pixel-body { font-family: var(--font-pixel-body); }
+.font-pixel-mono { font-family: var(--font-pixel-mono); }
+
+/* Borders */
+.border-pixel {
+  border: 4px solid var(--pixel-border);
+  box-shadow: 4px 4px 0 0 var(--pixel-shadow);
+}
+
+.border-pixel-lg {
+  border: 4px solid var(--pixel-border);
+  box-shadow: 8px 8px 0 0 var(--pixel-shadow);
+}
+
+/* ========================================
+   COMPONENT STYLES
+   ======================================== */
+
+/* Pixel Button */
+.pixel-button {
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  padding: 12px 24px;
+  background: var(--pixel-primary);
+  color: var(--pixel-text-dark);
+  border: 4px solid var(--pixel-shadow);
+  cursor: pointer;
+  image-rendering: pixelated;
+  text-transform: uppercase;
+  box-shadow:
+    4px 4px 0 0 var(--pixel-shadow),
+    inset -2px -2px 0 0 var(--pixel-primary-dark),
+    inset 2px 2px 0 0 var(--pixel-primary-light);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.pixel-button:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 0 var(--pixel-shadow);
+}
+
+.pixel-button:active {
+  transform: translate(4px, 4px);
+  box-shadow: none;
+}
+
+.pixel-button:disabled {
+  background: var(--pixel-border);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Pixel Button Variants */
+.pixel-button-secondary {
+  background: var(--pixel-secondary);
+  box-shadow:
+    4px 4px 0 0 var(--pixel-shadow),
+    inset -2px -2px 0 0 var(--pixel-secondary-dark),
+    inset 2px 2px 0 0 var(--pixel-secondary-light);
+}
+
+.pixel-button-outline {
+  background: transparent;
+  border-color: var(--pixel-primary);
+  color: var(--pixel-primary);
+}
+
+/* Pixel Card */
+.pixel-card {
+  background: var(--pixel-bg-medium);
+  border: 4px solid var(--pixel-border);
+  padding: 16px;
+  box-shadow:
+    8px 8px 0 0 var(--pixel-shadow),
+    inset -4px -4px 0 0 rgba(0,0,0,0.3),
+    inset 4px 4px 0 0 rgba(255,255,255,0.05);
+}
+
+.pixel-card-header {
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--pixel-border);
+  margin-bottom: 12px;
+  color: var(--pixel-text);
+}
+
+/* Pixel Input */
+.pixel-input {
+  font-family: var(--font-pixel-body);
+  font-size: 16px;
+  padding: 12px 16px;
+  background: var(--pixel-bg-dark);
+  color: var(--pixel-text);
+  border: 4px solid var(--pixel-border);
+  box-shadow: inset 4px 4px 0 0 rgba(0,0,0,0.5);
+  outline: none;
+}
+
+.pixel-input:focus {
+  border-color: var(--pixel-primary);
+}
+
+.pixel-input::placeholder {
+  color: var(--pixel-text-muted);
+}
+
+/* Pixel Progress Bar */
+.pixel-progress {
+  width: 100%;
+  height: 24px;
+  background: var(--pixel-bg-dark);
+  border: 4px solid var(--pixel-border);
+  overflow: hidden;
+}
+
+.pixel-progress-bar {
+  height: 100%;
+  background: var(--pixel-success);
+  transition: width 0.3s steps(10);
+}
+
+/* Pixel Badge */
+.pixel-badge {
+  font-family: var(--font-pixel);
+  font-size: 8px;
+  padding: 4px 8px;
+  background: var(--pixel-primary);
+  color: var(--pixel-text-dark);
+  border: 2px solid var(--pixel-shadow);
+  text-transform: uppercase;
+}
+
+/* ========================================
+   BABY AVATAR STYLES
+   ======================================== */
+
+.baby-avatar {
+  width: 64px;
+  height: 64px;
+  image-rendering: pixelated;
+}
+
+.baby-avatar-sm { width: 32px; height: 32px; }
+.baby-avatar-lg { width: 128px; height: 128px; }
+
+/* Baby States */
+.baby-sleeping { filter: hue-rotate(240deg) brightness(0.8); }
+.baby-hungry { animation: pixel-shake 0.5s ease-in-out infinite; }
+.baby-happy { animation: pixel-float 1s ease-in-out infinite; }
+.baby-learning { filter: brightness(1.2); }
+.baby-evolving {
+  animation: pixel-pulse 0.5s ease-in-out infinite;
+  filter: brightness(1.3) saturate(1.2);
+}
+
+/* ========================================
+   MINING UI STYLES
+   ======================================== */
+
+.mining-indicator {
+  width: 16px;
+  height: 16px;
+  border-radius: 0;
+  background: var(--mining-idle);
+}
+
+.mining-indicator.active {
+  background: var(--mining-active);
+  animation: pixel-pulse 1s ease-in-out infinite;
+}
+
+.hashrate-display {
+  font-family: var(--font-pixel-mono);
+  font-size: 32px;
+  color: var(--pixel-success);
+  text-shadow: 2px 2px 0 var(--pixel-shadow);
+}

@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build
+dist/
+build/
+.next/
+out/
+
+# Turbo
+.turbo/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+
+# Capacitor
+apps/native/ios/App/Pods/
+apps/native/android/.gradle/
+apps/native/android/app/build/
+*.apk
+*.ipa
+
+# Claude local files
+.claude/CLAUDE.local.md
+.claude/settings.local.json
