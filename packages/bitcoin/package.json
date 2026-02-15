@@ -12,13 +12,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "bitcoinjs-lib": "^6.1.0",
+    "@noble/secp256k1": "^3.0.0",
+    "bip32": "^4.0.0",
     "bip39": "^3.1.0",
-    "bip32": "^4.0.0"
+    "bitcoinjs-lib": "^6.1.7",
+    "bs58check": "^4.0.0",
+    "ecpair": "^3.0.1",
+    "tiny-secp256k1": "^2.2.4"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
+    "@bitcoinbaby/config": "workspace:*",
     "@types/node": "^20.0.0",
-    "@bitcoinbaby/config": "workspace:*"
+    "typescript": "^5.0.0"
   }
 }

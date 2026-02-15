@@ -173,12 +173,15 @@ export default function Home() {
           </div>
 
           <nav className="flex gap-2">
-            <button className="px-3 py-2 font-pixel text-[8px] text-pixel-text-muted hover:text-pixel-primary transition-colors">
+            <a href="/wallet" className="px-3 py-2 font-pixel text-[8px] text-pixel-text-muted hover:text-pixel-primary transition-colors">
               WALLET
-            </button>
-            <button className="px-3 py-2 font-pixel text-[8px] bg-pixel-primary text-pixel-text-dark border-2 border-black shadow-[2px_2px_0_0_#000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_#000] transition-all">
+            </a>
+            <a href="/characters" className="px-3 py-2 font-pixel text-[8px] text-pixel-text-muted hover:text-pixel-primary transition-colors">
+              CHARS
+            </a>
+            <a href="/wallet" className="px-3 py-2 font-pixel text-[8px] bg-pixel-primary text-pixel-text-dark border-2 border-black shadow-[2px_2px_0_0_#000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_#000] transition-all">
               CONNECT
-            </button>
+            </a>
           </nav>
         </div>
       </header>

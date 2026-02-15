@@ -19,7 +19,7 @@ interface SpellOperation {
   proof?: string;
 }
 
-interface CharmsConfig {
+export interface CharmsConfig {
   apiUrl: string;
   network: 'mainnet' | 'testnet';
 }

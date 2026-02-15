@@ -9,7 +9,7 @@
  * Documentacion: https://docs.charms.dev/scrolls
  */
 
-interface ScrollsConfig {
+export interface ScrollsConfig {
   apiUrl: string;
   network: 'mainnet' | 'testnet';
 }
