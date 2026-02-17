@@ -10,23 +10,23 @@
  * Based on Charms wallet patterns with improvements.
  */
 
-import * as bip39 from 'bip39';
-import { BIP32Factory } from 'bip32';
-import * as ecc from 'tiny-secp256k1';
-import * as bitcoin from 'bitcoinjs-lib';
+import * as bip39 from "bip39";
+import { BIP32Factory } from "bip32";
+import * as ecc from "tiny-secp256k1";
+import * as bitcoin from "bitcoinjs-lib";
 import type {
   BitcoinNetwork,
   WalletInfo,
   InternalWallet,
   WalletOptions,
   WalletBalance,
-} from './types';
+} from "./types";
 import {
   InvalidMnemonicError,
   WalletNotFoundError,
   InvalidAddressError,
-} from './errors';
-import { secureErase, bytesToHex } from './crypto';
+} from "./errors";
+import { secureErase, bytesToHex } from "./crypto";
 
 // Initialize BIP32 with secp256k1
 const bip32 = BIP32Factory(ecc);
@@ -67,7 +67,7 @@ export class BitcoinWallet {
   private readonly networkConfig: bitcoin.Network;
 
   constructor(options: WalletOptions = {}) {
-    this.network = options.network ?? 'testnet';
+    this.network = options.network ?? "testnet";
     this.networkConfig = NETWORKS[this.network];
   }
 
@@ -85,54 +85,66 @@ export class BitcoinWallet {
    */
   async fromMnemonic(
     mnemonic: string,
-    options: { addressIndex?: number; addressType?: 'taproot' | 'segwit' | 'legacy' } = {}
+    options: {
+      addressIndex?: number;
+      addressType?: "taproot" | "segwit" | "legacy";
+    } = {},
   ): Promise<WalletInfo> {
     // Validate mnemonic
     if (!bip39.validateMnemonic(mnemonic)) {
-      throw new InvalidMnemonicError('Invalid BIP39 mnemonic phrase');
+      throw new InvalidMnemonicError("Invalid BIP39 mnemonic phrase");
     }
 
     const addressIndex = options.addressIndex ?? 0;
-    const addressType = options.addressType ?? 'taproot';
+    const addressType = options.addressType ?? "taproot";
 
     // Derive seed from mnemonic
     const seed = await bip39.mnemonicToSeed(mnemonic);
 
-    // Create HD wallet root
-    const root = bip32.fromSeed(Buffer.from(seed), this.networkConfig);
+    // SECURITY: Use try/finally to ensure seed is always zeroed
+    try {
+      // Create HD wallet root
+      // Note: Buffer.from(seed) creates a copy, so we zero both
+      const seedBuffer = Buffer.from(seed);
+      const root = bip32.fromSeed(seedBuffer, this.networkConfig);
 
-    // Get derivation path
-    const isTestnet = this.network !== 'mainnet';
-    const basePath = isTestnet
-      ? TESTNET_DERIVATION_PATHS[addressType]
-      : DERIVATION_PATHS[addressType];
-    const derivationPath = `${basePath}/${addressIndex}`;
+      // Get derivation path
+      const isTestnet = this.network !== "mainnet";
+      const basePath = isTestnet
+        ? TESTNET_DERIVATION_PATHS[addressType]
+        : DERIVATION_PATHS[addressType];
+      const derivationPath = `${basePath}/${addressIndex}`;
 
-    // Derive child key
-    const child = root.derivePath(derivationPath);
+      // Derive child key
+      const child = root.derivePath(derivationPath);
 
-    if (!child.privateKey) {
-      throw new Error('Failed to derive private key');
+      if (!child.privateKey) {
+        throw new Error("Failed to derive private key");
+      }
+
+      // Generate address based on type
+      const { address, publicKey } = this.generateAddress(child, addressType);
+
+      // Store wallet internally
+      this.wallet = {
+        address,
+        publicKey,
+        network: this.network,
+        derivationPath,
+        addressType,
+        privateKey: new Uint8Array(child.privateKey),
+        mnemonic,
+      };
+
+      // SECURITY: Zero the seed buffer copy used by bip32
+      seedBuffer.fill(0);
+
+      return this.getInfo();
+    } finally {
+      // SECURITY: Zero the original seed from bip39
+      // Note: While JS engines may have copies, this reduces exposure window
+      seed.fill(0);
     }
-
-    // Generate address based on type
-    const { address, publicKey } = this.generateAddress(child, addressType);
-
-    // Store wallet internally
-    this.wallet = {
-      address,
-      publicKey,
-      network: this.network,
-      derivationPath,
-      addressType,
-      privateKey: new Uint8Array(child.privateKey),
-      mnemonic,
-    };
-
-    // Clear sensitive data from BIP32 objects
-    // (The library doesn't expose a clear method, but we minimize exposure)
-
-    return this.getInfo();
   }
 
   /**
@@ -140,16 +152,16 @@ export class BitcoinWallet {
    */
   private generateAddress(
     node: ReturnType<typeof bip32.fromSeed>,
-    addressType: 'taproot' | 'segwit' | 'legacy'
+    addressType: "taproot" | "segwit" | "legacy",
   ): { address: string; publicKey: string } {
     if (!node.publicKey) {
-      throw new Error('No public key available');
+      throw new Error("No public key available");
     }
 
     let address: string;
 
     switch (addressType) {
-      case 'taproot': {
+      case "taproot": {
         // Taproot (P2TR) - BIP86
         // Use x-only public key (32 bytes, no prefix)
         const xOnlyPubKey = node.publicKey.slice(1, 33);
@@ -161,7 +173,7 @@ export class BitcoinWallet {
         break;
       }
 
-      case 'segwit': {
+      case "segwit": {
         // Native SegWit (P2WPKH)
         const p2wpkh = bitcoin.payments.p2wpkh({
           pubkey: Buffer.from(node.publicKey),
@@ -171,7 +183,7 @@ export class BitcoinWallet {
         break;
       }
 
-      case 'legacy': {
+      case "legacy": {
         // Legacy (P2PKH)
         const p2pkh = bitcoin.payments.p2pkh({
           pubkey: Buffer.from(node.publicKey),
@@ -242,17 +254,131 @@ export class BitcoinWallet {
     }
 
     // Use bitcoinjs-lib message signing
-    const messageBuffer = Buffer.from(message, 'utf8');
+    const messageBuffer = Buffer.from(message, "utf8");
     const privateKey = Buffer.from(this.wallet.privateKey);
 
     // For now, return a placeholder - full implementation would use
     // bitcoin-message library for BIP-322 signed messages
     const signature = ecc.sign(
-      Buffer.from(await crypto.subtle.digest('SHA-256', messageBuffer)),
-      privateKey
+      Buffer.from(await crypto.subtle.digest("SHA-256", messageBuffer)),
+      privateKey,
     );
 
-    return Buffer.from(signature).toString('base64');
+    return Buffer.from(signature).toString("base64");
+  }
+
+  /**
+   * Sign a PSBT (Partially Signed Bitcoin Transaction)
+   *
+   * @param psbt - The PSBT to sign
+   * @param inputIndices - Optional specific inputs to sign (default: all)
+   * @returns The signed PSBT
+   */
+  signPSBT(psbt: bitcoin.Psbt, inputIndices?: number[]): bitcoin.Psbt {
+    if (!this.wallet) {
+      throw new WalletNotFoundError();
+    }
+
+    const { signer, cleanup } = this.createTweakedSigner();
+    const indicesToSign = inputIndices ?? psbt.data.inputs.map((_, i) => i);
+
+    try {
+      for (const index of indicesToSign) {
+        psbt.signInput(index, signer);
+      }
+      return psbt;
+    } finally {
+      // SECURITY: Zero the tweaked private key after signing
+      cleanup();
+    }
+  }
+
+  /**
+   * Sign and finalize a PSBT, returning the raw transaction hex
+   */
+  signAndFinalizePSBT(psbt: bitcoin.Psbt): { hex: string; txid: string } {
+    if (!this.wallet) {
+      throw new WalletNotFoundError();
+    }
+
+    // Sign all inputs
+    this.signPSBT(psbt);
+
+    // Finalize
+    psbt.finalizeAllInputs();
+
+    // Extract transaction
+    const tx = psbt.extractTransaction();
+
+    return {
+      hex: tx.toHex(),
+      txid: tx.getId(),
+    };
+  }
+
+  /**
+   * Get private key for signing (USE WITH EXTREME CAUTION)
+   * The returned Uint8Array should be cleared after use
+   */
+  getPrivateKeyForSigning(): Uint8Array {
+    if (!this.wallet) {
+      throw new WalletNotFoundError();
+    }
+
+    // Return a copy to allow caller to clear it
+    return new Uint8Array(this.wallet.privateKey);
+  }
+
+  /**
+   * Create a tweaked signer for Taproot transactions
+   *
+   * SECURITY: Returns both signer and cleanup function.
+   * Caller MUST call cleanup() after signing is complete to zero the tweaked key.
+   */
+  private createTweakedSigner(): {
+    signer: bitcoin.Signer;
+    cleanup: () => void;
+  } {
+    if (!this.wallet) {
+      throw new WalletNotFoundError();
+    }
+
+    const privateKey = this.wallet.privateKey;
+
+    // Get public key
+    const publicKey = ecc.pointFromScalar(privateKey);
+    if (!publicKey) {
+      throw new Error("Invalid private key");
+    }
+
+    // Tweak private key for Taproot (BIP86)
+    const xOnlyPubKey = publicKey.slice(1, 33);
+    const tweakHash = bitcoin.crypto.taggedHash(
+      "TapTweak",
+      Buffer.from(xOnlyPubKey),
+    );
+    const tweakedPrivateKey = ecc.privateAdd(privateKey, tweakHash);
+
+    if (!tweakedPrivateKey) {
+      throw new Error("Failed to tweak private key");
+    }
+
+    // SECURITY: Store as Uint8Array so we can zero it later
+    const tweakedKeyArray = new Uint8Array(tweakedPrivateKey);
+
+    return {
+      signer: {
+        publicKey: Buffer.from(publicKey),
+        sign: (hash: Buffer): Buffer => {
+          const signature = ecc.signSchnorr(hash, tweakedKeyArray);
+          return Buffer.from(signature);
+        },
+      },
+      // SECURITY: Cleanup function to zero the tweaked key
+      cleanup: () => {
+        tweakedKeyArray.fill(0);
+      },
+    };
   }
 
   /**
@@ -264,7 +390,7 @@ export class BitcoinWallet {
       // Clear mnemonic string (can't truly erase strings in JS)
       if (this.wallet.mnemonic) {
         // Replace with garbage
-        (this.wallet as any).mnemonic = 'x'.repeat(this.wallet.mnemonic.length);
+        (this.wallet as any).mnemonic = "x".repeat(this.wallet.mnemonic.length);
       }
       this.wallet = null;
     }
@@ -275,35 +401,28 @@ export class BitcoinWallet {
 // Static utility functions
 // ============================================
 
-/**
- * Validate a Bitcoin address
- */
-export function validateAddress(address: string, network: BitcoinNetwork = 'testnet'): boolean {
-  try {
-    bitcoin.address.toOutputScript(address, NETWORKS[network]);
-    return true;
-  } catch {
-    return false;
-  }
-}
+// NOTE: validateAddress was removed - use the canonical version from validation.ts
+// which provides richer error information: { valid: boolean, error?: string }
 
 /**
  * Get address type from address string
  */
-export function getAddressType(address: string): 'taproot' | 'segwit' | 'legacy' | 'unknown' {
+export function getAddressType(
+  address: string,
+): "taproot" | "segwit" | "legacy" | "unknown" {
   // Mainnet
-  if (address.startsWith('bc1p')) return 'taproot';
-  if (address.startsWith('bc1q')) return 'segwit';
-  if (address.startsWith('1')) return 'legacy';
-  if (address.startsWith('3')) return 'segwit'; // P2SH-wrapped
+  if (address.startsWith("bc1p")) return "taproot";
+  if (address.startsWith("bc1q")) return "segwit";
+  if (address.startsWith("1")) return "legacy";
+  if (address.startsWith("3")) return "segwit"; // P2SH-wrapped
 
   // Testnet
-  if (address.startsWith('tb1p')) return 'taproot';
-  if (address.startsWith('tb1q')) return 'segwit';
-  if (address.startsWith('m') || address.startsWith('n')) return 'legacy';
-  if (address.startsWith('2')) return 'segwit'; // P2SH-wrapped
+  if (address.startsWith("tb1p")) return "taproot";
+  if (address.startsWith("tb1q")) return "segwit";
+  if (address.startsWith("m") || address.startsWith("n")) return "legacy";
+  if (address.startsWith("2")) return "segwit"; // P2SH-wrapped
 
-  return 'unknown';
+  return "unknown";
 }
 
 /**
@@ -326,6 +445,72 @@ export function satsToBtc(sats: number): string {
  */
 export function btcToSats(btc: number): number {
   return Math.round(btc * 100_000_000);
+}
+
+// ============================================
+// Mnemonic utilities
+// ============================================
+
+/**
+ * Generate mnemonic from custom entropy
+ *
+ * SECURITY: User-provided entropy is XOR'd with system CSPRNG to ensure
+ * the resulting mnemonic has at least as much entropy as the CSPRNG,
+ * even if the user entropy is weak (e.g., minimal mouse movement).
+ *
+ * @param userEntropy - 16 bytes (128 bits) for 12 words, 32 bytes (256 bits) for 24 words
+ * @returns BIP39 mnemonic phrase
+ */
+export function generateMnemonicFromEntropy(userEntropy: Uint8Array): string {
+  // Validate entropy length
+  if (userEntropy.length !== 16 && userEntropy.length !== 32) {
+    throw new Error(
+      "Invalid entropy length. Must be 16 bytes (12 words) or 32 bytes (24 words)",
+    );
+  }
+
+  // SECURITY: Generate CSPRNG entropy of the same length
+  const csprngEntropy = new Uint8Array(userEntropy.length);
+  crypto.getRandomValues(csprngEntropy);
+
+  // SECURITY: XOR user entropy with CSPRNG entropy
+  // This ensures the result has at least as much entropy as CSPRNG
+  // even if user entropy is weak or predictable
+  const combinedEntropy = new Uint8Array(userEntropy.length);
+  for (let i = 0; i < userEntropy.length; i++) {
+    combinedEntropy[i] = userEntropy[i] ^ csprngEntropy[i];
+  }
+
+  // Convert to Buffer for bip39 compatibility
+  const entropyBuffer = Buffer.from(combinedEntropy);
+
+  // Generate mnemonic from combined entropy
+  const mnemonic = bip39.entropyToMnemonic(entropyBuffer);
+
+  // SECURITY: Zero out entropy arrays
+  csprngEntropy.fill(0);
+  combinedEntropy.fill(0);
+  entropyBuffer.fill(0);
+
+  return mnemonic;
+}
+
+/**
+ * Validate a BIP39 mnemonic phrase
+ */
+export function validateMnemonic(mnemonic: string): boolean {
+  return bip39.validateMnemonic(mnemonic);
+}
+
+/**
+ * Generate a random mnemonic (using system CSPRNG)
+ *
+ * @param wordCount - 12 or 24 words
+ * @returns BIP39 mnemonic phrase
+ */
+export function generateRandomMnemonic(wordCount: 12 | 24 = 12): string {
+  const strength = wordCount === 24 ? 256 : 128;
+  return bip39.generateMnemonic(strength);
 }
 
 // Legacy exports for compatibility
