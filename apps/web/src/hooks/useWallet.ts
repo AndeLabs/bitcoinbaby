@@ -1,0 +1,536 @@
+"use client";
+
+/**
+ * useWallet Hook
+ *
+ * Comprehensive wallet management hook that integrates:
+ * - BitcoinWallet for HD wallet operations
+ * - SecureStorage for encrypted mnemonic storage
+ * - NetworkStore for testnet4/mainnet switching
+ * - Balance tracking via useBalance
+ *
+ * Follows security best practices for Bitcoin wallet handling.
+ */
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  BitcoinWallet,
+  type WalletInfo as BitcoinWalletInfo,
+  type BitcoinNetwork,
+} from "@bitcoinbaby/bitcoin";
+import {
+  SecureStorage,
+  useNetworkStore,
+  useWalletStore,
+  type WalletMetadata,
+  type WalletInfo as CoreWalletInfo,
+} from "@bitcoinbaby/core";
+
+// Re-export BitcoinWalletInfo as the public WalletInfo type
+type WalletInfo = BitcoinWalletInfo;
+
+/**
+ * Convert bitcoin WalletInfo to core WalletInfo for store
+ */
+function toStoreWalletInfo(info: BitcoinWalletInfo): CoreWalletInfo {
+  return {
+    address: info.address,
+    publicKey: info.publicKey,
+    balance: BigInt(0), // Will be updated by useBalance
+    babyTokens: BigInt(0), // Will be updated by useTokenBalance
+  };
+}
+
+/**
+ * Wallet state
+ */
+interface WalletState {
+  /** Wallet public info */
+  wallet: WalletInfo | null;
+  /** Whether wallet is loaded */
+  isLoaded: boolean;
+  /** Whether a wallet exists in storage */
+  hasStoredWallet: boolean;
+  /** Wallet metadata from secure storage */
+  metadata: WalletMetadata | null;
+  /** Loading state */
+  isLoading: boolean;
+  /** Error message */
+  error: string | null;
+  /** Whether wallet is locked (needs password) */
+  isLocked: boolean;
+}
+
+/**
+ * Wallet actions
+ */
+interface WalletActions {
+  /** Create a new wallet (optionally with pre-generated mnemonic from entropy) */
+  createWallet: (
+    password: string,
+    wordCount?: 12 | 24,
+    preGeneratedMnemonic?: string,
+  ) => Promise<string>;
+  /** Import wallet from mnemonic */
+  importWallet: (mnemonic: string, password: string) => Promise<void>;
+  /** Unlock wallet with password */
+  unlock: (password: string) => Promise<void>;
+  /** Lock wallet (clear from memory) */
+  lock: () => void;
+  /** Delete wallet from storage */
+  deleteWallet: () => Promise<void>;
+  /** Change wallet password */
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<void>;
+  /** Get private key for signing (USE WITH CAUTION) */
+  getPrivateKeyForSigning: () => Uint8Array | null;
+  /** Sign a PSBT */
+  signPSBT: (psbtBase64: string) => Promise<string>;
+  /** Export backup */
+  exportBackup: () => Promise<string | null>;
+  /** Import backup */
+  importBackup: (backup: string, password: string) => Promise<void>;
+  /** Refresh wallet state */
+  refresh: () => Promise<void>;
+}
+
+type UseWalletReturn = WalletState & WalletActions;
+
+/**
+ * Map network store type to bitcoin package type
+ */
+function mapNetwork(network: "mainnet" | "testnet4"): BitcoinNetwork {
+  return network;
+}
+
+/**
+ * useWallet Hook
+ *
+ * @example
+ * ```tsx
+ * const {
+ *   wallet,
+ *   isLoaded,
+ *   isLocked,
+ *   createWallet,
+ *   unlock,
+ *   lock,
+ * } = useWallet();
+ *
+ * // Create new wallet
+ * const mnemonic = await createWallet('myPassword123');
+ *
+ * // Unlock existing wallet
+ * await unlock('myPassword123');
+ *
+ * // Lock wallet when done
+ * lock();
+ * ```
+ */
+export function useWallet(): UseWalletReturn {
+  // Network configuration
+  const { network } = useNetworkStore();
+  const { setWallet: setStoreWallet, disconnect: disconnectStore } =
+    useWalletStore();
+
+  // Internal wallet instance
+  const walletRef = useRef<BitcoinWallet | null>(null);
+
+  // State
+  const [state, setState] = useState<WalletState>({
+    wallet: null,
+    isLoaded: false,
+    hasStoredWallet: false,
+    metadata: null,
+    isLoading: true,
+    error: null,
+    isLocked: true,
+  });
+
+  /**
+   * Initialize - check for stored wallet
+   */
+  useEffect(() => {
+    async function init() {
+      try {
+        const metadata = await SecureStorage.getMetadata();
+
+        setState((prev) => ({
+          ...prev,
+          hasStoredWallet: metadata.exists,
+          metadata,
+          isLoading: false,
+          isLocked: true,
+        }));
+      } catch (error) {
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+          error:
+            error instanceof Error ? error.message : "Failed to initialize",
+        }));
+      }
+    }
+
+    init();
+  }, []);
+
+  /**
+   * Handle network changes - re-derive address if unlocked
+   */
+  useEffect(() => {
+    if (walletRef.current && state.isLoaded && !state.isLocked) {
+      // Network changed while unlocked - need to re-derive
+      // For now, just lock the wallet to force re-unlock with new network
+      lock();
+    }
+    // Intentionally only depends on network:
+    // - state.isLoaded/isLocked are guards, not triggers
+    // - lock is stable (only depends on disconnectStore)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [network]);
+
+  /**
+   * Create a new wallet
+   * @param password - Password for encryption
+   * @param wordCount - Number of mnemonic words (12 or 24)
+   * @param preGeneratedMnemonic - Optional pre-generated mnemonic from entropy collection
+   */
+  const createWallet = useCallback(
+    async (
+      password: string,
+      wordCount: 12 | 24 = 12,
+      preGeneratedMnemonic?: string,
+    ): Promise<string> => {
+      setState((prev) => ({ ...prev, isLoading: true, error: null }));
+
+      try {
+        // Create wallet instance for current network
+        const wallet = new BitcoinWallet({ network: mapNetwork(network) });
+
+        // Use pre-generated mnemonic if provided, otherwise generate new one
+        let info;
+        let mnemonic: string;
+
+        if (preGeneratedMnemonic) {
+          info = await wallet.fromMnemonic(preGeneratedMnemonic);
+          mnemonic = preGeneratedMnemonic;
+        } else {
+          info = await wallet.generate(wordCount);
+          mnemonic = wallet.getMnemonic();
+        }
+
+        // Store encrypted mnemonic
+        await SecureStorage.storeMnemonic(mnemonic, password, network);
+
+        // Update refs and state
+        walletRef.current = wallet;
+
+        const metadata = await SecureStorage.getMetadata();
+
+        setState({
+          wallet: info,
+          isLoaded: true,
+          hasStoredWallet: true,
+          metadata,
+          isLoading: false,
+          error: null,
+          isLocked: false,
+        });
+
+        // Update global store
+        setStoreWallet(toStoreWalletInfo(info));
+
+        // Return mnemonic for user to backup
+        return mnemonic;
+      } catch (error) {
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+          error:
+            error instanceof Error ? error.message : "Failed to create wallet",
+        }));
+        throw error;
+      }
+    },
+    [network, setStoreWallet],
+  );
+
+  /**
+   * Import wallet from mnemonic
+   */
+  const importWallet = useCallback(
+    async (mnemonic: string, password: string): Promise<void> => {
+      setState((prev) => ({ ...prev, isLoading: true, error: null }));
+
+      try {
+        // Create wallet instance and import
+        const wallet = new BitcoinWallet({ network: mapNetwork(network) });
+        const info = await wallet.fromMnemonic(mnemonic);
+
+        // Store encrypted mnemonic
+        await SecureStorage.storeMnemonic(mnemonic, password, network);
+
+        // Update refs and state
+        walletRef.current = wallet;
+
+        const metadata = await SecureStorage.getMetadata();
+
+        setState({
+          wallet: info,
+          isLoaded: true,
+          hasStoredWallet: true,
+          metadata,
+          isLoading: false,
+          error: null,
+          isLocked: false,
+        });
+
+        // Update global store
+        setStoreWallet(toStoreWalletInfo(info));
+      } catch (error) {
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+          error:
+            error instanceof Error ? error.message : "Failed to import wallet",
+        }));
+        throw error;
+      }
+    },
+    [network, setStoreWallet],
+  );
+
+  /**
+   * Unlock wallet with password
+   */
+  const unlock = useCallback(
+    async (password: string): Promise<void> => {
+      setState((prev) => ({ ...prev, isLoading: true, error: null }));
+
+      try {
+        // Get mnemonic from secure storage
+        const mnemonic = await SecureStorage.getMnemonic(password);
+
+        // Create wallet instance
+        const wallet = new BitcoinWallet({ network: mapNetwork(network) });
+        const info = await wallet.fromMnemonic(mnemonic);
+
+        // Update refs and state
+        walletRef.current = wallet;
+
+        setState((prev) => ({
+          ...prev,
+          wallet: info,
+          isLoaded: true,
+          isLoading: false,
+          error: null,
+          isLocked: false,
+        }));
+
+        // Update global store
+        setStoreWallet(toStoreWalletInfo(info));
+      } catch (error) {
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+          error:
+            error instanceof Error ? error.message : "Failed to unlock wallet",
+        }));
+        throw error;
+      }
+    },
+    [network, setStoreWallet],
+  );
+
+  /**
+   * Lock wallet (clear from memory)
+   */
+  const lock = useCallback((): void => {
+    // Clear wallet instance
+    if (walletRef.current) {
+      walletRef.current.clear();
+      walletRef.current = null;
+    }
+
+    setState((prev) => ({
+      ...prev,
+      wallet: null,
+      isLoaded: false,
+      isLocked: true,
+    }));
+
+    // Update global store
+    disconnectStore();
+  }, [disconnectStore]);
+
+  /**
+   * Delete wallet from storage
+   */
+  const deleteWallet = useCallback(async (): Promise<void> => {
+    // First lock the wallet
+    lock();
+
+    // Clear secure storage
+    await SecureStorage.clear();
+
+    setState({
+      wallet: null,
+      isLoaded: false,
+      hasStoredWallet: false,
+      metadata: null,
+      isLoading: false,
+      error: null,
+      isLocked: true,
+    });
+  }, [lock]);
+
+  /**
+   * Change wallet password
+   */
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string): Promise<void> => {
+      setState((prev) => ({ ...prev, isLoading: true, error: null }));
+
+      try {
+        await SecureStorage.changePassword(currentPassword, newPassword);
+
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+        }));
+      } catch (error) {
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to change password",
+        }));
+        throw error;
+      }
+    },
+    [],
+  );
+
+  /**
+   * Get private key for signing (USE WITH CAUTION)
+   * Caller is responsible for clearing the key after use
+   */
+  const getPrivateKeyForSigning = useCallback((): Uint8Array | null => {
+    if (!walletRef.current || state.isLocked) {
+      return null;
+    }
+
+    try {
+      return walletRef.current.getPrivateKeyForSigning();
+    } catch {
+      return null;
+    }
+  }, [state.isLocked]);
+
+  /**
+   * Sign a PSBT (Partially Signed Bitcoin Transaction)
+   */
+  const signPSBT = useCallback(
+    async (psbtBase64: string): Promise<string> => {
+      if (!walletRef.current || state.isLocked) {
+        throw new Error("Wallet is locked");
+      }
+
+      try {
+        // Import PSBT from base64
+        const { Psbt } = await import("@bitcoinbaby/bitcoin");
+        const psbt = Psbt.fromBase64(psbtBase64);
+
+        // Sign with wallet
+        const signedPsbt = walletRef.current.signPSBT(psbt);
+
+        return signedPsbt.toBase64();
+      } catch (error) {
+        throw new Error(
+          `Failed to sign PSBT: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
+      }
+    },
+    [state.isLocked],
+  );
+
+  /**
+   * Export encrypted backup
+   */
+  const exportBackup = useCallback(async (): Promise<string | null> => {
+    return SecureStorage.exportBackup();
+  }, []);
+
+  /**
+   * Import encrypted backup
+   */
+  const importBackup = useCallback(
+    async (backup: string, password: string): Promise<void> => {
+      setState((prev) => ({ ...prev, isLoading: true, error: null }));
+
+      try {
+        await SecureStorage.importBackup(backup, password);
+
+        const metadata = await SecureStorage.getMetadata();
+
+        setState((prev) => ({
+          ...prev,
+          hasStoredWallet: true,
+          metadata,
+          isLoading: false,
+        }));
+      } catch (error) {
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+          error:
+            error instanceof Error ? error.message : "Failed to import backup",
+        }));
+        throw error;
+      }
+    },
+    [],
+  );
+
+  /**
+   * Refresh wallet state
+   */
+  const refresh = useCallback(async (): Promise<void> => {
+    try {
+      const metadata = await SecureStorage.getMetadata();
+
+      setState((prev) => ({
+        ...prev,
+        hasStoredWallet: metadata.exists,
+        metadata,
+      }));
+    } catch (error) {
+      setState((prev) => ({
+        ...prev,
+        error: error instanceof Error ? error.message : "Failed to refresh",
+      }));
+    }
+  }, []);
+
+  return {
+    ...state,
+    createWallet,
+    importWallet,
+    unlock,
+    lock,
+    deleteWallet,
+    changePassword,
+    getPrivateKeyForSigning,
+    signPSBT,
+    exportBackup,
+    importBackup,
+    refresh,
+  };
+}
+
+export type { WalletState, WalletActions, UseWalletReturn };

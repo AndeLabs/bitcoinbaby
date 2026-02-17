@@ -1,45 +1,45 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
+/**
+ * Wallet Page
+ *
+ * Complete wallet management with:
+ * - Secure HD wallet generation with entropy collection
+ * - Encrypted mnemonic storage (IndexedDB + AES-256-GCM)
+ * - Network switching (testnet4/mainnet)
+ * - Recovery phrase backup and verification
+ * - Real-time balance tracking
+ */
 
-// Types for wallet
-interface WalletInfo {
-  address: string;
-  publicKey: string;
-  network: string;
-  addressType: string;
-}
+import { useState, useCallback } from "react";
+import {
+  useWallet,
+  useBalance,
+  useTokenBalance,
+  formatTokenBalance,
+} from "@/hooks";
+import {
+  NetworkSwitcher,
+  NetworkBadge,
+  WalletOnboarding,
+  Card,
+  Button,
+  QRCode,
+} from "@bitcoinbaby/ui";
+import {
+  useNetworkStore,
+  useTokenBalance as useCharmsTokenBalance,
+  useMiningBoost,
+  MIN_PASSWORD_LENGTH,
+} from "@bitcoinbaby/core";
+import {
+  generateMnemonicFromEntropy,
+  validateMnemonic,
+} from "@bitcoinbaby/bitcoin";
 
-// QR Code component (simple SVG-based)
-function QRCode({ data, size = 200 }: { data: string; size?: number }) {
-  // Simple placeholder QR - in production use qrcode library
-  // For now, show a styled placeholder that indicates it's a QR
-  return (
-    <div
-      className="bg-white p-4 border-4 border-black"
-      style={{ width: size, height: size }}
-    >
-      <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-        {/* QR Pattern Simulation */}
-        <div className="grid grid-cols-7 gap-0.5">
-          {Array.from({ length: 49 }).map((_, i) => {
-            // Create a pattern based on address hash
-            const isBlack = (i + data.charCodeAt(i % data.length)) % 3 !== 0;
-            return (
-              <div
-                key={i}
-                className={`w-3 h-3 ${isBlack ? 'bg-black' : 'bg-white'}`}
-              />
-            );
-          })}
-        </div>
-        <p className="font-pixel-mono text-[8px] text-gray-500 mt-2 text-center break-all px-2">
-          {data.substring(0, 20)}...
-        </p>
-      </div>
-    </div>
-  );
-}
+// Placeholder App IDs for Charms protocol (replace with actual values in production)
+const BABTC_APP_ID = "babtc_placeholder_app_id";
+const NFT_APP_ID = "genesis_babies_placeholder_app_id";
 
 // Copy button component
 function CopyButton({ text, label }: { text: string; label: string }) {
@@ -51,7 +51,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy:', err);
+      console.error("Failed to copy:", err);
     }
   };
 
@@ -60,64 +60,197 @@ function CopyButton({ text, label }: { text: string; label: string }) {
       onClick={copy}
       className={`px-3 py-1 font-pixel text-[8px] border-2 border-black transition-all ${
         copied
-          ? 'bg-pixel-success text-black'
-          : 'bg-pixel-bg-dark text-pixel-text hover:bg-pixel-primary hover:text-black'
+          ? "bg-pixel-success text-black"
+          : "bg-pixel-bg-dark text-pixel-text hover:bg-pixel-primary hover:text-black"
       }`}
     >
-      {copied ? 'COPIED!' : label}
+      {copied ? "COPIED!" : label}
     </button>
   );
 }
 
-export default function WalletPage() {
-  const [wallet, setWallet] = useState<WalletInfo | null>(null);
-  const [mnemonic, setMnemonic] = useState<string | null>(null);
-  const [showMnemonic, setShowMnemonic] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [balance, setBalance] = useState({ btc: 0, baby: BigInt(0) });
+// Password modal for unlock
+function UnlockModal({
+  onSubmit,
+  onCancel,
+  isLoading,
+  error,
+}: {
+  onSubmit: (password: string) => void;
+  onCancel: () => void;
+  isLoading: boolean;
+  error: string | null;
+}) {
+  const [password, setPassword] = useState("");
 
-  // Generate new wallet
-  const generateWallet = useCallback(async () => {
-    setIsGenerating(true);
-
-    try {
-      // Dynamic import to avoid SSR issues
-      const { BitcoinWallet } = await import('@bitcoinbaby/bitcoin');
-
-      const btcWallet = new BitcoinWallet({ network: 'testnet' });
-      const info = await btcWallet.generate(12);
-
-      setWallet(info);
-      setMnemonic(btcWallet.getMnemonic());
-
-      // Save to localStorage (in production use secure storage)
-      localStorage.setItem('wallet_address', info.address);
-    } catch (error) {
-      console.error('Failed to generate wallet:', error);
-      alert('Failed to generate wallet. Check console for details.');
-    } finally {
-      setIsGenerating(false);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password.length >= 8) {
+      onSubmit(password);
     }
-  }, []);
-
-  // Load existing wallet from localStorage
-  useEffect(() => {
-    const savedAddress = localStorage.getItem('wallet_address');
-    if (savedAddress) {
-      setWallet({
-        address: savedAddress,
-        publicKey: '',
-        network: 'testnet',
-        addressType: 'taproot',
-      });
-    }
-  }, []);
-
-  // Format address for display
-  const formatAddress = (addr: string) => {
-    if (addr.length <= 20) return addr;
-    return `${addr.slice(0, 10)}...${addr.slice(-10)}`;
   };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+      <div className="bg-pixel-bg-dark border-4 border-black p-6 shadow-[8px_8px_0_0_#000] max-w-sm mx-4">
+        <h3 className="font-pixel text-pixel-primary text-sm mb-4">
+          UNLOCK WALLET
+        </h3>
+
+        <form onSubmit={handleSubmit}>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter your password"
+            className="w-full px-3 py-2 mb-4 font-pixel text-xs bg-pixel-bg-light border-2 border-black text-pixel-text"
+            autoFocus
+          />
+
+          {error && (
+            <p className="font-pixel text-[8px] text-pixel-error mb-4">
+              {error}
+            </p>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={isLoading}
+              className="flex-1 px-4 py-2 font-pixel text-[10px] uppercase bg-pixel-bg-light text-pixel-text border-2 border-black hover:bg-pixel-bg-dark disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading || password.length < MIN_PASSWORD_LENGTH}
+              className="flex-1 px-4 py-2 font-pixel text-[10px] uppercase bg-pixel-success text-black border-2 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] disabled:opacity-50"
+            >
+              {isLoading ? "..." : "Unlock"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default function WalletPage() {
+  // Network store
+  const { network, switchNetwork, mainnetAllowed, setMainnetAllowed, config } =
+    useNetworkStore();
+
+  // Wallet hook
+  const {
+    wallet,
+    isLocked,
+    hasStoredWallet,
+    isLoading: walletLoading,
+    error: walletError,
+    createWallet,
+    importWallet,
+    unlock,
+    lock,
+    deleteWallet,
+  } = useWallet();
+
+  // Balance hooks
+  const {
+    btcBalance,
+    balance: addressBalance,
+    isLoading: balanceLoading,
+    refresh: refreshBalance,
+    lastUpdated,
+  } = useBalance({
+    address: wallet?.address,
+    network,
+    autoRefresh: !isLocked,
+    refreshInterval: 30000,
+  });
+
+  const { balance: babyBalance } = useTokenBalance({
+    address: wallet?.address,
+  });
+
+  // Charms hooks for BABTC token and mining boost
+  const {
+    formatted: babtcFormatted,
+    loading: babtcLoading,
+    error: babtcError,
+  } = useCharmsTokenBalance(wallet?.address ?? null, BABTC_APP_ID, {
+    autoRefresh: !isLocked,
+    refreshInterval: 60000,
+  });
+
+  const {
+    boost: miningBoost,
+    nftCount,
+    loading: boostLoading,
+  } = useMiningBoost(wallet?.address ?? null, NFT_APP_ID, {
+    autoRefresh: !isLocked,
+    refreshInterval: 120000,
+  });
+
+  // UI State
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+
+  // Generate mnemonic from entropy (used by WalletOnboarding)
+  const handleGenerateMnemonic = useCallback((entropy: Uint8Array): string => {
+    // Use first 16 bytes for 12-word mnemonic
+    const entropySlice = entropy.slice(0, 16);
+    return generateMnemonicFromEntropy(entropySlice);
+  }, []);
+
+  // Wallet created handler
+  const handleWalletCreated = useCallback(
+    async (mnemonic: string, password: string) => {
+      await createWallet(password, 12, mnemonic);
+    },
+    [createWallet],
+  );
+
+  // Wallet imported handler
+  const handleWalletImported = useCallback(
+    async (mnemonic: string, password: string) => {
+      await importWallet(mnemonic, password);
+    },
+    [importWallet],
+  );
+
+  // Unlock wallet handler
+  const handleUnlock = useCallback(
+    async (password: string) => {
+      setUnlockError(null);
+      try {
+        await unlock(password);
+        setShowUnlockModal(false);
+      } catch (err) {
+        setUnlockError(err instanceof Error ? err.message : "Failed to unlock");
+      }
+    },
+    [unlock],
+  );
+
+  // Delete wallet handler
+  const handleDelete = useCallback(async () => {
+    const confirmed = window.confirm(
+      "Are you ABSOLUTELY sure?\n\n" +
+        "This will permanently delete your wallet from this device.\n" +
+        "Make sure you have your 12-word recovery phrase saved!\n\n" +
+        "Without the recovery phrase, your Bitcoin will be LOST FOREVER.",
+    );
+
+    if (confirmed) {
+      const doubleConfirm = window.confirm(
+        "FINAL WARNING: Type 'DELETE' mentally and click OK to confirm deletion.",
+      );
+      if (doubleConfirm) {
+        await deleteWallet();
+      }
+    }
+  }, [deleteWallet]);
 
   return (
     <main className="min-h-screen p-4 md:p-8 bg-pixel-bg-dark">
@@ -126,49 +259,95 @@ export default function WalletPage() {
         <header className="mb-8">
           <div className="flex items-center justify-between">
             <h1 className="font-pixel text-xl text-pixel-primary">WALLET</h1>
-            <a
-              href="/"
-              className="font-pixel text-[8px] text-pixel-text-muted hover:text-pixel-primary"
-            >
-              ← BACK
-            </a>
+            <div className="flex items-center gap-4">
+              <NetworkSwitcher
+                network={network}
+                mainnetAllowed={mainnetAllowed}
+                onNetworkChange={switchNetwork}
+                onEnableMainnet={() => setMainnetAllowed(true)}
+              />
+              <a
+                href="/"
+                className="font-pixel text-[8px] text-pixel-text-muted hover:text-pixel-primary"
+              >
+                ← BACK
+              </a>
+            </div>
           </div>
           <p className="font-pixel-body text-sm text-pixel-text-muted mt-2">
-            Bitcoin Testnet Wallet - Taproot (P2TR)
+            Bitcoin {network === "mainnet" ? "Mainnet" : "Testnet4"} - Taproot
+            (P2TR/BIP86)
           </p>
         </header>
 
-        {/* Wallet Card */}
-        <div className="bg-pixel-bg-medium border-4 border-pixel-border p-6 shadow-[8px_8px_0_0_#000]">
-          {!wallet ? (
-            // No wallet - show generate button
+        {/* No wallet - Show onboarding */}
+        {!hasStoredWallet && (
+          <WalletOnboarding
+            onWalletCreated={handleWalletCreated}
+            onWalletImported={handleWalletImported}
+            generateMnemonic={handleGenerateMnemonic}
+            validateMnemonic={validateMnemonic}
+          />
+        )}
+
+        {/* Wallet exists but locked */}
+        {hasStoredWallet && isLocked && (
+          <div className="bg-pixel-bg-medium border-4 border-pixel-border p-6 shadow-[8px_8px_0_0_#000]">
             <div className="text-center py-12">
-              <div className="font-pixel text-4xl text-pixel-text-muted mb-6">?</div>
-              <p className="font-pixel-body text-pixel-text-muted mb-6">
-                No wallet found. Generate a new one to start.
+              <div className="w-20 h-20 mx-auto mb-6 flex items-center justify-center bg-pixel-error/20 border-4 border-pixel-error">
+                <span className="font-pixel text-3xl text-pixel-error">🔒</span>
+              </div>
+              <h2 className="font-pixel text-lg text-pixel-text mb-2">
+                WALLET LOCKED
+              </h2>
+              <p className="font-pixel-body text-sm text-pixel-text-muted mb-6">
+                Enter your password to access your wallet
               </p>
               <button
-                onClick={generateWallet}
-                disabled={isGenerating}
-                className={`px-6 py-3 font-pixel text-sm border-4 border-black shadow-[4px_4px_0_0_#000] transition-all
-                  ${isGenerating
-                    ? 'bg-pixel-border text-pixel-text-muted cursor-wait'
-                    : 'bg-pixel-primary text-black hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000]'
-                  }`}
+                onClick={() => setShowUnlockModal(true)}
+                disabled={walletLoading}
+                className="px-8 py-4 font-pixel text-sm border-4 border-black shadow-[4px_4px_0_0_#000] bg-pixel-success text-black hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all disabled:opacity-50"
               >
-                {isGenerating ? 'GENERATING...' : 'GENERATE WALLET'}
+                UNLOCK WALLET
               </button>
             </div>
-          ) : (
-            // Wallet exists
+
+            {/* Recovery options */}
+            <div className="border-t-2 border-pixel-border pt-6 mt-6">
+              <p className="font-pixel text-[10px] text-pixel-text-muted text-center mb-4">
+                Forgot password? You can restore using your recovery phrase.
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={handleDelete}
+                  className="px-4 py-2 font-pixel text-[10px] text-pixel-error border-2 border-pixel-error hover:bg-pixel-error hover:text-white transition-colors"
+                >
+                  DELETE & RESTORE
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Wallet unlocked - Show dashboard */}
+        {hasStoredWallet && !isLocked && wallet && (
+          <div className="bg-pixel-bg-medium border-4 border-pixel-border p-6 shadow-[8px_8px_0_0_#000]">
             <div className="space-y-6">
               {/* Address Section */}
               <div>
-                <label className="font-pixel text-[10px] text-pixel-text-muted block mb-2">
-                  YOUR ADDRESS
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="font-pixel text-[10px] text-pixel-text-muted">
+                    YOUR ADDRESS
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <NetworkBadge network={network} />
+                    <span className="px-2 py-0.5 font-pixel text-[6px] bg-pixel-bg-light text-pixel-text-muted border border-pixel-border">
+                      TAPROOT
+                    </span>
+                  </div>
+                </div>
                 <div className="flex items-center gap-3 bg-pixel-bg-dark p-3 border-2 border-pixel-border">
-                  <span className="font-pixel-mono text-sm text-pixel-text flex-1 break-all">
+                  <span className="font-pixel text-xs text-pixel-text flex-1 break-all">
                     {wallet.address}
                   </span>
                   <CopyButton text={wallet.address} label="COPY" />
@@ -176,127 +355,222 @@ export default function WalletPage() {
               </div>
 
               {/* QR Code */}
-              <div className="flex justify-center">
-                <QRCode data={wallet.address} size={180} />
-              </div>
-
-              {/* Network Badge */}
-              <div className="flex justify-center gap-2">
-                <span className="px-2 py-1 font-pixel text-[8px] bg-pixel-secondary text-black border-2 border-black">
-                  {wallet.network.toUpperCase()}
-                </span>
-                <span className="px-2 py-1 font-pixel text-[8px] bg-pixel-bg-light text-pixel-text border-2 border-pixel-border">
-                  {wallet.addressType.toUpperCase()}
-                </span>
-              </div>
+              <QRCode data={wallet.address} />
 
               {/* Balances */}
               <div className="grid grid-cols-2 gap-4">
+                {/* BTC Balance */}
+                <div className="bg-pixel-bg-dark p-4 border-2 border-pixel-border">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-pixel text-[8px] text-pixel-text-muted">
+                      BTC BALANCE
+                    </label>
+                    <button
+                      onClick={refreshBalance}
+                      disabled={balanceLoading}
+                      className="font-pixel text-[6px] text-pixel-text-muted hover:text-pixel-primary disabled:opacity-50"
+                    >
+                      {balanceLoading ? "..." : "↻"}
+                    </button>
+                  </div>
+                  <span className="font-pixel text-xl text-pixel-text">
+                    {btcBalance}
+                  </span>
+                  {addressBalance && addressBalance.unconfirmed !== 0 && (
+                    <p className="font-pixel text-[6px] text-pixel-secondary mt-1">
+                      +{(addressBalance.unconfirmed / 100_000_000).toFixed(8)}{" "}
+                      pending
+                    </p>
+                  )}
+                </div>
+
+                {/* $BABY Tokens */}
                 <div className="bg-pixel-bg-dark p-4 border-2 border-pixel-border">
                   <label className="font-pixel text-[8px] text-pixel-text-muted block mb-1">
-                    BTC BALANCE
+                    $BABY TOKENS
                   </label>
-                  <span className="font-pixel-mono text-xl text-pixel-text">
-                    {(balance.btc / 100_000_000).toFixed(8)}
+                  <span className="font-pixel text-xl text-pixel-primary">
+                    {formatTokenBalance(babyBalance)}
                   </span>
                 </div>
+
+                {/* BABTC Token Balance (Charms) */}
                 <div className="bg-pixel-bg-dark p-4 border-2 border-pixel-border">
-                  <label className="font-pixel text-[8px] text-pixel-text-muted block mb-1">
-                    $BABY BALANCE
-                  </label>
-                  <span className="font-pixel-mono text-xl text-pixel-primary">
-                    {balance.baby.toString()}
-                  </span>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-pixel text-[8px] text-pixel-text-muted">
+                      BABTC (CHARMS)
+                    </label>
+                    {babtcLoading && (
+                      <span className="font-pixel text-[6px] text-pixel-text-muted animate-pulse">
+                        ...
+                      </span>
+                    )}
+                  </div>
+                  {babtcError ? (
+                    <span className="font-pixel text-sm text-pixel-error">
+                      Error
+                    </span>
+                  ) : (
+                    <span className="font-pixel text-xl text-pixel-secondary">
+                      {babtcLoading ? "---" : babtcFormatted}
+                    </span>
+                  )}
+                </div>
+
+                {/* Mining Boost from NFTs */}
+                <div className="bg-pixel-bg-dark p-4 border-2 border-pixel-border">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-pixel text-[8px] text-pixel-text-muted">
+                      MINING BOOST
+                    </label>
+                    {boostLoading && (
+                      <span className="font-pixel text-[6px] text-pixel-text-muted animate-pulse">
+                        ...
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span
+                      className={`font-pixel text-xl ${
+                        miningBoost > 0
+                          ? "text-pixel-success"
+                          : "text-pixel-text"
+                      }`}
+                    >
+                      {boostLoading ? "---" : `+${miningBoost}%`}
+                    </span>
+                    {nftCount > 0 && (
+                      <span className="font-pixel text-[8px] text-pixel-text-muted">
+                        ({nftCount} NFT{nftCount !== 1 ? "s" : ""})
+                      </span>
+                    )}
+                  </div>
+                  {miningBoost === 0 && !boostLoading && (
+                    <p className="font-pixel text-[6px] text-pixel-text-muted mt-1">
+                      Get Genesis Babies for boost
+                    </p>
+                  )}
                 </div>
               </div>
 
-              {/* Mnemonic Section (Hidden by default) */}
-              {mnemonic && (
-                <div className="border-t-2 border-pixel-border pt-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="font-pixel text-[10px] text-pixel-error">
-                      RECOVERY PHRASE (SECRET!)
-                    </label>
-                    <button
-                      onClick={() => setShowMnemonic(!showMnemonic)}
-                      className="font-pixel text-[8px] text-pixel-text-muted hover:text-pixel-primary"
-                    >
-                      {showMnemonic ? 'HIDE' : 'SHOW'}
-                    </button>
-                  </div>
-
-                  {showMnemonic ? (
-                    <div className="bg-pixel-error/10 border-2 border-pixel-error p-4">
-                      <p className="font-pixel text-[8px] text-pixel-error mb-3">
-                        NEVER SHARE THIS! WRITE IT DOWN SAFELY.
-                      </p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {mnemonic.split(' ').map((word, i) => (
-                          <div
-                            key={i}
-                            className="bg-pixel-bg-dark px-2 py-1 border border-pixel-border"
-                          >
-                            <span className="font-pixel-mono text-[10px] text-pixel-text-muted">
-                              {i + 1}.
-                            </span>{' '}
-                            <span className="font-pixel-mono text-sm text-pixel-text">
-                              {word}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3">
-                        <CopyButton text={mnemonic} label="COPY PHRASE" />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-pixel-bg-dark p-4 border-2 border-pixel-border text-center">
-                      <span className="font-pixel text-pixel-text-muted">
-                        ******** **** ******** ****
-                      </span>
-                    </div>
-                  )}
-                </div>
+              {lastUpdated && (
+                <p className="font-pixel text-[6px] text-pixel-text-muted text-center">
+                  Last updated: {new Date(lastUpdated).toLocaleTimeString()}
+                </p>
               )}
 
-              {/* Actions */}
-              <div className="flex gap-3 pt-4">
+              {/* Primary Actions */}
+              <div className="flex gap-3 pt-4 border-t-2 border-pixel-border">
                 <a
-                  href="https://coinfaucet.eu/en/btc-testnet/"
+                  href="/wallet/send"
+                  className="flex-1 py-3 font-pixel text-[10px] text-center bg-pixel-primary text-black border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
+                >
+                  SEND
+                </a>
+                <a
+                  href="/wallet/history"
+                  className="flex-1 py-3 font-pixel text-[10px] text-center bg-pixel-bg-light text-pixel-text border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
+                >
+                  HISTORY
+                </a>
+              </div>
+
+              {/* Get Testnet BTC */}
+              {network === "testnet4" && (
+                <a
+                  href="https://mempool.space/testnet4/faucet"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 py-3 font-pixel text-[10px] text-center bg-pixel-secondary text-black border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
+                  className="block w-full py-3 font-pixel text-[10px] text-center bg-pixel-secondary text-black border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
                 >
-                  GET TEST BTC
+                  GET TESTNET BTC
                 </a>
+              )}
+
+              {/* Secondary Actions */}
+              <div className="flex gap-3 pt-3">
                 <button
-                  onClick={() => {
-                    if (confirm('Are you sure? This will clear your wallet.')) {
-                      localStorage.removeItem('wallet_address');
-                      setWallet(null);
-                      setMnemonic(null);
-                    }
-                  }}
+                  onClick={lock}
+                  className="flex-1 py-3 font-pixel text-[10px] bg-pixel-bg-light text-pixel-text border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
+                >
+                  LOCK
+                </button>
+                <button
+                  onClick={handleDelete}
                   className="px-4 py-3 font-pixel text-[10px] bg-pixel-error text-white border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
                 >
-                  CLEAR
+                  DELETE
                 </button>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Error display */}
+        {walletError && (
+          <div className="mt-4 p-3 bg-pixel-error/20 border-2 border-pixel-error">
+            <p className="font-pixel text-[10px] text-pixel-error text-center">
+              {walletError}
+            </p>
+          </div>
+        )}
 
         {/* Info Section */}
         <div className="mt-8 p-4 bg-pixel-bg-light border-4 border-dashed border-pixel-border">
-          <h3 className="font-pixel text-xs text-pixel-secondary mb-3">HOW IT WORKS</h3>
+          <h3 className="font-pixel text-xs text-pixel-secondary mb-3">
+            SECURITY INFO
+          </h3>
           <ul className="space-y-2 font-pixel-body text-sm text-pixel-text-muted">
-            <li>1. Generate a new Taproot wallet (BIP86)</li>
-            <li>2. Save your recovery phrase securely</li>
-            <li>3. Get testnet BTC from a faucet</li>
-            <li>4. Start mining to earn $BABY tokens</li>
+            <li>
+              <span className="text-pixel-success">●</span> Wallet encrypted
+              with AES-256-GCM
+            </li>
+            <li>
+              <span className="text-pixel-success">●</span> 600,000 PBKDF2
+              iterations (OWASP 2024)
+            </li>
+            <li>
+              <span className="text-pixel-success">●</span> Stored locally in
+              IndexedDB
+            </li>
+            <li>
+              <span className="text-pixel-success">●</span> Never sent to any
+              server
+            </li>
+            <li>
+              <span className="text-pixel-primary">●</span> Recovery phrase is
+              your only backup!
+            </li>
           </ul>
         </div>
+
+        {/* Explorer link */}
+        {wallet && (
+          <div className="mt-4 text-center">
+            <a
+              href={`${config.explorerUrl}/address/${wallet.address}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-pixel text-[10px] text-pixel-secondary hover:text-pixel-primary underline"
+            >
+              View on Explorer →
+            </a>
+          </div>
+        )}
       </div>
+
+      {/* Unlock Modal */}
+      {showUnlockModal && (
+        <UnlockModal
+          onSubmit={handleUnlock}
+          onCancel={() => {
+            setShowUnlockModal(false);
+            setUnlockError(null);
+          }}
+          isLoading={walletLoading}
+          error={unlockError}
+        />
+      )}
     </main>
   );
 }
