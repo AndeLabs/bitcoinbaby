@@ -15,6 +15,8 @@ const withSerwist = withSerwistInit({
 });
 
 const nextConfig: NextConfig = {
+  // Enable Turbopack (Next.js 16 default)
+  turbopack: {},
   // Enable WebAssembly support (required for bitcoinjs-lib / tiny-secp256k1)
   webpack: (config) => {
     config.experiments = {
