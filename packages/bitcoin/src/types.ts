@@ -5,8 +5,44 @@
  * Siguiendo patrones de Charms wallet.
  */
 
-// Networks
-export type BitcoinNetwork = 'mainnet' | 'testnet' | 'testnet4' | 'regtest';
+// =============================================================================
+// NETWORKS (Single Source of Truth)
+// =============================================================================
+
+/** All supported Bitcoin networks */
+export type BitcoinNetwork = "mainnet" | "testnet" | "testnet4" | "regtest";
+
+/** Networks supported in production (subset) */
+export type SupportedNetwork = "mainnet" | "testnet4";
+
+/** Scrolls API network mapping */
+export type ScrollsNetwork = "main" | "testnet4";
+
+/** Map BitcoinNetwork to ScrollsNetwork */
+export function toScrollsNetwork(network: BitcoinNetwork): ScrollsNetwork {
+  return network === "mainnet" ? "main" : "testnet4";
+}
+
+/** Network endpoint configuration */
+export interface NetworkEndpoints {
+  mempoolApi: string;
+  scrollsApi: string;
+  explorerUrl: string;
+}
+
+/** Default network endpoints */
+export const NETWORK_ENDPOINTS: Record<SupportedNetwork, NetworkEndpoints> = {
+  mainnet: {
+    mempoolApi: "https://mempool.space/api",
+    scrollsApi: "https://scrolls.charms.dev",
+    explorerUrl: "https://mempool.space",
+  },
+  testnet4: {
+    mempoolApi: "https://mempool.space/testnet4/api",
+    scrollsApi: "https://scrolls.charms.dev",
+    explorerUrl: "https://mempool.space/testnet4",
+  },
+};
 
 // Wallet public info (safe to expose)
 export interface WalletInfo {
@@ -14,7 +50,7 @@ export interface WalletInfo {
   publicKey: string;
   network: BitcoinNetwork;
   derivationPath: string;
-  addressType: 'taproot' | 'segwit' | 'legacy';
+  addressType: "taproot" | "segwit" | "legacy";
 }
 
 // Internal wallet with sensitive data
@@ -28,7 +64,7 @@ export interface WalletOptions {
   network?: BitcoinNetwork;
   mnemonic?: string;
   addressIndex?: number;
-  addressType?: 'taproot' | 'segwit' | 'legacy';
+  addressType?: "taproot" | "segwit" | "legacy";
 }
 
 // Transaction types
@@ -76,7 +112,7 @@ export interface CharmSpell {
 }
 
 export interface CharmOperation {
-  type: 'mint' | 'transfer' | 'burn';
+  type: "mint" | "transfer" | "burn";
   token: string;
   amount: string | number;
   recipient?: string;

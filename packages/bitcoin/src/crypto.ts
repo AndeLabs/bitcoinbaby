@@ -6,6 +6,7 @@
  */
 
 import * as secp256k1 from '@noble/secp256k1';
+import { ripemd160 } from '@noble/hashes/ripemd160';
 
 /**
  * Securely generate random bytes
@@ -70,14 +71,13 @@ export async function hash256(data: Uint8Array): Promise<Uint8Array> {
 
 /**
  * RIPEMD160(SHA256(data)) - Used for Bitcoin addresses
+ * This is the standard hash160 used throughout Bitcoin
  */
 export async function hash160(data: Uint8Array): Promise<Uint8Array> {
-  // Note: WebCrypto doesn't support RIPEMD160
-  // We'd need to use a library or implement it
-  // For now, using a placeholder that works with bitcoinjs-lib
   const sha256Hash = await sha256(data);
-  // bitcoinjs-lib handles the RIPEMD160 internally
-  return sha256Hash.slice(0, 20); // Simplified - actual impl uses RIPEMD160
+  const result = ripemd160(sha256Hash);
+  secureErase(sha256Hash); // Clean intermediate result
+  return result;
 }
 
 /**
