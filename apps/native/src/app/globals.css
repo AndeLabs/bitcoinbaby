@@ -1,0 +1,249 @@
+@import "tailwindcss";
+
+/**
+ * BitcoinBaby Native - Pixel Art 8-bit Theme
+ * Mobile-optimized version
+ */
+
+/* ========================================
+   THEME CONFIGURATION
+   ======================================== */
+@theme inline {
+  /* Backgrounds */
+  --color-pixel-bg-dark: #0f0f1b;
+  --color-pixel-bg-medium: #1a1a2e;
+  --color-pixel-bg-light: #2d2d44;
+
+  /* Primary (Bitcoin Gold) */
+  --color-pixel-primary: #f7931a;
+  --color-pixel-primary-light: #ffc107;
+  --color-pixel-primary-dark: #e67e00;
+
+  /* Secondary (Baby Blue) */
+  --color-pixel-secondary: #4fc3f7;
+  --color-pixel-secondary-light: #81d4fa;
+  --color-pixel-secondary-dark: #29b6f6;
+
+  /* Success */
+  --color-pixel-success: #4ade80;
+  --color-pixel-success-dark: #22c55e;
+
+  /* Error */
+  --color-pixel-error: #ef4444;
+  --color-pixel-error-dark: #dc2626;
+
+  /* Text */
+  --color-pixel-text: #ffffff;
+  --color-pixel-text-muted: #9ca3af;
+  --color-pixel-text-dark: #1f2937;
+
+  /* Borders */
+  --color-pixel-border: #374151;
+  --color-pixel-shadow: #000000;
+
+  /* Baby States */
+  --color-baby-sleeping: #6366f1;
+  --color-baby-hungry: #f97316;
+  --color-baby-happy: #fbbf24;
+  --color-baby-learning: #8b5cf6;
+  --color-baby-evolving: #ec4899;
+
+  /* Mining */
+  --color-mining-active: #22c55e;
+  --color-mining-idle: #6b7280;
+  --color-mining-boost: #f59e0b;
+
+  /* Fonts */
+  --font-pixel: 'Press Start 2P', cursive;
+  --font-pixel-body: 'Pixelify Sans', sans-serif;
+  --font-pixel-mono: 'VT323', monospace;
+}
+
+/* ========================================
+   BASE STYLES
+   ======================================== */
+:root {
+  --background: #0f0f1b;
+  --foreground: #ffffff;
+
+  /* Mobile safe areas */
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Pixelify Sans', sans-serif;
+  padding-top: var(--safe-area-inset-top);
+  padding-bottom: var(--safe-area-inset-bottom);
+  padding-left: var(--safe-area-inset-left);
+  padding-right: var(--safe-area-inset-right);
+}
+
+/* Allow scrolling in specific containers */
+.scroll-container {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  height: 100%;
+}
+
+/* Pixel rendering for images */
+img,
+canvas,
+.sprite,
+[data-pixel] {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Selection */
+::selection {
+  background: var(--color-pixel-primary);
+  color: var(--color-pixel-text-dark);
+}
+
+/* Hide scrollbars on mobile */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* ========================================
+   ANIMATIONS
+   ======================================== */
+@keyframes pixel-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes pixel-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes pixel-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--color-mining-active); }
+  50% { box-shadow: 0 0 0 12px transparent; }
+}
+
+@keyframes pixel-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+@keyframes pixel-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px var(--color-pixel-primary));
+  }
+  50% {
+    filter: drop-shadow(0 0 16px var(--color-pixel-primary));
+  }
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+.font-pixel { font-family: 'Press Start 2P', cursive; }
+.font-pixel-body { font-family: 'Pixelify Sans', sans-serif; }
+.font-pixel-mono { font-family: 'VT323', monospace; }
+
+.animate-pixel-blink { animation: pixel-blink 1s steps(1) infinite; }
+.animate-pixel-float { animation: pixel-float 2s ease-in-out infinite; }
+.animate-pixel-pulse { animation: pixel-pulse 2s ease-in-out infinite; }
+.animate-pixel-shake { animation: pixel-shake 0.3s ease-in-out; }
+.animate-pixel-glow { animation: pixel-glow 2s ease-in-out infinite; }
+
+/* Pixel border */
+.border-pixel {
+  border: 4px solid var(--color-pixel-border);
+  box-shadow: 4px 4px 0 0 var(--color-pixel-shadow);
+}
+
+/* ========================================
+   MOBILE SPECIFIC
+   ======================================== */
+.safe-top {
+  padding-top: var(--safe-area-inset-top);
+}
+
+.safe-bottom {
+  padding-bottom: var(--safe-area-inset-bottom);
+}
+
+/* Touch feedback */
+.touch-feedback {
+  transition: transform 0.1s ease-out, opacity 0.1s ease-out;
+}
+
+.touch-feedback:active {
+  transform: scale(0.95);
+  opacity: 0.8;
+}
+
+/* Bottom navigation */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding-bottom: var(--safe-area-inset-bottom);
+  background: var(--color-pixel-bg-medium);
+  border-top: 4px solid var(--color-pixel-border);
+}
+
+/* ========================================
+   BABY AVATAR STYLES
+   ======================================== */
+.baby-avatar {
+  width: 64px;
+  height: 64px;
+  image-rendering: pixelated;
+}
+
+.baby-avatar-sm { width: 32px; height: 32px; }
+.baby-avatar-lg { width: 128px; height: 128px; }
+.baby-avatar-xl { width: 192px; height: 192px; }
+
+/* Baby States */
+.baby-sleeping {
+  filter: hue-rotate(240deg) brightness(0.8);
+  animation: pixel-float 3s ease-in-out infinite;
+}
+.baby-hungry { animation: pixel-shake 0.5s ease-in-out infinite; }
+.baby-happy { animation: pixel-float 1s ease-in-out infinite; }
+.baby-evolving {
+  animation: pixel-glow 0.5s ease-in-out infinite;
+}
+
+/* ========================================
+   MINING UI STYLES
+   ======================================== */
+.mining-indicator {
+  width: 16px;
+  height: 16px;
+  background: var(--color-mining-idle);
+}
+
+.mining-indicator.active {
+  background: var(--color-mining-active);
+  animation: pixel-pulse 1s ease-in-out infinite;
+}
+
+.hashrate-display {
+  font-family: 'VT323', monospace;
+  font-size: 36px;
+  color: var(--color-pixel-success);
+  text-shadow: 2px 2px 0 var(--color-pixel-shadow);
+}
