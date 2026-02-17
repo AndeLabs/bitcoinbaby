@@ -1,0 +1,495 @@
+/**
+ * Mining Submitter
+ *
+ * Handles submission of mining proofs to Bitcoin network via Charms protocol.
+ * Complete flow: PoW proof → Spell → Bitcoin TX → Broadcast
+ */
+
+import { CharmsService, createCharmsService } from "../scrolls";
+import { MempoolClient, createMempoolClient } from "../blockchain";
+import { TransactionBuilder, createTransactionBuilder } from "../transactions";
+import type { ScrollsNetwork } from "../scrolls/types";
+import type { BitcoinNetwork } from "../types";
+import type { UTXO } from "../blockchain/types";
+import type {
+  MiningSubmission,
+  MiningProof,
+  SubmissionResult,
+  RewardParams,
+} from "./types";
+import {
+  validateHash,
+  validateNonce,
+  validateDifficulty,
+  validateTimestamp,
+  assertValid,
+} from "../validation";
+
+export interface MiningSubmitterOptions {
+  network?: ScrollsNetwork;
+  tokenTicker?: string;
+  minerAddress: string;
+  /**
+   * Miner's public key (hex string, 33 bytes compressed or 65 bytes uncompressed)
+   * Required for building valid PSBTs with Taproot inputs.
+   * The x-only key (32 bytes) will be derived from this.
+   */
+  minerPublicKey?: string;
+  rewardParams?: RewardParams;
+  // SECURITY: Private key is no longer stored in the class
+  // Pass it directly to submitProof/signAndBroadcast when needed
+}
+
+const DEFAULT_REWARD_PARAMS: RewardParams = {
+  baseDifficulty: 16,
+  baseReward: BigInt(1000),
+  difficultyMultiplier: 2,
+};
+
+// Minimum UTXO value required for mining (from BRO: 7000 sats)
+const MIN_UTXO_VALUE = 7000;
+
+// Maximum reward cap to prevent exponential overflow
+// Cap at 10^15 tokens per share (1 quadrillion) - generous but safe
+const MAX_REWARD = BigInt("1000000000000000");
+
+// Map ScrollsNetwork to BitcoinNetwork
+function scrollsToBitcoinNetwork(network: ScrollsNetwork): BitcoinNetwork {
+  return network === "main" ? "mainnet" : "testnet4";
+}
+
+/**
+ * Mining Submitter Service
+ *
+ * Connects mining proof-of-work with Charms protocol for token minting.
+ * Now with REAL transaction building and broadcasting.
+ */
+export class MiningSubmitter {
+  private charmsService: CharmsService;
+  private mempoolClient: MempoolClient;
+  private txBuilder: TransactionBuilder;
+  private minerAddress: string;
+  private minerXOnlyPubKey: Uint8Array | undefined;
+  private rewardParams: RewardParams;
+  private network: ScrollsNetwork;
+  private pendingSubmissions: Map<string, MiningSubmission> = new Map();
+
+  constructor(options: MiningSubmitterOptions) {
+    this.network = options.network ?? "testnet4";
+    const btcNetwork = scrollsToBitcoinNetwork(this.network);
+
+    this.charmsService = createCharmsService({
+      network: this.network,
+      tokenTicker: options.tokenTicker ?? "BABY",
+    });
+
+    this.mempoolClient = createMempoolClient({
+      network: btcNetwork,
+    });
+
+    this.txBuilder = createTransactionBuilder({
+      network: btcNetwork,
+    });
+
+    this.minerAddress = options.minerAddress;
+    this.rewardParams = options.rewardParams ?? DEFAULT_REWARD_PARAMS;
+
+    // Extract x-only public key from compressed/uncompressed public key
+    if (options.minerPublicKey) {
+      const pubKeyBytes = Buffer.from(options.minerPublicKey, "hex");
+      if (pubKeyBytes.length === 33) {
+        // Compressed: first byte is 02 or 03, x-only is bytes 1-32
+        this.minerXOnlyPubKey = new Uint8Array(pubKeyBytes.subarray(1, 33));
+      } else if (pubKeyBytes.length === 65) {
+        // Uncompressed: first byte is 04, x-only is bytes 1-32
+        this.minerXOnlyPubKey = new Uint8Array(pubKeyBytes.subarray(1, 33));
+      } else {
+        throw new Error(
+          `Invalid public key length: ${pubKeyBytes.length}. Expected 33 (compressed) or 65 (uncompressed).`,
+        );
+      }
+    }
+  }
+
+  // SECURITY: setPrivateKey and clearPrivateKey removed
+  // Private keys should be passed directly to signing methods
+  // and zeroed immediately after use by the caller
+
+  /**
+   * Calculate reward based on difficulty
+   * Formula inspired by BRO: reward = baseReward * multiplier^(difficulty - baseDifficulty)
+   *
+   * SECURITY: Reward is capped at MAX_REWARD to prevent exponential overflow
+   * with high difficulty values (e.g., difficulty=256 would produce 2^240 * 1000)
+   */
+  calculateReward(difficulty: number): bigint {
+    assertValid(
+      validateDifficulty(difficulty),
+      "difficulty",
+      "INVALID_DIFFICULTY",
+    );
+
+    const { baseDifficulty, baseReward, difficultyMultiplier } =
+      this.rewardParams;
+
+    if (difficulty <= baseDifficulty) {
+      return baseReward;
+    }
+
+    const extraDifficulty = BigInt(difficulty - baseDifficulty);
+    const multiplierBase = BigInt(difficultyMultiplier);
+
+    // Cap extra difficulty to prevent astronomical numbers
+    // With multiplier=2, extraDifficulty=50 gives 2^50 * baseReward ≈ 10^15 * baseReward
+    // This is already more than MAX_REWARD for baseReward=1000
+    const maxSafeExtraDifficulty = BigInt(50);
+    const cappedExtraDifficulty =
+      extraDifficulty > maxSafeExtraDifficulty
+        ? maxSafeExtraDifficulty
+        : extraDifficulty;
+
+    const multiplier = multiplierBase ** cappedExtraDifficulty;
+    const reward = baseReward * multiplier;
+
+    // Final cap to ensure we never exceed MAX_REWARD
+    return reward > MAX_REWARD ? MAX_REWARD : reward;
+  }
+
+  /**
+   * Check if miner has sufficient balance for mining transaction
+   */
+  async checkMinerBalance(): Promise<{
+    canMine: boolean;
+    balance: number;
+    utxoCount: number;
+    largestUtxo: number;
+    error?: string;
+  }> {
+    try {
+      const balance = await this.mempoolClient.getBalance(this.minerAddress);
+      const utxos = await this.mempoolClient.getUTXOs(this.minerAddress);
+
+      const largestUtxo = utxos.reduce((max, u) => Math.max(max, u.value), 0);
+      const hasValidUtxo = largestUtxo >= MIN_UTXO_VALUE;
+
+      return {
+        canMine: hasValidUtxo,
+        balance: balance.total,
+        utxoCount: utxos.length,
+        largestUtxo,
+        error: hasValidUtxo
+          ? undefined
+          : `Need at least one UTXO with ${MIN_UTXO_VALUE} sats. Largest: ${largestUtxo}`,
+      };
+    } catch (error) {
+      return {
+        canMine: false,
+        balance: 0,
+        utxoCount: 0,
+        largestUtxo: 0,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Get fee estimates from mempool
+   */
+  async getFeeEstimates(): Promise<{
+    fast: number;
+    medium: number;
+    slow: number;
+    charmsFee: number;
+  }> {
+    const [mempoolFees, charmsConfig] = await Promise.all([
+      this.mempoolClient.getFeeEstimates(),
+      this.charmsService.getClient().getConfig(),
+    ]);
+
+    // Estimate Charms fee for 1 input
+    const charmsFee =
+      charmsConfig.fixed_cost +
+      charmsConfig.fee_per_input +
+      Math.floor((charmsConfig.fee_basis_points / 10000) * MIN_UTXO_VALUE);
+
+    return {
+      fast: mempoolFees.fastestFee,
+      medium: mempoolFees.halfHourFee,
+      slow: mempoolFees.economyFee,
+      charmsFee,
+    };
+  }
+
+  /**
+   * Submit a mining proof for token minting
+   *
+   * COMPLETE FLOW:
+   * 1. Validate proof
+   * 2. Calculate reward
+   * 3. Create Charms spell
+   * 4. Get UTXOs
+   * 5. Build Bitcoin transaction
+   * 6. Sign transaction
+   * 7. Broadcast to network
+   */
+  async submitProof(proof: MiningProof): Promise<SubmissionResult> {
+    // Validate proof inputs
+    assertValid(validateHash(proof.hash), "hash", "INVALID_HASH");
+    assertValid(validateNonce(proof.nonce), "nonce", "INVALID_NONCE");
+    assertValid(
+      validateDifficulty(proof.difficulty),
+      "difficulty",
+      "INVALID_DIFFICULTY",
+    );
+    assertValid(
+      validateTimestamp(proof.timestamp),
+      "timestamp",
+      "INVALID_TIMESTAMP",
+    );
+
+    const submissionId = `${proof.hash.substring(0, 16)}-${proof.nonce}`;
+
+    // Check if already submitted
+    if (this.pendingSubmissions.has(submissionId)) {
+      const existing = this.pendingSubmissions.get(submissionId)!;
+      return {
+        success: existing.status === "confirmed",
+        submission: existing,
+        txid: existing.txid,
+        error: existing.error,
+      };
+    }
+
+    // Create submission record
+    const submission: MiningSubmission = {
+      id: submissionId,
+      hash: proof.hash,
+      nonce: proof.nonce,
+      difficulty: proof.difficulty,
+      timestamp: proof.timestamp,
+      minerAddress: this.minerAddress,
+      blockData: proof.blockData,
+      status: "pending",
+      reward: this.calculateReward(proof.difficulty),
+    };
+
+    this.pendingSubmissions.set(submissionId, submission);
+
+    try {
+      // Step 1: Get UTXOs
+      const utxos = await this.mempoolClient.getUTXOs(this.minerAddress);
+
+      if (utxos.length === 0) {
+        throw new Error("No UTXOs available for mining transaction");
+      }
+
+      // Filter UTXOs that are large enough
+      const validUtxos = utxos.filter((u) => u.value >= MIN_UTXO_VALUE);
+      if (validUtxos.length === 0) {
+        throw new Error(`No UTXOs with at least ${MIN_UTXO_VALUE} sats`);
+      }
+
+      // Step 2: Create mining spell
+      const spell = this.charmsService.createMiningSpell(
+        this.minerAddress,
+        submission.reward!,
+        proof.hash,
+      );
+
+      // Step 3: Get Charms fee info
+      const [feeCalc, feeEstimates] = await Promise.all([
+        this.charmsService.calculateFee(1, validUtxos[0].value),
+        this.mempoolClient.getFeeEstimates(),
+      ]);
+
+      // Set fee rate (use medium fee)
+      this.txBuilder.setFeeRate(feeEstimates.halfHourFee);
+
+      // Step 4: Convert UTXOs for transaction builder
+      // Note: minerXOnlyPubKey is required for Taproot addresses
+      if (!this.minerXOnlyPubKey) {
+        throw new Error(
+          "minerPublicKey is required for Taproot mining transactions. " +
+            "Pass it when creating the MiningSubmitter.",
+        );
+      }
+      const txUtxos = TransactionBuilder.convertUTXOs(
+        validUtxos,
+        this.minerAddress,
+        scrollsToBitcoinNetwork(this.network),
+        this.minerXOnlyPubKey,
+      );
+
+      // Step 5: Build mining transaction
+      const tx = this.txBuilder.buildMiningTx(
+        txUtxos,
+        this.minerAddress,
+        spell,
+        feeCalc.feeAddress,
+        feeCalc.fee,
+      );
+
+      // Step 6: Build PSBT
+      const psbt = this.txBuilder.buildPSBT(tx, tx.spellWitness);
+
+      // Update submission status
+      submission.status = "submitted";
+      submission.submittedAt = Date.now();
+
+      // SECURITY: Auto-broadcast removed. Callers must use signAndBroadcast()
+      // with a private key that is zeroed immediately after use.
+      // Return PSBT for external signing
+      return {
+        success: true,
+        submission,
+        psbt: psbt.toBase64(),
+        unsignedTx: tx,
+      };
+    } catch (error) {
+      submission.status = "failed";
+      submission.error =
+        error instanceof Error ? error.message : "Unknown error";
+
+      return {
+        success: false,
+        submission,
+        error: submission.error,
+      };
+    }
+  }
+
+  /**
+   * Sign and broadcast a pending PSBT
+   *
+   * SECURITY: The caller MUST zero the privateKey immediately after this call returns.
+   * Use a try/finally block: privateKey.fill(0) in finally.
+   *
+   * @param psbtBase64 - The PSBT in base64 format
+   * @param privateKey - The private key for signing (required, will be used but NOT stored)
+   */
+  async signAndBroadcast(
+    psbtBase64: string,
+    privateKey: Uint8Array,
+  ): Promise<{ success: boolean; txid?: string; error?: string }> {
+    if (!privateKey || privateKey.length !== 32) {
+      return { success: false, error: "Invalid private key" };
+    }
+
+    try {
+      // Import PSBT
+      const { Psbt } = await import("bitcoinjs-lib");
+      const psbt = Psbt.fromBase64(psbtBase64);
+
+      // Sign
+      this.txBuilder.signPSBT(psbt, privateKey);
+      const signedTx = this.txBuilder.finalizePSBT(psbt);
+
+      // Broadcast
+      const txid = await this.mempoolClient.broadcastTransaction(signedTx.hex);
+
+      return { success: true, txid };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+    // NOTE: Caller is responsible for zeroing privateKey in a finally block
+  }
+
+  /**
+   * Get pending submissions
+   */
+  getPendingSubmissions(): MiningSubmission[] {
+    return Array.from(this.pendingSubmissions.values()).filter(
+      (s) => s.status === "pending" || s.status === "submitted",
+    );
+  }
+
+  /**
+   * Get submission by ID
+   */
+  getSubmission(id: string): MiningSubmission | undefined {
+    return this.pendingSubmissions.get(id);
+  }
+
+  /**
+   * Get total pending rewards
+   */
+  getTotalPendingRewards(): bigint {
+    let total = BigInt(0);
+    for (const submission of this.pendingSubmissions.values()) {
+      if (
+        submission.reward &&
+        (submission.status === "pending" || submission.status === "submitted")
+      ) {
+        total += submission.reward;
+      }
+    }
+    return total;
+  }
+
+  /**
+   * Get total confirmed rewards
+   */
+  getTotalConfirmedRewards(): bigint {
+    let total = BigInt(0);
+    for (const submission of this.pendingSubmissions.values()) {
+      if (submission.reward && submission.status === "confirmed") {
+        total += submission.reward;
+      }
+    }
+    return total;
+  }
+
+  /**
+   * Check transaction confirmation status
+   */
+  async checkConfirmation(txid: string): Promise<{
+    confirmed: boolean;
+    confirmations: number;
+    blockHeight?: number;
+  }> {
+    try {
+      const tx = await this.mempoolClient.getTransaction(txid);
+      const confirmed = tx.status?.confirmed ?? false;
+      const blockHeight = tx.status?.block_height;
+
+      let confirmations = 0;
+      if (confirmed && blockHeight) {
+        const currentHeight = await this.mempoolClient.getBlockHeight();
+        confirmations = currentHeight - blockHeight + 1;
+      }
+
+      return { confirmed, confirmations, blockHeight };
+    } catch {
+      return { confirmed: false, confirmations: 0 };
+    }
+  }
+
+  /**
+   * Clear old submissions
+   */
+  cleanup(maxAge: number = 3600000): void {
+    const now = Date.now();
+    for (const [id, submission] of this.pendingSubmissions) {
+      if (now - submission.timestamp > maxAge) {
+        if (submission.status !== "confirmed") {
+          submission.status = "expired";
+        }
+        if (submission.status === "expired") {
+          this.pendingSubmissions.delete(id);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Create a mining submitter instance
+ */
+export function createMiningSubmitter(
+  options: MiningSubmitterOptions,
+): MiningSubmitter {
+  return new MiningSubmitter(options);
+}
