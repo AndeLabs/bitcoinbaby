@@ -1,9 +1,74 @@
 // Pixel Art 8-bit Components
-export { Button, PixelButton } from './button';
-export { Card, CardHeader, CardContent, CardFooter, PixelCard } from './card';
-export { Progress, PixelProgress } from './progress';
-export { Badge, PixelBadge } from './badge';
-export { Input, PixelInput } from './input';
+export { Button, PixelButton } from "./button";
+export { Card, CardHeader, CardContent, CardFooter, PixelCard } from "./card";
+export { Progress, PixelProgress } from "./progress";
+export { Badge, PixelBadge } from "./badge";
+export { Input, PixelInput } from "./input";
 
 // Pixel Art Sprites
-export * from './sprites';
+export * from "./sprites";
+
+// Game UI Components
+export * from "./game";
+
+// Network Components
+export { NetworkSwitcher, NetworkBadge } from "./network/NetworkSwitcher";
+
+// Wallet Components
+export {
+  WalletStatus,
+  WalletStatusCompact,
+  EntropyCollector,
+  WalletOnboarding,
+  QRCode,
+  QRCodeDark,
+  QRCodeBitcoin,
+  type QRCodeProps,
+  TransactionList,
+  TransactionListCompact,
+  type TransactionDisplay,
+} from "./wallet";
+
+// Mining Components
+export {
+  MiningRewardPanel,
+  MiningRewardBadge,
+} from "./mining/MiningRewardPanel";
+
+// NFT Components
+export {
+  NFTCard,
+  NFTGrid,
+  NFTStats,
+  getMiningBoost,
+  canLevelUp,
+  getXpForNextLevel,
+  getEvolutionCostDisplay,
+  MAX_LEVEL,
+  type NFTCardProps,
+  type NFTGridProps,
+  type NFTGridFilters,
+  type NFTSortKey,
+  type NFTSortOrder,
+  type NFTStatsProps,
+  type BabyNFTState,
+  type BabyNFTInfo,
+  type Bloodline,
+  type RarityTier,
+  type BaseType,
+} from "./nft";
+
+// Error Components
+export {
+  ErrorBoundary,
+  DefaultErrorFallback,
+  MiningErrorFallback,
+  WalletErrorFallback,
+  NFTErrorFallback,
+  MiningErrorBoundary,
+  WalletErrorBoundary,
+  NFTErrorBoundary,
+  useAsyncError,
+  useErrorRecovery,
+  type ErrorBoundaryProps,
+} from "./error";
