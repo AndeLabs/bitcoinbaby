@@ -1,0 +1,348 @@
+/**
+ * Charms Hooks
+ *
+ * React hooks for interacting with Charms protocol.
+ */
+
+import { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  createCharmsClient,
+  formatTokenAmount,
+  BABTC_CONFIG,
+  type BabyNFTState,
+  type CharmsClientOptions,
+} from "@bitcoinbaby/bitcoin";
+import { useNFTStore } from "../stores/nft-store";
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+interface UseCharmsOptions extends CharmsClientOptions {
+  autoRefresh?: boolean;
+  refreshInterval?: number;
+}
+
+// =============================================================================
+// CLIENT SINGLETON
+// =============================================================================
+
+let clientInstance: ReturnType<typeof createCharmsClient> | null = null;
+
+function getClient(options?: CharmsClientOptions) {
+  if (!clientInstance) {
+    clientInstance = createCharmsClient(options);
+  }
+  return clientInstance;
+}
+
+// =============================================================================
+// HOOKS
+// =============================================================================
+
+/**
+ * Hook for token balance
+ */
+export function useTokenBalance(
+  address: string | null,
+  appId: string,
+  options?: UseCharmsOptions,
+) {
+  const [balance, setBalance] = useState<bigint>(0n);
+  const [formatted, setFormatted] = useState("0.00");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const client = useMemo(() => getClient(options), [options]);
+
+  const refresh = useCallback(async () => {
+    if (!address) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const bal = await client.getTokenBalance(address, appId);
+      setBalance(bal);
+      setFormatted(formatTokenAmount(bal, BABTC_CONFIG.decimals));
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [address, appId, client]);
+
+  useEffect(() => {
+    refresh();
+
+    if (options?.autoRefresh !== false) {
+      const interval = setInterval(
+        refresh,
+        options?.refreshInterval || 120_000,
+      );
+      return () => clearInterval(interval);
+    }
+  }, [refresh, options?.autoRefresh, options?.refreshInterval]);
+
+  return { balance, formatted, loading, error, refresh };
+}
+
+/**
+ * Hook for owned NFTs
+ */
+export function useOwnedNFTs(
+  address: string | null,
+  appId: string,
+  options?: UseCharmsOptions,
+) {
+  const {
+    ownedNFTs,
+    setOwnedNFTs,
+    isLoading,
+    setLoading,
+    error,
+    setError,
+    bestBoost,
+    totalNFTs,
+  } = useNFTStore();
+
+  const client = useMemo(() => getClient(options), [options]);
+
+  const refresh = useCallback(async () => {
+    if (!address) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const nfts = await client.getOwnedNFTs(address, appId);
+      setOwnedNFTs(nfts);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [address, appId, client, setOwnedNFTs, setLoading, setError]);
+
+  useEffect(() => {
+    refresh();
+
+    if (options?.autoRefresh !== false) {
+      const interval = setInterval(
+        refresh,
+        options?.refreshInterval || 120_000,
+      );
+      return () => clearInterval(interval);
+    }
+  }, [refresh, options?.autoRefresh, options?.refreshInterval]);
+
+  return {
+    nfts: ownedNFTs,
+    loading: isLoading,
+    error,
+    bestBoost,
+    totalNFTs,
+    refresh,
+  };
+}
+
+/**
+ * Hook for mining boost
+ */
+export function useMiningBoost(
+  address: string | null,
+  appId: string,
+  options?: UseCharmsOptions,
+) {
+  const { bestBoost, totalNFTs, isLoading } = useNFTStore();
+  const { refresh } = useOwnedNFTs(address, appId, options);
+
+  return {
+    boost: bestBoost,
+    nftCount: totalNFTs,
+    loading: isLoading,
+    refresh,
+  };
+}
+
+/**
+ * Hook for BTC balance
+ */
+export function useBTCBalance(
+  address: string | null,
+  options?: UseCharmsOptions,
+) {
+  const [confirmed, setConfirmed] = useState(0);
+  const [unconfirmed, setUnconfirmed] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const client = useMemo(() => getClient(options), [options]);
+
+  const refresh = useCallback(async () => {
+    if (!address) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const balance = await client.getBalance(address);
+      setConfirmed(balance.confirmed);
+      setUnconfirmed(balance.unconfirmed);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [address, client]);
+
+  useEffect(() => {
+    refresh();
+
+    const interval = setInterval(refresh, 60_000); // 1 minute
+    return () => clearInterval(interval);
+  }, [refresh]);
+
+  const total = confirmed + unconfirmed;
+  const btc = total / 100_000_000;
+
+  return {
+    confirmed,
+    unconfirmed,
+    total,
+    btc,
+    loading,
+    error,
+    refresh,
+  };
+}
+
+/**
+ * Hook for fee estimates
+ */
+export function useFeeEstimates(options?: UseCharmsOptions) {
+  const [fees, setFees] = useState<{
+    fastestFee: number;
+    halfHourFee: number;
+    hourFee: number;
+    economyFee: number;
+    minimumFee: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const client = useMemo(() => getClient(options), [options]);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const estimates = await client.getFeeEstimates();
+      setFees(estimates);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [client]);
+
+  useEffect(() => {
+    refresh();
+
+    const interval = setInterval(refresh, 30_000); // 30 seconds
+    return () => clearInterval(interval);
+  }, [refresh]);
+
+  return { fees, loading, error, refresh };
+}
+
+/**
+ * Hook for block height
+ */
+export function useBlockHeight(options?: UseCharmsOptions) {
+  const [height, setHeight] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const client = useMemo(() => getClient(options), [options]);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const h = await client.getBlockHeight();
+      setHeight(h);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [client]);
+
+  useEffect(() => {
+    refresh();
+
+    const interval = setInterval(refresh, 60_000); // 1 minute
+    return () => clearInterval(interval);
+  }, [refresh]);
+
+  return { height, loading, error, refresh };
+}
+
+/**
+ * Combined dashboard hook
+ */
+export function useDashboard(
+  address: string | null,
+  tokenAppId: string,
+  nftAppId: string,
+  options?: UseCharmsOptions,
+) {
+  const btc = useBTCBalance(address, options);
+  const token = useTokenBalance(address, tokenAppId, options);
+  const nfts = useOwnedNFTs(address, nftAppId, options);
+  const fees = useFeeEstimates(options);
+  const block = useBlockHeight(options);
+
+  const loading =
+    btc.loading ||
+    token.loading ||
+    nfts.loading ||
+    fees.loading ||
+    block.loading;
+
+  const refresh = useCallback(async () => {
+    await Promise.all([
+      btc.refresh(),
+      token.refresh(),
+      nfts.refresh(),
+      fees.refresh(),
+      block.refresh(),
+    ]);
+  }, [btc, token, nfts, fees, block]);
+
+  return {
+    // BTC
+    btcBalance: btc.total,
+    btcFormatted: btc.btc.toFixed(8),
+
+    // Token
+    tokenBalance: token.balance,
+    tokenFormatted: token.formatted,
+
+    // NFTs
+    ownedNFTs: nfts.nfts,
+    nftCount: nfts.totalNFTs,
+    miningBoost: nfts.bestBoost,
+
+    // Network
+    feeRate: fees.fees?.halfHourFee || 0,
+    blockHeight: block.height,
+
+    // Meta
+    loading,
+    refresh,
+  };
+}

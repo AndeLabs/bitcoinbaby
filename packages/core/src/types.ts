@@ -17,15 +17,15 @@ export interface Baby {
 }
 
 /**
- * Estadisticas de mineria
+ * Full mining session statistics (extends mining module stats)
  */
-export interface MiningStats {
-  hashrate: number;        // Hashes por segundo
-  totalHashes: number;     // Total de hashes computados
-  tokensEarned: number;    // BABY tokens ganados
-  difficulty: number;      // Dificultad actual
-  uptime: number;          // Segundos minando
-  isActive: boolean;       // Estado de mineria
+export interface MiningSession {
+  hashrate: number;        // Hashes per second
+  totalHashes: number;     // Total hashes computed
+  tokensEarned: number;    // BABY tokens earned
+  difficulty: number;      // Current difficulty
+  uptime: number;          // Seconds mining
+  isActive: boolean;       // Mining active state
   minerType: 'cpu' | 'webgpu';
 }
 
