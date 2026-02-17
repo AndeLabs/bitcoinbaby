@@ -1,0 +1,420 @@
+/**
+ * Game Mechanics
+ *
+ * Pure functions for calculating game state changes.
+ */
+
+import {
+  GAME_CONFIG,
+  DECAY_RATES,
+  SLEEP_RATES,
+  ACTION_EFFECTS,
+  MINING_REWARDS,
+  EVOLUTION_LEVELS,
+  MINING_BONUS,
+  STAGE_ORDER,
+  LEVEL_DECAY,
+  getXPForLevel,
+  type BabyStage,
+  type GameAction,
+} from "./constants";
+import type { BabyStats, GameBaby, BabyProgression } from "./types";
+
+/**
+ * Clamp a value between min and max
+ */
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+/**
+ * Clamp stats to valid range
+ */
+function clampStats(stats: BabyStats): BabyStats {
+  return {
+    energy: clamp(stats.energy, GAME_CONFIG.STAT_MIN, GAME_CONFIG.STAT_MAX),
+    happiness: clamp(
+      stats.happiness,
+      GAME_CONFIG.STAT_MIN,
+      GAME_CONFIG.STAT_MAX,
+    ),
+    hunger: clamp(stats.hunger, GAME_CONFIG.STAT_MIN, GAME_CONFIG.STAT_MAX),
+    health: clamp(stats.health, GAME_CONFIG.STAT_MIN, GAME_CONFIG.STAT_MAX),
+  };
+}
+
+/**
+ * Calculate stat decay based on elapsed time
+ */
+export function calculateDecay(
+  stats: BabyStats,
+  deltaMs: number,
+  isSleeping: boolean,
+  isMining: boolean,
+): BabyStats {
+  const minutes = deltaMs / 60_000;
+  const rates = isSleeping ? SLEEP_RATES : DECAY_RATES;
+
+  let energy = stats.energy - rates.energy * minutes;
+  let happiness = stats.happiness - rates.happiness * minutes;
+  let hunger = stats.hunger + rates.hunger * minutes;
+
+  // Extra energy drain while mining
+  if (isMining && !isSleeping) {
+    energy -= MINING_REWARDS.ENERGY_DRAIN_PER_MINUTE * minutes;
+  }
+
+  // Sleep recovers energy instead of draining it
+  if (isSleeping) {
+    energy = stats.energy + SLEEP_RATES.energy * minutes;
+  }
+
+  // Calculate health based on other stats
+  let health = stats.health;
+  const criticalStats = getCriticalStats({ energy, happiness, hunger, health });
+
+  if (criticalStats.length > 0) {
+    // Health decreases when stats are critical
+    health -= criticalStats.length * 0.5 * minutes;
+  } else if (health < GAME_CONFIG.STAT_MAX) {
+    // Health slowly recovers when stats are good
+    health += 0.2 * minutes;
+  }
+
+  return clampStats({ energy, happiness, hunger, health });
+}
+
+/**
+ * Apply an action to stats
+ */
+export function applyAction(stats: BabyStats, action: GameAction): BabyStats {
+  const effects = ACTION_EFFECTS[action];
+
+  return clampStats({
+    energy: stats.energy + (effects.energy || 0),
+    happiness: stats.happiness + (effects.happiness || 0),
+    hunger: stats.hunger + (effects.hunger || 0),
+    health: stats.health,
+  });
+}
+
+/**
+ * Add XP and calculate level progression
+ */
+export function addXP(
+  progression: BabyProgression,
+  xpToAdd: number,
+): BabyProgression {
+  let xp = progression.xp + xpToAdd;
+  let level = progression.level;
+  let xpToNextLevel = progression.xpToNextLevel;
+
+  // Level up while we have enough XP
+  while (xp >= xpToNextLevel && level < GAME_CONFIG.MAX_LEVEL) {
+    xp -= xpToNextLevel;
+    level++;
+    xpToNextLevel = getXPForLevel(level + 1);
+  }
+
+  // Check for stage evolution
+  const stage = getStageForLevel(level);
+
+  return {
+    level,
+    xp,
+    xpToNextLevel,
+    stage,
+  };
+}
+
+/**
+ * Get the stage for a given level
+ */
+export function getStageForLevel(level: number): BabyStage {
+  // Find the highest stage this level qualifies for
+  let resultStage: BabyStage = "egg";
+
+  for (const stage of STAGE_ORDER) {
+    if (level >= EVOLUTION_LEVELS[stage]) {
+      resultStage = stage;
+    } else {
+      break;
+    }
+  }
+
+  return resultStage;
+}
+
+/**
+ * Check if evolution is available
+ */
+export function checkEvolution(baby: GameBaby): BabyStage | null {
+  const currentStage = baby.progression.stage;
+  const newStage = getStageForLevel(baby.progression.level);
+
+  if (newStage !== currentStage) {
+    return newStage;
+  }
+
+  return null;
+}
+
+/**
+ * Get stats that are in critical state
+ */
+export function getCriticalStats(stats: BabyStats): (keyof BabyStats)[] {
+  const critical: (keyof BabyStats)[] = [];
+
+  if (stats.energy <= GAME_CONFIG.CRITICAL_THRESHOLD) {
+    critical.push("energy");
+  }
+  if (stats.happiness <= GAME_CONFIG.CRITICAL_THRESHOLD) {
+    critical.push("happiness");
+  }
+  if (stats.hunger >= GAME_CONFIG.STAT_MAX - GAME_CONFIG.CRITICAL_THRESHOLD) {
+    critical.push("hunger");
+  }
+  if (stats.health <= GAME_CONFIG.CRITICAL_THRESHOLD) {
+    critical.push("health");
+  }
+
+  return critical;
+}
+
+/**
+ * Calculate mining bonus based on stage
+ */
+export function calculateMiningBonus(stage: BabyStage): number {
+  return MINING_BONUS[stage];
+}
+
+/**
+ * Calculate XP reward for mining shares
+ */
+export function calculateMiningXP(shares: number, stage: BabyStage): number {
+  const bonus = calculateMiningBonus(stage);
+  return Math.floor(shares * MINING_REWARDS.XP_PER_SHARE * bonus);
+}
+
+/**
+ * Determine the visual state based on baby status
+ */
+export function determineVisualState(baby: GameBaby): GameBaby["visualState"] {
+  // Dead state takes absolute priority
+  if (isBabyDead(baby)) {
+    return "dead";
+  }
+
+  // Critical state takes priority
+  const criticalStats = getCriticalStats(baby.stats);
+  if (criticalStats.includes("health") || criticalStats.length >= 2) {
+    return "critical";
+  }
+
+  // Current activity states
+  if (baby.isSleeping) return "sleeping";
+  if (baby.isMining) return "mining";
+
+  // Stat-based states
+  if (baby.stats.hunger >= 70) return "hungry";
+  if (baby.stats.happiness >= 80) return "happy";
+
+  return "idle";
+}
+
+/**
+ * Create a new baby with default stats
+ */
+export function createNewBaby(name: string): GameBaby {
+  const now = Date.now();
+
+  return {
+    id: crypto.randomUUID(),
+    name,
+    visualState: "idle",
+    isSleeping: false,
+    isMining: false,
+    stats: {
+      energy: 100,
+      happiness: 100,
+      hunger: 0,
+      health: 100,
+    },
+    progression: {
+      level: 1,
+      xp: 0,
+      xpToNextLevel: getXPForLevel(2), // XP needed for level 2
+      stage: "baby_1",
+    },
+    createdAt: now,
+    lastUpdated: now,
+    lastFed: now,
+    lastPlayed: now,
+    lastMined: now, // Initialize to creation time
+    evolutionHistory: [],
+    unlockedAchievements: [],
+  };
+}
+
+/**
+ * Calculate offline decay (simplified for returning players)
+ */
+export function calculateOfflineDecay(
+  stats: BabyStats,
+  offlineMs: number,
+  wasSleeping: boolean,
+): BabyStats {
+  // Cap offline time to 24 hours
+  const maxOfflineMs = 24 * 60 * 60 * 1000;
+  const cappedOfflineMs = Math.min(offlineMs, maxOfflineMs);
+
+  // Apply decay at reduced rate (50%) for offline time
+  // This is more forgiving for players who can't check constantly
+  const effectiveMs = cappedOfflineMs * 0.5;
+
+  return calculateDecay(stats, effectiveMs, wasSleeping, false);
+}
+
+/**
+ * Calculate level decay from inactivity
+ *
+ * If you don't mine for a long time, your baby slowly loses XP/levels.
+ * After grace period: loses XP_DECAY_PER_DAY for each day without mining.
+ * Level 0 = dead baby.
+ *
+ * NOTE: This only affects level/mining bonus - NOT tokens.
+ * Mined $BABY tokens are PERMANENT and NEVER reduced.
+ */
+export function calculateLevelDecay(
+  progression: BabyProgression,
+  lastMinedAt: number,
+  now: number = Date.now(),
+): { progression: BabyProgression; isDead: boolean } {
+  const inactiveMs = now - lastMinedAt;
+
+  // No decay during grace period
+  if (inactiveMs <= LEVEL_DECAY.GRACE_PERIOD_MS) {
+    return { progression, isDead: false };
+  }
+
+  // Calculate decay days (after grace period)
+  const decayMs = inactiveMs - LEVEL_DECAY.GRACE_PERIOD_MS;
+  const decayDays = Math.min(
+    decayMs / (24 * 60 * 60 * 1000),
+    LEVEL_DECAY.MAX_DECAY_DAYS,
+  );
+
+  // Total XP to decay
+  const xpToDecay = Math.floor(decayDays * LEVEL_DECAY.XP_DECAY_PER_DAY);
+
+  if (xpToDecay <= 0) {
+    return { progression, isDead: false };
+  }
+
+  // Apply XP decay
+  const newProgression = removeXP(progression, xpToDecay);
+
+  // Check if dead (level 0)
+  const isDead = newProgression.level <= 0;
+
+  return {
+    progression: newProgression,
+    isDead,
+  };
+}
+
+/**
+ * Remove XP from progression (can cause level down)
+ *
+ * FIX: When leveling down from N to N-1, we recover the XP that was
+ * required to reach level N (i.e., getXPForLevel(N)), not getXPForLevel(N-1).
+ */
+export function removeXP(
+  progression: BabyProgression,
+  xpToRemove: number,
+): BabyProgression {
+  let xp = progression.xp - xpToRemove;
+  let level = progression.level;
+
+  // Level down while we have negative XP
+  while (xp < 0 && level > 0) {
+    // Get XP required to reach current level BEFORE decrementing
+    // e.g., if level is 2, we need XP_PER_LEVEL[2] = 75 to recover
+    const xpForCurrentLevel = getXPForLevel(level);
+    level--;
+    xp += xpForCurrentLevel;
+  }
+
+  // Clamp at level 0
+  if (level <= 0) {
+    level = 0;
+    xp = 0;
+  }
+
+  // Get new stage
+  const stage = level > 0 ? getStageForLevel(level) : "egg";
+  const xpToNextLevel = level > 0 ? getXPForLevel(level + 1) : getXPForLevel(1);
+
+  return {
+    level: Math.max(0, level),
+    xp: Math.max(0, xp),
+    xpToNextLevel,
+    stage,
+  };
+}
+
+/**
+ * Check if baby is dead (level 0)
+ */
+export function isBabyDead(baby: GameBaby): boolean {
+  return baby.progression.level <= 0;
+}
+
+/**
+ * Revive a dead baby
+ * Costs mining shares to revive.
+ */
+export function reviveBaby(baby: GameBaby): GameBaby {
+  if (!isBabyDead(baby)) {
+    return baby;
+  }
+
+  const now = Date.now();
+
+  return {
+    ...baby,
+    visualState: "idle",
+    stats: {
+      energy: LEVEL_DECAY.REVIVAL_STATS.energy,
+      happiness: LEVEL_DECAY.REVIVAL_STATS.happiness,
+      hunger: LEVEL_DECAY.REVIVAL_STATS.hunger,
+      health: LEVEL_DECAY.REVIVAL_STATS.health,
+    },
+    progression: {
+      level: 1,
+      xp: 0,
+      xpToNextLevel: getXPForLevel(2),
+      stage: "baby_1",
+    },
+    lastUpdated: now,
+    lastFed: now,
+    lastPlayed: now,
+  };
+}
+
+/**
+ * Get days until level decay starts
+ */
+export function getDaysUntilDecay(
+  lastMinedAt: number,
+  now: number = Date.now(),
+): number {
+  const inactiveMs = now - lastMinedAt;
+  const remainingGraceMs = LEVEL_DECAY.GRACE_PERIOD_MS - inactiveMs;
+
+  if (remainingGraceMs <= 0) {
+    return 0; // Already decaying
+  }
+
+  return remainingGraceMs / (24 * 60 * 60 * 1000);
+}
