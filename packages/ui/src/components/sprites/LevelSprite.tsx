@@ -6,7 +6,7 @@
  * Designed for NFT compatibility on Bitcoin network.
  */
 
-import { type FC, useMemo } from 'react';
+import { type FC, useMemo } from "react";
 import {
   getLevelConfig,
   getAllFeaturesForLevel,
@@ -14,9 +14,19 @@ import {
   getViewBoxForLevel,
   type SpriteFeature,
   type LevelConfig,
-} from './sprite-config';
+} from "./sprite-config";
+import { PixelIcon } from "./PixelIcon";
 
-export type LevelSpriteState = 'idle' | 'happy' | 'sleeping' | 'hungry' | 'mining' | 'learning' | 'evolving' | 'critical' | 'dead';
+export type LevelSpriteState =
+  | "idle"
+  | "happy"
+  | "sleeping"
+  | "hungry"
+  | "mining"
+  | "learning"
+  | "evolving"
+  | "critical"
+  | "dead";
 
 interface LevelSpriteProps {
   level: number;
@@ -31,15 +41,15 @@ interface LevelSpriteProps {
  */
 function getStateAnimation(state: LevelSpriteState): string {
   const animations: Record<LevelSpriteState, string> = {
-    idle: 'animate-pixel-float',
-    happy: 'animate-bounce',
-    sleeping: 'baby-sleeping',
-    hungry: 'animate-pixel-shake',
-    mining: 'animate-pixel-glow',
-    learning: 'animate-pulse',
-    evolving: 'baby-evolving',
-    critical: 'animate-pixel-shake',
-    dead: 'opacity-50 grayscale',
+    idle: "animate-pixel-float",
+    happy: "animate-bounce",
+    sleeping: "baby-sleeping",
+    hungry: "animate-pixel-shake",
+    mining: "animate-pixel-glow",
+    learning: "animate-pulse",
+    evolving: "baby-evolving",
+    critical: "animate-pixel-shake",
+    dead: "opacity-50 grayscale",
   };
   return animations[state];
 }
@@ -47,12 +57,9 @@ function getStateAnimation(state: LevelSpriteState): string {
 /**
  * Resolve color from palette reference or return as-is
  */
-function resolveColor(
-  color: string,
-  palette: LevelConfig['palette']
-): string {
+function resolveColor(color: string, palette: LevelConfig["palette"]): string {
   if (color in palette) {
-    return palette[color as keyof LevelConfig['palette']];
+    return palette[color as keyof LevelConfig["palette"]];
   }
   return color;
 }
@@ -62,14 +69,14 @@ function resolveColor(
  */
 const FeatureElement: FC<{
   feature: SpriteFeature;
-  palette: LevelConfig['palette'];
+  palette: LevelConfig["palette"];
 }> = ({ feature, palette }) => {
   const fill = resolveColor(feature.fill, palette);
   const opacity = feature.opacity ?? 1;
-  const animationClass = feature.animation === 'pulse' ? 'animate-pulse' : '';
+  const animationClass = feature.animation === "pulse" ? "animate-pulse" : "";
 
   switch (feature.type) {
-    case 'rect':
+    case "rect":
       return (
         <rect
           x={feature.x}
@@ -81,7 +88,7 @@ const FeatureElement: FC<{
           className={animationClass}
         />
       );
-    case 'circle':
+    case "circle":
       return (
         <circle
           cx={feature.x}
@@ -92,7 +99,7 @@ const FeatureElement: FC<{
           className={animationClass}
         />
       );
-    case 'polygon':
+    case "polygon":
       return (
         <polygon
           points={feature.points}
@@ -101,7 +108,7 @@ const FeatureElement: FC<{
           className={animationClass}
         />
       );
-    case 'path':
+    case "path":
       return (
         <path
           d={feature.d}
@@ -118,12 +125,17 @@ const FeatureElement: FC<{
 /**
  * Aura effect component
  */
-const AuraEffect: FC<{ color: string; intensity: number }> = ({ color, intensity }) => (
+const AuraEffect: FC<{ color: string; intensity: number }> = ({
+  color,
+  intensity,
+}) => (
   <div
     className="absolute inset-0 -z-10 rounded-full"
     style={{
-      background: `radial-gradient(circle, ${color}${Math.round(intensity * 50).toString(16).padStart(2, '0')} 0%, transparent 70%)`,
-      animation: 'pulse 2s ease-in-out infinite',
+      background: `radial-gradient(circle, ${color}${Math.round(intensity * 50)
+        .toString(16)
+        .padStart(2, "0")} 0%, transparent 70%)`,
+      animation: "pulse 2s ease-in-out infinite",
     }}
   />
 );
@@ -139,11 +151,11 @@ const ParticleEffect: FC<{ color: string }> = ({ color }) => (
     />
     <div
       className="absolute -top-1 -right-3 w-2 h-2 animate-ping"
-      style={{ backgroundColor: color, animationDelay: '100ms' }}
+      style={{ backgroundColor: color, animationDelay: "100ms" }}
     />
     <div
       className="absolute -bottom-2 left-4 w-2 h-2 animate-ping"
-      style={{ backgroundColor: color, animationDelay: '200ms' }}
+      style={{ backgroundColor: color, animationDelay: "200ms" }}
     />
   </>
 );
@@ -154,8 +166,14 @@ const ParticleEffect: FC<{ color: string }> = ({ color }) => (
 const MiningSparkles: FC = () => (
   <>
     <div className="absolute -top-2 -left-2 w-2 h-2 bg-[#f7931a] animate-ping" />
-    <div className="absolute -top-1 -right-3 w-2 h-2 bg-[#ffc107] animate-ping" style={{ animationDelay: '100ms' }} />
-    <div className="absolute -bottom-2 left-4 w-2 h-2 bg-[#22c55e] animate-ping" style={{ animationDelay: '200ms' }} />
+    <div
+      className="absolute -top-1 -right-3 w-2 h-2 bg-[#ffc107] animate-ping"
+      style={{ animationDelay: "100ms" }}
+    />
+    <div
+      className="absolute -bottom-2 left-4 w-2 h-2 bg-[#22c55e] animate-ping"
+      style={{ animationDelay: "200ms" }}
+    />
   </>
 );
 
@@ -176,9 +194,9 @@ const SleepingZzz: FC = () => (
  */
 export const LevelSprite: FC<LevelSpriteProps> = ({
   level,
-  state = 'idle',
+  state = "idle",
   size = 192,
-  className = '',
+  className = "",
   showEffects = true,
 }) => {
   // Clamp level to valid range
@@ -186,7 +204,10 @@ export const LevelSprite: FC<LevelSpriteProps> = ({
 
   // Get configuration data
   const config = useMemo(() => getLevelConfig(safeLevel), [safeLevel]);
-  const features = useMemo(() => getAllFeaturesForLevel(safeLevel), [safeLevel]);
+  const features = useMemo(
+    () => getAllFeaturesForLevel(safeLevel),
+    [safeLevel],
+  );
   const palette = useMemo(() => getPaletteForLevel(safeLevel), [safeLevel]);
   const viewBox = useMemo(() => getViewBoxForLevel(safeLevel), [safeLevel]);
 
@@ -211,7 +232,7 @@ export const LevelSprite: FC<LevelSpriteProps> = ({
         width={scaledSize}
         height={scaledSize}
         viewBox={`0 0 ${viewBox} ${viewBox}`}
-        style={{ imageRendering: 'pixelated' }}
+        style={{ imageRendering: "pixelated" }}
         data-level={safeLevel}
         data-name={config.name}
       >
@@ -225,7 +246,7 @@ export const LevelSprite: FC<LevelSpriteProps> = ({
         ))}
 
         {/* Sleeping eyes override */}
-        {state === 'sleeping' && (
+        {state === "sleeping" && (
           <>
             <rect
               x={viewBox * 0.31}
@@ -248,8 +269,8 @@ export const LevelSprite: FC<LevelSpriteProps> = ({
       {/* State-based overlays */}
       {showEffects && (
         <>
-          {state === 'mining' && <MiningSparkles />}
-          {state === 'sleeping' && <SleepingZzz />}
+          {state === "mining" && <MiningSparkles />}
+          {state === "sleeping" && <SleepingZzz />}
           {config.effects.hasParticles && config.effects.particleColor && (
             <ParticleEffect color={config.effects.particleColor} />
           )}
@@ -257,10 +278,12 @@ export const LevelSprite: FC<LevelSpriteProps> = ({
       )}
 
       {/* Evolution sparkle */}
-      {state === 'evolving' && (
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 text-2xl animate-bounce">
-          ✨
-        </div>
+      {state === "evolving" && (
+        <PixelIcon
+          name="sparkle"
+          size={24}
+          className="absolute top-0 left-1/2 -translate-x-1/2 animate-bounce text-pixel-primary"
+        />
       )}
     </div>
   );
@@ -278,13 +301,19 @@ export function getLevelNFTMetadata(level: number) {
     name: config.name,
     level,
     attributes: [
-      { trait_type: 'Level', value: level },
-      { trait_type: 'Name', value: config.name },
-      { trait_type: 'ViewBox', value: config.viewBoxSize },
-      { trait_type: 'Feature Count', value: features.length },
-      { trait_type: 'Has Aura', value: config.effects.hasAura ?? false },
-      { trait_type: 'Has Particles', value: config.effects.hasParticles ?? false },
-      { trait_type: 'Glow Intensity', value: config.effects.glowIntensity ?? 0 },
+      { trait_type: "Level", value: level },
+      { trait_type: "Name", value: config.name },
+      { trait_type: "ViewBox", value: config.viewBoxSize },
+      { trait_type: "Feature Count", value: features.length },
+      { trait_type: "Has Aura", value: config.effects.hasAura ?? false },
+      {
+        trait_type: "Has Particles",
+        value: config.effects.hasParticles ?? false,
+      },
+      {
+        trait_type: "Glow Intensity",
+        value: config.effects.glowIntensity ?? 0,
+      },
     ],
     palette: config.palette,
     features: features.map((f) => ({

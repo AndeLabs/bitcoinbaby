@@ -5,10 +5,27 @@
  * Supports 8 visual forms with 3 variants each.
  */
 
-import { type FC } from 'react';
+import { type FC } from "react";
+import { PixelIcon } from "./PixelIcon";
 
-export type SpriteForm = 'egg' | 'baby' | 'child' | 'teen' | 'young' | 'adult' | 'master' | 'legend';
-export type SpriteState = 'idle' | 'happy' | 'sleeping' | 'hungry' | 'mining' | 'learning' | 'evolving' | 'critical';
+export type SpriteForm =
+  | "egg"
+  | "baby"
+  | "child"
+  | "teen"
+  | "young"
+  | "adult"
+  | "master"
+  | "legend";
+export type SpriteState =
+  | "idle"
+  | "happy"
+  | "sleeping"
+  | "hungry"
+  | "mining"
+  | "learning"
+  | "evolving"
+  | "critical";
 
 interface GameSpriteProps {
   form: SpriteForm;
@@ -19,15 +36,18 @@ interface GameSpriteProps {
 }
 
 // Color palettes that evolve with the character
-const PALETTES: Record<SpriteForm, { primary: string; secondary: string; accent: string }> = {
-  egg: { primary: '#9ca3af', secondary: '#f7931a', accent: '#4fc3f7' },
-  baby: { primary: '#f7931a', secondary: '#ffc107', accent: '#4fc3f7' },
-  child: { primary: '#f7931a', secondary: '#fb923c', accent: '#22d3ee' },
-  teen: { primary: '#ea580c', secondary: '#f97316', accent: '#06b6d4' },
-  young: { primary: '#dc2626', secondary: '#f43f5e', accent: '#8b5cf6' },
-  adult: { primary: '#9333ea', secondary: '#a855f7', accent: '#fbbf24' },
-  master: { primary: '#1d4ed8', secondary: '#3b82f6', accent: '#fbbf24' },
-  legend: { primary: '#fbbf24', secondary: '#fcd34d', accent: '#ffffff' },
+const PALETTES: Record<
+  SpriteForm,
+  { primary: string; secondary: string; accent: string }
+> = {
+  egg: { primary: "#9ca3af", secondary: "#f7931a", accent: "#4fc3f7" },
+  baby: { primary: "#f7931a", secondary: "#ffc107", accent: "#4fc3f7" },
+  child: { primary: "#f7931a", secondary: "#fb923c", accent: "#22d3ee" },
+  teen: { primary: "#ea580c", secondary: "#f97316", accent: "#06b6d4" },
+  young: { primary: "#dc2626", secondary: "#f43f5e", accent: "#8b5cf6" },
+  adult: { primary: "#9333ea", secondary: "#a855f7", accent: "#fbbf24" },
+  master: { primary: "#1d4ed8", secondary: "#3b82f6", accent: "#fbbf24" },
+  legend: { primary: "#fbbf24", secondary: "#fcd34d", accent: "#ffffff" },
 };
 
 // Size multipliers per form
@@ -45,45 +65,115 @@ const SIZE_MULTIPLIERS: Record<SpriteForm, number> = {
 export const GameSprite: FC<GameSpriteProps> = ({
   form,
   variant = 1,
-  state = 'idle',
+  state = "idle",
   size = 192,
-  className = '',
+  className = "",
 }) => {
   const palette = PALETTES[form];
   const scale = SIZE_MULTIPLIERS[form];
   const scaledSize = size * scale;
 
   const stateClasses: Record<SpriteState, string> = {
-    idle: 'animate-pixel-float',
-    happy: 'animate-bounce',
-    sleeping: 'baby-sleeping',
-    hungry: 'animate-pixel-shake',
-    mining: 'animate-pixel-glow',
-    learning: '',
-    evolving: 'baby-evolving',
-    critical: 'animate-pixel-shake',
+    idle: "animate-pixel-float",
+    happy: "animate-bounce",
+    sleeping: "baby-sleeping",
+    hungry: "animate-pixel-shake",
+    mining: "animate-pixel-glow",
+    learning: "",
+    evolving: "baby-evolving",
+    critical: "animate-pixel-shake",
   };
 
   // Render appropriate form
   switch (form) {
-    case 'egg':
-      return <EggSprite size={scaledSize} state={state} palette={palette} className={`${stateClasses[state]} ${className}`} />;
-    case 'baby':
-      return <BabyFormSprite size={scaledSize} state={state} palette={palette} variant={variant} className={`${stateClasses[state]} ${className}`} />;
-    case 'child':
-      return <ChildFormSprite size={scaledSize} state={state} palette={palette} variant={variant} className={`${stateClasses[state]} ${className}`} />;
-    case 'teen':
-      return <TeenFormSprite size={scaledSize} state={state} palette={palette} variant={variant} className={`${stateClasses[state]} ${className}`} />;
-    case 'young':
-      return <YoungFormSprite size={scaledSize} state={state} palette={palette} variant={variant} className={`${stateClasses[state]} ${className}`} />;
-    case 'adult':
-      return <AdultFormSprite size={scaledSize} state={state} palette={palette} variant={variant} className={`${stateClasses[state]} ${className}`} />;
-    case 'master':
-      return <MasterFormSprite size={scaledSize} state={state} palette={palette} variant={variant} className={`${stateClasses[state]} ${className}`} />;
-    case 'legend':
-      return <LegendFormSprite size={scaledSize} state={state} palette={palette} className={`${stateClasses[state]} ${className}`} />;
+    case "egg":
+      return (
+        <EggSprite
+          size={scaledSize}
+          state={state}
+          palette={palette}
+          className={`${stateClasses[state]} ${className}`}
+        />
+      );
+    case "baby":
+      return (
+        <BabyFormSprite
+          size={scaledSize}
+          state={state}
+          palette={palette}
+          variant={variant}
+          className={`${stateClasses[state]} ${className}`}
+        />
+      );
+    case "child":
+      return (
+        <ChildFormSprite
+          size={scaledSize}
+          state={state}
+          palette={palette}
+          variant={variant}
+          className={`${stateClasses[state]} ${className}`}
+        />
+      );
+    case "teen":
+      return (
+        <TeenFormSprite
+          size={scaledSize}
+          state={state}
+          palette={palette}
+          variant={variant}
+          className={`${stateClasses[state]} ${className}`}
+        />
+      );
+    case "young":
+      return (
+        <YoungFormSprite
+          size={scaledSize}
+          state={state}
+          palette={palette}
+          variant={variant}
+          className={`${stateClasses[state]} ${className}`}
+        />
+      );
+    case "adult":
+      return (
+        <AdultFormSprite
+          size={scaledSize}
+          state={state}
+          palette={palette}
+          variant={variant}
+          className={`${stateClasses[state]} ${className}`}
+        />
+      );
+    case "master":
+      return (
+        <MasterFormSprite
+          size={scaledSize}
+          state={state}
+          palette={palette}
+          variant={variant}
+          className={`${stateClasses[state]} ${className}`}
+        />
+      );
+    case "legend":
+      return (
+        <LegendFormSprite
+          size={scaledSize}
+          state={state}
+          palette={palette}
+          className={`${stateClasses[state]} ${className}`}
+        />
+      );
     default:
-      return <BabyFormSprite size={scaledSize} state={state} palette={palette} variant={1} className={`${stateClasses[state]} ${className}`} />;
+      return (
+        <BabyFormSprite
+          size={scaledSize}
+          state={state}
+          palette={palette}
+          variant={1}
+          className={`${stateClasses[state]} ${className}`}
+        />
+      );
   }
 };
 
@@ -100,20 +190,51 @@ interface FormSpriteProps {
 }
 
 // Egg Form
-const EggSprite: FC<FormSpriteProps> = ({ size, state, palette, className }) => (
+const EggSprite: FC<FormSpriteProps> = ({
+  size,
+  state,
+  palette,
+  className,
+}) => (
   <div className={`relative ${className}`}>
-    <svg width={size} height={size} viewBox="0 0 16 16" style={{ imageRendering: 'pixelated' }}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      style={{ imageRendering: "pixelated" }}
+    >
       {/* Egg shell */}
       <ellipse cx="8" cy="9" rx="5" ry="6" fill={palette.primary} />
       <ellipse cx="8" cy="8" rx="4" ry="5" fill="#d1d5db" />
 
       {/* Circuit pattern */}
-      <rect x="6" y="6" width="1" height="3" fill={palette.secondary} opacity="0.7" />
-      <rect x="9" y="7" width="1" height="2" fill={palette.secondary} opacity="0.7" />
-      <rect x="7" y="10" width="2" height="1" fill={palette.secondary} opacity="0.7" />
+      <rect
+        x="6"
+        y="6"
+        width="1"
+        height="3"
+        fill={palette.secondary}
+        opacity="0.7"
+      />
+      <rect
+        x="9"
+        y="7"
+        width="1"
+        height="2"
+        fill={palette.secondary}
+        opacity="0.7"
+      />
+      <rect
+        x="7"
+        y="10"
+        width="2"
+        height="1"
+        fill={palette.secondary}
+        opacity="0.7"
+      />
 
       {/* Crack if hatching */}
-      {state === 'evolving' && (
+      {state === "evolving" && (
         <>
           <rect x="7" y="4" width="1" height="2" fill="#1f2937" />
           <rect x="8" y="5" width="1" height="2" fill="#1f2937" />
@@ -122,16 +243,31 @@ const EggSprite: FC<FormSpriteProps> = ({ size, state, palette, className }) => 
       )}
     </svg>
 
-    {state === 'evolving' && (
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 text-xl animate-bounce">✨</div>
+    {state === "evolving" && (
+      <PixelIcon
+        name="sparkle"
+        size={20}
+        className="absolute top-0 left-1/2 -translate-x-1/2 animate-bounce text-pixel-primary"
+      />
     )}
   </div>
 );
 
 // Baby Form (Level 1-3)
-const BabyFormSprite: FC<FormSpriteProps> = ({ size, state, palette, variant = 1, className }) => (
+const BabyFormSprite: FC<FormSpriteProps> = ({
+  size,
+  state,
+  palette,
+  variant = 1,
+  className,
+}) => (
   <div className={`relative ${className}`}>
-    <svg width={size} height={size} viewBox="0 0 16 16" style={{ imageRendering: 'pixelated' }}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      style={{ imageRendering: "pixelated" }}
+    >
       {/* Antenna */}
       <rect x="7" y="0" width="2" height="2" fill={palette.accent} />
 
@@ -141,10 +277,17 @@ const BabyFormSprite: FC<FormSpriteProps> = ({ size, state, palette, variant = 1
       <rect x="12" y="3" width="1" height="4" fill={palette.secondary} />
 
       {/* Brain glow - increases with variant */}
-      <rect x="5" y="3" width="6" height="3" fill={palette.accent} opacity={0.3 + variant * 0.1} />
+      <rect
+        x="5"
+        y="3"
+        width="6"
+        height="3"
+        fill={palette.accent}
+        opacity={0.3 + variant * 0.1}
+      />
 
       {/* Eyes */}
-      {state !== 'sleeping' ? (
+      {state !== "sleeping" ? (
         <>
           <rect x="5" y="5" width="2" height="2" fill="#1f2937" />
           <rect x="9" y="5" width="2" height="2" fill="#1f2937" />
@@ -176,15 +319,26 @@ const BabyFormSprite: FC<FormSpriteProps> = ({ size, state, palette, variant = 1
       <rect x="9" y="13" width="2" height="1" fill="#e67e00" />
     </svg>
 
-    {state === 'mining' && <MiningSparkles />}
-    {state === 'sleeping' && <SleepingZzz />}
+    {state === "mining" && <MiningSparkles />}
+    {state === "sleeping" && <SleepingZzz />}
   </div>
 );
 
 // Child Form (Level 4-6) - Slightly bigger, more features
-const ChildFormSprite: FC<FormSpriteProps> = ({ size, state, palette, variant = 1, className }) => (
+const ChildFormSprite: FC<FormSpriteProps> = ({
+  size,
+  state,
+  palette,
+  variant = 1,
+  className,
+}) => (
   <div className={`relative ${className}`}>
-    <svg width={size} height={size} viewBox="0 0 18 18" style={{ imageRendering: 'pixelated' }}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 18 18"
+      style={{ imageRendering: "pixelated" }}
+    >
       {/* Antenna with spark */}
       <rect x="8" y="0" width="2" height="3" fill={palette.accent} />
       <rect x="9" y="0" width="1" height="1" fill="#ffffff" />
@@ -195,7 +349,7 @@ const ChildFormSprite: FC<FormSpriteProps> = ({ size, state, palette, variant = 
       <rect x="14" y="4" width="1" height="4" fill={palette.secondary} />
 
       {/* Eyes - bigger */}
-      {state !== 'sleeping' ? (
+      {state !== "sleeping" ? (
         <>
           <rect x="5" y="5" width="3" height="3" fill="#1f2937" />
           <rect x="10" y="5" width="3" height="3" fill="#1f2937" />
@@ -229,15 +383,26 @@ const ChildFormSprite: FC<FormSpriteProps> = ({ size, state, palette, variant = 
       <rect x="10" y="15" width="2" height="2" fill="#92400e" />
     </svg>
 
-    {state === 'mining' && <MiningSparkles />}
-    {state === 'sleeping' && <SleepingZzz />}
+    {state === "mining" && <MiningSparkles />}
+    {state === "sleeping" && <SleepingZzz />}
   </div>
 );
 
 // Teen Form (Level 7-9) - With hoodie
-const TeenFormSprite: FC<FormSpriteProps> = ({ size, state, palette, variant = 1, className }) => (
+const TeenFormSprite: FC<FormSpriteProps> = ({
+  size,
+  state,
+  palette,
+  variant = 1,
+  className,
+}) => (
   <div className={`relative ${className}`}>
-    <svg width={size} height={size} viewBox="0 0 20 20" style={{ imageRendering: 'pixelated' }}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 20 20"
+      style={{ imageRendering: "pixelated" }}
+    >
       {/* Antenna */}
       <rect x="9" y="0" width="2" height="2" fill={palette.accent} />
 
@@ -273,15 +438,26 @@ const TeenFormSprite: FC<FormSpriteProps> = ({ size, state, palette, variant = 1
       <rect x="11" y="17" width="3" height="2" fill="#1f2937" />
     </svg>
 
-    {state === 'mining' && <MiningSparkles />}
-    {state === 'sleeping' && <SleepingZzz />}
+    {state === "mining" && <MiningSparkles />}
+    {state === "sleeping" && <SleepingZzz />}
   </div>
 );
 
 // Young Adult Form (Level 10-12) - Warrior look
-const YoungFormSprite: FC<FormSpriteProps> = ({ size, state, palette, variant = 1, className }) => (
+const YoungFormSprite: FC<FormSpriteProps> = ({
+  size,
+  state,
+  palette,
+  variant = 1,
+  className,
+}) => (
   <div className={`relative ${className}`}>
-    <svg width={size} height={size} viewBox="0 0 22 22" style={{ imageRendering: 'pixelated' }}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 22 22"
+      style={{ imageRendering: "pixelated" }}
+    >
       {/* Crown/Helmet */}
       <rect x="8" y="0" width="6" height="2" fill={palette.accent} />
       <rect x="10" y="0" width="2" height="1" fill="#fbbf24" />
@@ -315,15 +491,26 @@ const YoungFormSprite: FC<FormSpriteProps> = ({ size, state, palette, variant = 
       <rect x="12" y="18" width="3" height="3" fill="#78350f" />
     </svg>
 
-    {state === 'mining' && <MiningSparkles />}
-    {state === 'sleeping' && <SleepingZzz />}
+    {state === "mining" && <MiningSparkles />}
+    {state === "sleeping" && <SleepingZzz />}
   </div>
 );
 
 // Adult Form (Level 13-15) - Sage/Mage look
-const AdultFormSprite: FC<FormSpriteProps> = ({ size, state, palette, variant = 1, className }) => (
+const AdultFormSprite: FC<FormSpriteProps> = ({
+  size,
+  state,
+  palette,
+  variant = 1,
+  className,
+}) => (
   <div className={`relative ${className}`}>
-    <svg width={size} height={size} viewBox="0 0 24 24" style={{ imageRendering: 'pixelated' }}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      style={{ imageRendering: "pixelated" }}
+    >
       {/* Wizard hat */}
       <polygon points="12,0 8,6 16,6" fill={palette.primary} />
       <rect x="9" y="5" width="6" height="2" fill={palette.secondary} />
@@ -356,15 +543,26 @@ const AdultFormSprite: FC<FormSpriteProps> = ({ size, state, palette, variant = 
       <rect x="13" y="22" width="3" height="1" fill="#581c87" />
     </svg>
 
-    {state === 'mining' && <MiningSparkles />}
-    {state === 'sleeping' && <SleepingZzz />}
+    {state === "mining" && <MiningSparkles />}
+    {state === "sleeping" && <SleepingZzz />}
   </div>
 );
 
 // Master Form (Level 16-18) - Full Master look
-const MasterFormSprite: FC<FormSpriteProps> = ({ size, state, palette, variant = 1, className }) => (
+const MasterFormSprite: FC<FormSpriteProps> = ({
+  size,
+  state,
+  palette,
+  variant = 1,
+  className,
+}) => (
   <div className={`relative ${className}`}>
-    <svg width={size} height={size} viewBox="0 0 26 26" style={{ imageRendering: 'pixelated' }}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 26 26"
+      style={{ imageRendering: "pixelated" }}
+    >
       {/* Crown */}
       <rect x="9" y="0" width="8" height="3" fill="#fbbf24" />
       <rect x="11" y="0" width="1" height="1" fill="#f43f5e" />
@@ -401,19 +599,45 @@ const MasterFormSprite: FC<FormSpriteProps> = ({ size, state, palette, variant =
       <rect x="14" y="23" width="3" height="2" fill="#1e3a8a" />
     </svg>
 
-    {state === 'mining' && <MiningSparkles />}
-    {state === 'sleeping' && <SleepingZzz />}
+    {state === "mining" && <MiningSparkles />}
+    {state === "sleeping" && <SleepingZzz />}
   </div>
 );
 
 // Legend Form (Level 21) - Ultimate golden form
-const LegendFormSprite: FC<FormSpriteProps> = ({ size, state, palette, className }) => (
+const LegendFormSprite: FC<FormSpriteProps> = ({
+  size,
+  state,
+  palette,
+  className,
+}) => (
   <div className={`relative ${className}`}>
-    <svg width={size} height={size} viewBox="0 0 28 28" style={{ imageRendering: 'pixelated' }}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 28 28"
+      style={{ imageRendering: "pixelated" }}
+    >
       {/* Divine aura rays */}
       <rect x="13" y="0" width="2" height="4" fill="#fef3c7" opacity="0.7" />
-      <rect x="6" y="2" width="2" height="3" fill="#fef3c7" opacity="0.5" transform="rotate(-30 7 3.5)" />
-      <rect x="20" y="2" width="2" height="3" fill="#fef3c7" opacity="0.5" transform="rotate(30 21 3.5)" />
+      <rect
+        x="6"
+        y="2"
+        width="2"
+        height="3"
+        fill="#fef3c7"
+        opacity="0.5"
+        transform="rotate(-30 7 3.5)"
+      />
+      <rect
+        x="20"
+        y="2"
+        width="2"
+        height="3"
+        fill="#fef3c7"
+        opacity="0.5"
+        transform="rotate(30 21 3.5)"
+      />
 
       {/* Crown of Satoshi */}
       <rect x="9" y="2" width="10" height="4" fill="#fbbf24" />
@@ -457,13 +681,14 @@ const LegendFormSprite: FC<FormSpriteProps> = ({ size, state, palette, className
     <div
       className="absolute inset-0 -z-10"
       style={{
-        background: 'radial-gradient(circle, rgba(251,191,36,0.3) 0%, transparent 70%)',
-        animation: 'pulse 2s ease-in-out infinite',
+        background:
+          "radial-gradient(circle, rgba(251,191,36,0.3) 0%, transparent 70%)",
+        animation: "pulse 2s ease-in-out infinite",
       }}
     />
 
-    {state === 'mining' && <MiningSparkles />}
-    {state === 'sleeping' && <SleepingZzz />}
+    {state === "mining" && <MiningSparkles />}
+    {state === "sleeping" && <SleepingZzz />}
   </div>
 );
 
@@ -474,8 +699,14 @@ const LegendFormSprite: FC<FormSpriteProps> = ({ size, state, palette, className
 const MiningSparkles: FC = () => (
   <>
     <div className="absolute -top-2 -left-2 w-2 h-2 bg-pixel-primary animate-ping" />
-    <div className="absolute -top-1 -right-3 w-2 h-2 bg-pixel-secondary animate-ping" style={{ animationDelay: '100ms' }} />
-    <div className="absolute -bottom-2 left-4 w-2 h-2 bg-pixel-success animate-ping" style={{ animationDelay: '200ms' }} />
+    <div
+      className="absolute -top-1 -right-3 w-2 h-2 bg-pixel-secondary animate-ping"
+      style={{ animationDelay: "100ms" }}
+    />
+    <div
+      className="absolute -bottom-2 left-4 w-2 h-2 bg-pixel-success animate-ping"
+      style={{ animationDelay: "200ms" }}
+    />
   </>
 );
 

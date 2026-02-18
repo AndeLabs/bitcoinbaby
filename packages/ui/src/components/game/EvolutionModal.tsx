@@ -4,9 +4,10 @@
  * Dramatic modal that shows when baby evolves to a new stage.
  */
 
-import { type FC, useEffect, useState } from 'react';
-import { clsx } from 'clsx';
-import { Button } from '../button';
+import { type FC, useEffect, useState } from "react";
+import { clsx } from "clsx";
+import { Button } from "../button";
+import { PixelIcon } from "../sprites";
 
 interface EvolutionModalProps {
   isOpen: boolean;
@@ -29,18 +30,20 @@ export const EvolutionModal: FC<EvolutionModalProps> = ({
   onComplete,
   className,
 }) => {
-  const [phase, setPhase] = useState<'flash' | 'reveal' | 'stats' | 'done'>('flash');
+  const [phase, setPhase] = useState<"flash" | "reveal" | "stats" | "done">(
+    "flash",
+  );
 
   useEffect(() => {
     if (isOpen) {
-      setPhase('flash');
+      setPhase("flash");
 
       // Flash phase
-      const flashTimer = setTimeout(() => setPhase('reveal'), 1000);
+      const flashTimer = setTimeout(() => setPhase("reveal"), 1000);
       // Reveal phase
-      const revealTimer = setTimeout(() => setPhase('stats'), 2500);
+      const revealTimer = setTimeout(() => setPhase("stats"), 2500);
       // Stats phase
-      const statsTimer = setTimeout(() => setPhase('done'), 4000);
+      const statsTimer = setTimeout(() => setPhase("done"), 4000);
 
       return () => {
         clearTimeout(flashTimer);
@@ -57,17 +60,21 @@ export const EvolutionModal: FC<EvolutionModalProps> = ({
   return (
     <div
       className={clsx(
-        'fixed inset-0 z-50',
-        'flex items-center justify-center',
-        'bg-black/80',
-        className
+        "fixed inset-0 z-50",
+        "flex items-center justify-center",
+        "bg-black/80",
+        className,
       )}
     >
       <div className="relative text-center">
         {/* Flash effect */}
-        {phase === 'flash' && (
+        {phase === "flash" && (
           <div className="animate-pulse">
-            <div className="text-8xl mb-4 animate-spin">⚡</div>
+            <PixelIcon
+              name="bolt"
+              size={80}
+              className="mx-auto mb-4 animate-spin text-pixel-primary"
+            />
             <div className="font-pixel text-white text-2xl animate-bounce">
               EVOLUCIONANDO...
             </div>
@@ -75,16 +82,20 @@ export const EvolutionModal: FC<EvolutionModalProps> = ({
         )}
 
         {/* Reveal new form */}
-        {(phase === 'reveal' || phase === 'stats' || phase === 'done') && (
+        {(phase === "reveal" || phase === "stats" || phase === "done") && (
           <div
             className={clsx(
-              'bg-pixel-bg-dark border-4 border-pixel-primary p-8',
-              'shadow-[8px_8px_0_0_#000]',
-              'animate-[scale-in_0.5s_ease-out]'
+              "bg-pixel-bg-dark border-4 border-pixel-primary p-8",
+              "shadow-[8px_8px_0_0_#000]",
+              "animate-[scale-in_0.5s_ease-out]",
             )}
           >
             {/* Celebration */}
-            <div className="text-4xl mb-4 animate-bounce">🎉</div>
+            <PixelIcon
+              name="star"
+              size={48}
+              className="mx-auto mb-4 animate-bounce text-pixel-primary"
+            />
 
             {/* Stage transition */}
             <div className="flex items-center justify-center gap-4 mb-6">
@@ -107,11 +118,11 @@ export const EvolutionModal: FC<EvolutionModalProps> = ({
             </div>
 
             {/* Stats reveal */}
-            {(phase === 'stats' || phase === 'done') && (
+            {(phase === "stats" || phase === "done") && (
               <div
                 className={clsx(
-                  'bg-pixel-bg-light p-4 mb-6',
-                  'animate-[fade-in_0.5s_ease-out]'
+                  "bg-pixel-bg-light p-4 mb-6",
+                  "animate-[fade-in_0.5s_ease-out]",
                 )}
               >
                 <div className="font-pixel text-xs text-pixel-text-muted mb-2">
@@ -124,7 +135,7 @@ export const EvolutionModal: FC<EvolutionModalProps> = ({
             )}
 
             {/* Continue button */}
-            {phase === 'done' && (
+            {phase === "done" && (
               <Button
                 variant="default"
                 size="lg"
@@ -140,18 +151,18 @@ export const EvolutionModal: FC<EvolutionModalProps> = ({
         {/* Particle effects */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           {[...Array(12)].map((_, i) => (
-            <div
+            <PixelIcon
               key={i}
-              className="absolute text-xl"
+              name="sparkle"
+              size={20}
+              className="absolute text-pixel-primary"
               style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animation: `float-up ${2 + Math.random() * 2}s ease-out infinite`,
-                animationDelay: `${Math.random() * 2}s`,
+                left: `${10 + ((i * 7) % 80)}%`,
+                top: `${10 + ((i * 11) % 80)}%`,
+                animation: `float-up ${2 + (i % 3)}s ease-out infinite`,
+                animationDelay: `${(i * 0.2) % 2}s`,
               }}
-            >
-              ✨
-            </div>
+            />
           ))}
         </div>
       </div>

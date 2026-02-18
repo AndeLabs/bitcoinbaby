@@ -31,3 +31,11 @@ export { WhaleSprite } from "./WhaleSprite";
 
 // Genesis Baby NFT Sprite System
 export * from "./genesis";
+
+// Pixel Art Icons (replaces emojis)
+export {
+  PixelIcon,
+  STAT_ICONS,
+  ACTION_ICONS,
+  type IconName,
+} from "./PixelIcon";

@@ -5,9 +5,10 @@
  * and progression info (Level, XP, Stage).
  */
 
-import { type FC } from 'react';
-import { clsx } from 'clsx';
-import { Progress } from '../progress';
+import { type FC } from "react";
+import { clsx } from "clsx";
+import { Progress } from "../progress";
+import { PixelIcon, type IconName } from "../sprites";
 
 export interface GameHUDStats {
   energy: number;
@@ -37,14 +38,14 @@ interface GameHUDProps {
  */
 function getStatVariant(
   value: number,
-  isInverted: boolean = false
-): 'success' | 'warning' | 'error' | 'default' {
+  isInverted: boolean = false,
+): "success" | "warning" | "error" | "default" {
   const effectiveValue = isInverted ? 100 - value : value;
 
-  if (effectiveValue <= 20) return 'error';
-  if (effectiveValue <= 40) return 'warning';
-  if (effectiveValue >= 80) return 'success';
-  return 'default';
+  if (effectiveValue <= 20) return "error";
+  if (effectiveValue <= 40) return "warning";
+  if (effectiveValue >= 80) return "success";
+  return "default";
 }
 
 /**
@@ -52,7 +53,7 @@ function getStatVariant(
  */
 const StatBar: FC<{
   label: string;
-  icon: string;
+  icon: IconName;
   value: number;
   isInverted?: boolean;
 }> = ({ label, icon, value, isInverted = false }) => {
@@ -62,15 +63,9 @@ const StatBar: FC<{
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-lg" title={label}>
-        {icon}
-      </span>
+      <PixelIcon name={icon} size={18} className="text-pixel-primary" />
       <div className="flex-1">
-        <Progress
-          value={displayValue}
-          variant={variant}
-          className="h-4"
-        />
+        <Progress value={displayValue} variant={variant} className="h-4" />
       </div>
       <span className="font-pixel-mono text-xs w-8 text-right">
         {Math.round(value)}
@@ -92,9 +87,9 @@ export const GameHUD: FC<GameHUDProps> = ({
   return (
     <div
       className={clsx(
-        'bg-pixel-bg-dark border-4 border-pixel-border p-4',
-        'space-y-4',
-        className
+        "bg-pixel-bg-dark border-4 border-pixel-border p-4",
+        "space-y-4",
+        className,
       )}
     >
       {/* Level & Stage */}
@@ -131,25 +126,29 @@ export const GameHUD: FC<GameHUDProps> = ({
         </div>
         <Progress
           value={xpPercentage}
-          variant={isMining ? 'mining' : 'default'}
+          variant={isMining ? "mining" : "default"}
         />
       </div>
 
       {/* Stats Grid */}
       <div className="space-y-2">
-        <StatBar label="Energy" icon="⚡" value={stats.energy} />
-        <StatBar label="Happiness" icon="😊" value={stats.happiness} />
-        <StatBar label="Hunger" icon="🍖" value={stats.hunger} isInverted />
-        <StatBar label="Health" icon="❤️" value={stats.health} />
+        <StatBar label="Energy" icon="bolt" value={stats.energy} />
+        <StatBar label="Happiness" icon="happy" value={stats.happiness} />
+        <StatBar label="Hunger" icon="food" value={stats.hunger} isInverted />
+        <StatBar label="Health" icon="heart" value={stats.health} />
       </div>
 
       {/* Decay Warning */}
       {daysUntilDecay !== undefined && daysUntilDecay <= 3 && (
         <div className="bg-pixel-error/20 border-2 border-pixel-error p-2">
-          <div className="font-pixel text-xs text-pixel-error text-center">
+          <div className="font-pixel text-xs text-pixel-error text-center flex items-center justify-center gap-1">
+            <PixelIcon
+              name={daysUntilDecay <= 0 ? "warning" : "clock"}
+              size={14}
+            />
             {daysUntilDecay <= 0
-              ? '⚠️ Nivel decayendo!'
-              : `⏰ ${Math.ceil(daysUntilDecay)} días para decay`}
+              ? "Nivel decayendo!"
+              : `${Math.ceil(daysUntilDecay)} dias para decay`}
           </div>
           <div className="font-pixel text-[10px] text-pixel-text-muted text-center">
             Mina para evitar perder XP

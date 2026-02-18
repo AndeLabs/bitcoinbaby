@@ -14,6 +14,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { PixelIcon } from "../sprites";
 
 // =============================================================================
 // TYPES
@@ -156,7 +157,11 @@ export function MiningErrorFallback({
   return (
     <div className="flex flex-col items-center justify-center min-h-[300px] p-8 bg-pixel-bg-medium border-4 border-pixel-warning">
       <div className="text-center space-y-4">
-        <div className="text-5xl mb-4">⛏️</div>
+        <PixelIcon
+          name="pickaxe"
+          size={48}
+          className="mx-auto mb-4 text-pixel-warning"
+        />
 
         <h2 className="font-pixel text-[14px] text-pixel-warning uppercase">
           Mining Error

@@ -9,15 +9,19 @@ import type { Miner, MiningResult } from "./types";
 export class CPUMiner implements Miner {
   readonly type = "cpu" as const;
 
-  private worker: Worker | null = null;
+  private workers: Worker[] = [];
   private workerUrl: string | null = null;
   private difficulty: number;
   private throttle = 100;
   private running = false;
   private paused = false;
-  private hashrate = 0;
   private totalHashes = 0;
   private minerAddress = "";
+  private workerCount: number;
+
+  // Per-worker hashrates for aggregation
+  private workerHashrates: Map<number, number> = new Map();
+  private workerTotalHashes: Map<number, number> = new Map();
 
   // Callbacks
   private onHashrateUpdate?: (hashrate: number) => void;
@@ -29,6 +33,7 @@ export class CPUMiner implements Miner {
     options: {
       difficulty?: number;
       address?: string;
+      workerCount?: number;
       onHashrateUpdate?: (hashrate: number) => void;
       onWorkFound?: (result: MiningResult) => void;
       onStatusChange?: (status: "running" | "paused" | "stopped") => void;
@@ -37,6 +42,11 @@ export class CPUMiner implements Miner {
   ) {
     this.difficulty = options.difficulty ?? 16;
     this.minerAddress = options.address ?? "";
+    // Use specified count, or auto-detect CPU cores, or fallback to 1
+    this.workerCount =
+      options.workerCount ??
+      (typeof navigator !== "undefined" ? navigator.hardwareConcurrency : 1) ??
+      1;
     this.onHashrateUpdate = options.onHashrateUpdate;
     this.onWorkFound = options.onWorkFound;
     this.onStatusChange = options.onStatusChange;
@@ -44,10 +54,10 @@ export class CPUMiner implements Miner {
   }
 
   /**
-   * Initialize the Web Worker
+   * Initialize the Web Workers (one per CPU core)
    */
-  private initWorker(): void {
-    if (this.worker) return;
+  private initWorkers(): void {
+    if (this.workers.length > 0) return;
 
     // Check if we're in a browser environment
     if (typeof window === "undefined" || typeof Worker === "undefined") {
@@ -61,55 +71,95 @@ export class CPUMiner implements Miner {
       const workerCode = this.getWorkerCode();
       const blob = new Blob([workerCode], { type: "application/javascript" });
       this.workerUrl = URL.createObjectURL(blob);
-      this.worker = new Worker(this.workerUrl);
 
-      // Handle messages from worker
-      this.worker.onmessage = (event) => {
-        const { type, ...data } = event.data;
+      // Create multiple workers (one per core)
+      for (let i = 0; i < this.workerCount; i++) {
+        const worker = new Worker(this.workerUrl);
+        this.setupWorkerHandlers(worker, i);
+        this.workers.push(worker);
+      }
 
-        switch (type) {
-          case "hashrate":
-            this.hashrate = data.hashrate;
-            this.totalHashes = data.totalHashes;
-            this.onHashrateUpdate?.(data.hashrate);
-            break;
-
-          case "found":
-            this.onWorkFound?.({
-              hash: data.hash,
-              nonce: data.nonce,
-              difficulty: data.difficulty,
-              timestamp: Date.now(),
-            });
-            break;
-
-          case "status":
-            if (data.status === "stopped" && data.totalHashes) {
-              this.totalHashes = data.totalHashes;
-            }
-            this.onStatusChange?.(data.status);
-            break;
-        }
-      };
-
-      this.worker.onerror = (error) => {
-        console.error("Mining worker error:", error);
-        this.running = false;
-        if (this.workerUrl) {
-          URL.revokeObjectURL(this.workerUrl);
-          this.workerUrl = null;
-        }
-        this.onStatusChange?.("stopped");
-        // Propagate error to consumer for proper handling
-        const errorObj = new Error(error.message || "Mining worker error");
-        this.onError?.(errorObj);
-      };
+      console.log(
+        `[CPUMiner] Initialized ${this.workerCount} workers for parallel mining`,
+      );
     } catch (error) {
-      console.error("Failed to create mining worker:", error);
+      console.error("Failed to create mining workers:", error);
       // Propagate initialization errors
       const errorObj =
-        error instanceof Error ? error : new Error("Failed to create worker");
+        error instanceof Error ? error : new Error("Failed to create workers");
       this.onError?.(errorObj);
+    }
+  }
+
+  /**
+   * Setup message handlers for a single worker
+   */
+  private setupWorkerHandlers(worker: Worker, workerId: number): void {
+    worker.onmessage = (event) => {
+      const { type, ...data } = event.data;
+
+      switch (type) {
+        case "hashrate":
+          // Store per-worker hashrate and total
+          this.workerHashrates.set(workerId, data.hashrate);
+          this.workerTotalHashes.set(workerId, data.totalHashes);
+
+          // Aggregate hashrates from all workers
+          let totalHashrate = 0;
+          let totalHashes = 0;
+          for (const hr of this.workerHashrates.values()) totalHashrate += hr;
+          for (const th of this.workerTotalHashes.values()) totalHashes += th;
+
+          this.totalHashes = totalHashes;
+          this.onHashrateUpdate?.(totalHashrate);
+          break;
+
+        case "found":
+          this.onWorkFound?.({
+            hash: data.hash,
+            nonce: data.nonce,
+            difficulty: data.difficulty,
+            timestamp: Date.now(),
+          });
+          break;
+
+        case "status":
+          if (data.status === "stopped" && data.totalHashes) {
+            this.workerTotalHashes.set(workerId, data.totalHashes);
+          }
+          // Only emit status change on first worker to avoid duplicates
+          if (workerId === 0) {
+            this.onStatusChange?.(data.status);
+          }
+          break;
+      }
+    };
+
+    worker.onerror = (error) => {
+      console.error(`Mining worker ${workerId} error:`, error);
+      this.running = false;
+      this.terminateWorkers();
+      this.onStatusChange?.("stopped");
+      // Propagate error to consumer for proper handling
+      const errorObj = new Error(error.message || "Mining worker error");
+      this.onError?.(errorObj);
+    };
+  }
+
+  /**
+   * Terminate all workers and clean up resources
+   */
+  private terminateWorkers(): void {
+    for (const worker of this.workers) {
+      worker.terminate();
+    }
+    this.workers = [];
+    this.workerHashrates.clear();
+    this.workerTotalHashes.clear();
+
+    if (this.workerUrl) {
+      URL.revokeObjectURL(this.workerUrl);
+      this.workerUrl = null;
     }
   }
 
@@ -256,15 +306,24 @@ export class CPUMiner implements Miner {
   async start(block?: string): Promise<void> {
     if (this.running) return;
 
-    this.initWorker();
+    this.initWorkers();
     this.running = true;
     this.paused = false;
 
-    if (this.worker) {
-      this.worker.postMessage({
-        type: "start",
-        block: block || Date.now().toString(),
-        address: this.minerAddress,
+    if (this.workers.length > 0) {
+      // Start each worker with a different nonce range to avoid duplicates
+      const blockId = block || Date.now().toString();
+      const nonceSpacing = Math.floor(
+        Number.MAX_SAFE_INTEGER / this.workerCount,
+      );
+
+      this.workers.forEach((worker, index) => {
+        worker.postMessage({
+          type: "start",
+          block: blockId,
+          address: this.minerAddress,
+          startNonce: index * nonceSpacing,
+        });
       });
     } else {
       // Fallback: simulate mining without worker
@@ -276,38 +335,38 @@ export class CPUMiner implements Miner {
     this.running = false;
     this.paused = false;
 
-    if (this.worker) {
-      this.worker.postMessage({ type: "stop" });
+    for (const worker of this.workers) {
+      worker.postMessage({ type: "stop" });
     }
 
-    this.hashrate = 0;
+    this.workerHashrates.clear();
   }
 
   pause(): void {
     this.paused = true;
-    if (this.worker) {
-      this.worker.postMessage({ type: "pause" });
+    for (const worker of this.workers) {
+      worker.postMessage({ type: "pause" });
     }
   }
 
   resume(): void {
     this.paused = false;
-    if (this.worker) {
-      this.worker.postMessage({ type: "resume" });
+    for (const worker of this.workers) {
+      worker.postMessage({ type: "resume" });
     }
   }
 
   setDifficulty(difficulty: number): void {
     this.difficulty = difficulty;
-    if (this.worker) {
-      this.worker.postMessage({ type: "config", difficulty });
+    for (const worker of this.workers) {
+      worker.postMessage({ type: "config", difficulty });
     }
   }
 
   setThrottle(percent: number): void {
     this.throttle = Math.max(0, Math.min(100, percent));
-    if (this.worker) {
-      this.worker.postMessage({ type: "config", throttle: this.throttle });
+    for (const worker of this.workers) {
+      worker.postMessage({ type: "config", throttle: this.throttle });
     }
   }
 
@@ -316,11 +375,18 @@ export class CPUMiner implements Miner {
   }
 
   getHashrate(): number {
-    return this.hashrate;
+    // Sum hashrates from all workers
+    let total = 0;
+    for (const hr of this.workerHashrates.values()) total += hr;
+    return total;
   }
 
   getTotalHashes(): number {
     return this.totalHashes;
+  }
+
+  getWorkerCount(): number {
+    return this.workerCount;
   }
 
   isRunning(): boolean {
@@ -328,18 +394,11 @@ export class CPUMiner implements Miner {
   }
 
   /**
-   * Terminate the worker and clean up
+   * Terminate all workers and clean up
    */
   terminate(): void {
     this.stop();
-    if (this.workerUrl) {
-      URL.revokeObjectURL(this.workerUrl);
-      this.workerUrl = null;
-    }
-    if (this.worker) {
-      this.worker.terminate();
-      this.worker = null;
-    }
+    this.terminateWorkers();
   }
 
   /**
@@ -420,8 +479,7 @@ export class CPUMiner implements Miner {
 
       const now = Date.now();
       if (now - lastUpdate >= 1000) {
-        this.hashrate = hashesThisSecond;
-        this.onHashrateUpdate?.(this.hashrate);
+        this.onHashrateUpdate?.(hashesThisSecond);
         hashesThisSecond = 0;
         lastUpdate = now;
       }

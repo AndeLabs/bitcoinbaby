@@ -5,11 +5,12 @@
  * - Feed, Play, Sleep, Learn, Mine
  */
 
-import { type FC } from 'react';
-import { clsx } from 'clsx';
-import { Button } from '../button';
+import { type FC } from "react";
+import { clsx } from "clsx";
+import { Button } from "../button";
+import { PixelIcon, type IconName } from "../sprites";
 
-export type GameAction = 'feed' | 'play' | 'sleep' | 'wake' | 'learn' | 'mine';
+export type GameAction = "feed" | "play" | "sleep" | "wake" | "learn" | "mine";
 
 interface ActionButtonsProps {
   onAction: (action: GameAction) => void;
@@ -22,32 +23,32 @@ interface ActionButtonsProps {
 
 interface ActionConfig {
   action: GameAction;
-  icon: string;
+  icon: IconName;
   label: string;
-  variant: 'default' | 'secondary' | 'outline';
+  variant: "default" | "secondary" | "outline";
   disabledIf?: (props: ActionButtonsProps) => boolean;
 }
 
 const ACTIONS: ActionConfig[] = [
   {
-    action: 'feed',
-    icon: '🍖',
-    label: 'FEED',
-    variant: 'default',
+    action: "feed",
+    icon: "food",
+    label: "FEED",
+    variant: "default",
     disabledIf: (p) => p.isSleeping === true,
   },
   {
-    action: 'play',
-    icon: '🎮',
-    label: 'PLAY',
-    variant: 'secondary',
+    action: "play",
+    icon: "gamepad",
+    label: "PLAY",
+    variant: "secondary",
     disabledIf: (p) => p.isSleeping === true || (p.energy ?? 100) < 10,
   },
   {
-    action: 'learn',
-    icon: '📚',
-    label: 'LEARN',
-    variant: 'outline',
+    action: "learn",
+    icon: "book",
+    label: "LEARN",
+    variant: "outline",
     disabledIf: (p) => p.isSleeping === true || (p.energy ?? 100) < 15,
   },
 ];
@@ -62,7 +63,7 @@ export const ActionButtons: FC<ActionButtonsProps> = (props) => {
   } = props;
 
   return (
-    <div className={clsx('space-y-3', className)}>
+    <div className={clsx("space-y-3", className)}>
       {/* Main Actions */}
       <div className="flex gap-2 justify-center flex-wrap">
         {ACTIONS.map((config) => {
@@ -77,7 +78,7 @@ export const ActionButtons: FC<ActionButtonsProps> = (props) => {
               onClick={() => onAction(config.action)}
               className="min-w-[80px]"
             >
-              <span className="mr-1">{config.icon}</span>
+              <PixelIcon name={config.icon} size={14} className="mr-1" />
               {config.label}
             </Button>
           );
@@ -87,45 +88,37 @@ export const ActionButtons: FC<ActionButtonsProps> = (props) => {
       {/* Sleep/Wake Toggle */}
       <div className="flex justify-center">
         <Button
-          variant={isSleeping ? 'default' : 'outline'}
+          variant={isSleeping ? "default" : "outline"}
           size="sm"
           disabled={disabled || isMining}
-          onClick={() => onAction(isSleeping ? 'wake' : 'sleep')}
+          onClick={() => onAction(isSleeping ? "wake" : "sleep")}
           className="min-w-[100px]"
         >
-          {isSleeping ? (
-            <>
-              <span className="mr-1">☀️</span> WAKE
-            </>
-          ) : (
-            <>
-              <span className="mr-1">😴</span> SLEEP
-            </>
-          )}
+          <PixelIcon
+            name={isSleeping ? "sun" : "moon"}
+            size={14}
+            className="mr-1"
+          />
+          {isSleeping ? "WAKE" : "SLEEP"}
         </Button>
       </div>
 
       {/* Mine Button (Larger, prominent) */}
       <div className="flex justify-center">
         <Button
-          variant={isMining ? 'secondary' : 'default'}
+          variant={isMining ? "secondary" : "default"}
           size="lg"
           disabled={disabled || isSleeping}
-          onClick={() => onAction('mine')}
-          className={clsx(
-            'min-w-[140px]',
-            isMining && 'animate-pulse'
-          )}
+          onClick={() => onAction("mine")}
+          className={clsx("min-w-[140px]", isMining && "animate-pulse")}
         >
-          {isMining ? (
-            <>
-              <span className="mr-2 animate-spin">⛏️</span> MINING...
-            </>
-          ) : (
-            <>
-              <span className="mr-2">⛏️</span> MINE
-            </>
-          )}
+          <PixelIcon
+            name="pickaxe"
+            size={18}
+            className="mr-2"
+            animate={isMining}
+          />
+          {isMining ? "MINING..." : "MINE"}
         </Button>
       </div>
 

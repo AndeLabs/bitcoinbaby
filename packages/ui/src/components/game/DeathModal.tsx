@@ -5,9 +5,10 @@
  * Allows revival with a new start.
  */
 
-import { type FC, useState } from 'react';
-import { clsx } from 'clsx';
-import { Button } from '../button';
+import { type FC, useState } from "react";
+import { clsx } from "clsx";
+import { Button } from "../button";
+import { PixelIcon } from "../sprites";
 
 interface DeathModalProps {
   isOpen: boolean;
@@ -42,23 +43,27 @@ export const DeathModal: FC<DeathModalProps> = ({
   return (
     <div
       className={clsx(
-        'fixed inset-0 z-50',
-        'flex items-center justify-center',
-        'bg-black/90',
-        className
+        "fixed inset-0 z-50",
+        "flex items-center justify-center",
+        "bg-black/90",
+        className,
       )}
     >
       <div
         className={clsx(
-          'bg-pixel-bg-dark border-4 border-pixel-error p-8',
-          'shadow-[8px_8px_0_0_#000]',
-          'text-center max-w-sm'
+          "bg-pixel-bg-dark border-4 border-pixel-error p-8",
+          "shadow-[8px_8px_0_0_#000]",
+          "text-center max-w-sm",
         )}
       >
         {isReviving ? (
           // Revival animation
           <div className="animate-pulse">
-            <div className="text-6xl mb-4 animate-spin">⚡</div>
+            <PixelIcon
+              name="bolt"
+              size={64}
+              className="mx-auto mb-4 animate-spin text-pixel-primary"
+            />
             <div className="font-pixel text-pixel-primary text-xl">
               REVIVIENDO...
             </div>
@@ -66,7 +71,11 @@ export const DeathModal: FC<DeathModalProps> = ({
         ) : (
           <>
             {/* Death icon */}
-            <div className="text-6xl mb-4 opacity-50">💀</div>
+            <PixelIcon
+              name="skull"
+              size={64}
+              className="mx-auto mb-4 opacity-50 text-pixel-error"
+            />
 
             {/* Message */}
             <div className="font-pixel text-pixel-error text-xl mb-2">
@@ -85,8 +94,9 @@ export const DeathModal: FC<DeathModalProps> = ({
 
             {/* Note about tokens */}
             <div className="bg-pixel-success/20 border-2 border-pixel-success p-3 mb-6">
-              <p className="font-pixel text-xs text-pixel-success">
-                ✓ Tus $BABY tokens están a salvo
+              <p className="font-pixel text-xs text-pixel-success flex items-center justify-center gap-1">
+                <PixelIcon name="star" size={12} />
+                Tus $BABY tokens estan a salvo
               </p>
               <p className="font-pixel text-[10px] text-pixel-text-muted">
                 Los tokens minados nunca se pierden
@@ -114,7 +124,7 @@ export const DeathModal: FC<DeathModalProps> = ({
                 onClick={handleRevive}
                 className="w-full"
               >
-                <span className="mr-2">✨</span>
+                <PixelIcon name="sparkle" size={16} className="mr-2" />
                 REVIVIR BABY
               </Button>
 

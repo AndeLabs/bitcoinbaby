@@ -4,8 +4,9 @@
  * Animated popup that appears when an achievement is unlocked.
  */
 
-import { type FC, useEffect, useState } from 'react';
-import { clsx } from 'clsx';
+import { type FC, useEffect, useState } from "react";
+import { clsx } from "clsx";
+import { PixelIcon } from "../sprites";
 
 export interface AchievementData {
   id: string;
@@ -59,19 +60,17 @@ export const AchievementPopup: FC<AchievementPopupProps> = ({
   return (
     <div
       className={clsx(
-        'fixed top-4 left-1/2 -translate-x-1/2 z-50',
-        'transition-all duration-300',
-        isExiting
-          ? 'opacity-0 -translate-y-4'
-          : 'opacity-100 translate-y-0',
-        className
+        "fixed top-4 left-1/2 -translate-x-1/2 z-50",
+        "transition-all duration-300",
+        isExiting ? "opacity-0 -translate-y-4" : "opacity-100 translate-y-0",
+        className,
       )}
     >
       <div
         className={clsx(
-          'bg-pixel-bg-dark border-4 border-pixel-primary',
-          'shadow-[4px_4px_0_0_#000]',
-          'p-4 min-w-[280px]'
+          "bg-pixel-bg-dark border-4 border-pixel-primary",
+          "shadow-[4px_4px_0_0_#000]",
+          "p-4 min-w-[280px]",
         )}
       >
         {/* Header */}
@@ -102,9 +101,23 @@ export const AchievementPopup: FC<AchievementPopupProps> = ({
         )}
 
         {/* Sparkle decorations */}
-        <div className="absolute -top-2 -left-2 text-xl animate-ping">✨</div>
-        <div className="absolute -top-2 -right-2 text-xl animate-ping" style={{ animationDelay: '100ms' }}>✨</div>
-        <div className="absolute -bottom-2 left-1/2 text-xl animate-ping" style={{ animationDelay: '200ms' }}>✨</div>
+        <PixelIcon
+          name="sparkle"
+          size={20}
+          className="absolute -top-2 -left-2 animate-ping text-pixel-primary"
+        />
+        <PixelIcon
+          name="sparkle"
+          size={20}
+          className="absolute -top-2 -right-2 animate-ping text-pixel-primary"
+          style={{ animationDelay: "100ms" }}
+        />
+        <PixelIcon
+          name="sparkle"
+          size={20}
+          className="absolute -bottom-2 left-1/2 animate-ping text-pixel-primary"
+          style={{ animationDelay: "200ms" }}
+        />
       </div>
     </div>
   );
