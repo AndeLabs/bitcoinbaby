@@ -6,15 +6,24 @@
  */
 
 import type { Miner, MiningResult } from "./types";
+import { getNavigator } from "./capabilities";
 
 // Workgroup sizes to try, in preference order
 const WORKGROUP_SIZES = [256, 128, 64] as const;
 
 // How many nonces to process per GPU dispatch
-const DEFAULT_BATCH_SIZE = 65536;
+// Start small to prevent system freeze on first dispatch
+const DEFAULT_BATCH_SIZE = 4096;
+
+// Maximum batch size to prevent GPU timeout/TDR
+const MAX_BATCH_SIZE = 262144; // 256K max (was 1M - too aggressive)
+
+// Minimum batch size for efficiency
+const MIN_BATCH_SIZE = 1024;
 
 // Target milliseconds per batch (auto-tuning)
-const TARGET_BATCH_MS = 16; // ~60fps feel
+// Higher value = safer but slower; lower = faster but riskier
+const TARGET_BATCH_MS = 50; // ~20fps - safer for integrated GPUs
 
 export class WebGPUMiner implements Miner {
   readonly type = "webgpu" as const;
@@ -50,6 +59,12 @@ export class WebGPUMiner implements Miner {
   private hashesThisSecond = 0;
   private lastStatsUpdate = Date.now();
 
+  // Recovery state (prevents infinite crash loops)
+  private recoveryAttempts = 0;
+  private maxRecoveryAttempts = 3;
+  private lastRecoveryTime = 0;
+  private shouldRecover = false;
+
   // Callbacks
   private onHashrateUpdate?: (hashrate: number) => void;
   private onWorkFound?: (result: MiningResult) => void;
@@ -79,7 +94,8 @@ export class WebGPUMiner implements Miner {
   // ----------------------------------------------------------------
 
   async init(): Promise<void> {
-    const gpu = (navigator as never as { gpu?: GPU }).gpu;
+    const nav = getNavigator();
+    const gpu = nav?.gpu;
     if (!gpu) throw new Error("WebGPU not supported in this browser");
 
     const adapter = await gpu.requestAdapter({
@@ -89,6 +105,35 @@ export class WebGPUMiner implements Miner {
 
     this.device = await adapter.requestDevice({
       label: "BitcoinBaby miner",
+    });
+
+    // CRITICAL: Handle GPU device loss (prevents crashes from appearing as malware)
+    // This can happen due to: driver crash, GPU timeout (TDR), system sleep, etc.
+    this.device.lost.then((info) => {
+      console.warn(
+        `[BitcoinBaby] GPU device lost: ${info.message} (reason: ${info.reason})`,
+      );
+
+      const wasRunning = this.running;
+      this.running = false;
+      this.device = null;
+      this.pipeline = null;
+      this.bindGroup = null;
+
+      // If the device was destroyed intentionally, don't try to recover
+      if (info.reason === "destroyed") {
+        return;
+      }
+
+      // Notify the user that mining stopped due to GPU issue
+      this.onStatusChange?.("stopped");
+      this.onError?.(new Error(`GPU device lost: ${info.reason}`));
+
+      // If mining was active, attempt recovery after a delay
+      if (wasRunning) {
+        console.log("[BitcoinBaby] Attempting GPU recovery in 3 seconds...");
+        setTimeout(() => this.attemptRecovery(), 3000);
+      }
     });
 
     // Choose workgroup size based on device limits
@@ -293,14 +338,14 @@ export class WebGPUMiner implements Miner {
 
     queue.submit([encoder.finish()]);
 
-    // Read results back to CPU
-    await this.readDigestBuffer!.mapAsync(GPUMapMode.READ);
+    // Read results back to CPU (with timeout to prevent hanging on device loss)
+    await mapAsyncWithTimeout(this.readDigestBuffer!, GPUMapMode.READ);
     const digestData = new Uint32Array(
       this.readDigestBuffer!.getMappedRange(),
     ).slice();
     this.readDigestBuffer!.unmap();
 
-    await this.readInfoBuffer!.mapAsync(GPUMapMode.READ);
+    await mapAsyncWithTimeout(this.readInfoBuffer!, GPUMapMode.READ);
     const infoData = new Uint32Array(
       this.readInfoBuffer!.getMappedRange(),
     ).slice();
@@ -367,25 +412,40 @@ export class WebGPUMiner implements Miner {
         this.lastStatsUpdate = now;
       }
 
-      // Auto-tune batch size
+      // Auto-tune batch size (conservative to prevent GPU hangs)
       const batchMs = performance.now() - batchStart;
-      if (batchMs < TARGET_BATCH_MS * 0.8 && this.batchSize < 1_048_576) {
-        this.batchSize = Math.min(this.batchSize * 2, 1_048_576);
-      } else if (batchMs > TARGET_BATCH_MS * 1.5 && this.batchSize > 4096) {
-        this.batchSize = Math.max(Math.floor(this.batchSize / 2), 4096);
+      if (batchMs < TARGET_BATCH_MS * 0.5 && this.batchSize < MAX_BATCH_SIZE) {
+        // Only grow by 50% to avoid sudden spikes
+        this.batchSize = Math.min(
+          Math.floor(this.batchSize * 1.5),
+          MAX_BATCH_SIZE,
+        );
+      } else if (
+        batchMs > TARGET_BATCH_MS * 2 &&
+        this.batchSize > MIN_BATCH_SIZE
+      ) {
+        // Shrink faster if batches are too slow
+        this.batchSize = Math.max(
+          Math.floor(this.batchSize / 2),
+          MIN_BATCH_SIZE,
+        );
       }
 
+      // CRITICAL: Always yield to event loop to prevent system freeze
+      // This ensures the browser can handle user input and other tasks
+      // Minimum 1ms sleep prevents GPU from monopolizing the system
+      const minYieldMs = 1;
+
       // Apply throttle with deterministic sleep (smoother than random batch-skipping)
-      // At 100% throttle: no sleep (max speed)
+      // At 100% throttle: minimal yield only
       // At 50% throttle: sleep equal to batch time (halves hashrate)
       // At 25% throttle: sleep 3x batch time (quarters hashrate)
+      let sleepMs = minYieldMs;
       if (this.throttle < 100 && this.throttle > 0) {
         const sleepMultiplier = (100 - this.throttle) / this.throttle;
-        const sleepMs = Math.ceil(batchMs * sleepMultiplier);
-        if (sleepMs > 0) {
-          await sleep(sleepMs);
-        }
+        sleepMs = Math.max(minYieldMs, Math.ceil(batchMs * sleepMultiplier));
       }
+      await sleep(sleepMs);
     }
   }
 
@@ -410,7 +470,16 @@ export class WebGPUMiner implements Miner {
       this.lastStatsUpdate = Date.now();
 
       this.onStatusChange?.("running");
-      this.miningLoop();
+      // Start mining loop without awaiting (runs in background)
+      // Add .catch() to handle any errors that escape the internal try/catch
+      this.miningLoop().catch((err) => {
+        console.error("[WebGPU] Unhandled mining loop error:", err);
+        this.running = false;
+        this.onStatusChange?.("stopped");
+        this.onError?.(
+          err instanceof Error ? err : new Error("Mining loop failed"),
+        );
+      });
     } catch (err) {
       console.error("WebGPU miner start error:", err);
       this.running = false;
@@ -466,6 +535,7 @@ export class WebGPUMiner implements Miner {
 
   terminate(): void {
     this.stop();
+    this.shouldRecover = false; // Prevent recovery after explicit termination
     this.challengeBuffer?.destroy();
     this.uniformBuffer?.destroy();
     this.bestDigestBuffer?.destroy();
@@ -475,12 +545,136 @@ export class WebGPUMiner implements Miner {
     this.device?.destroy();
     this.device = null;
   }
+
+  /**
+   * Attempt to recover from GPU device loss
+   * Uses exponential backoff and limits attempts to prevent crash loops
+   */
+  private async attemptRecovery(): Promise<void> {
+    const now = Date.now();
+
+    // Reset recovery attempts if enough time has passed (5 minutes)
+    if (now - this.lastRecoveryTime > 300_000) {
+      this.recoveryAttempts = 0;
+    }
+
+    // Check if we've exceeded max recovery attempts
+    if (this.recoveryAttempts >= this.maxRecoveryAttempts) {
+      console.error(
+        "[BitcoinBaby] Max GPU recovery attempts reached. Please restart the app.",
+      );
+      this.onError?.(
+        new Error(
+          "GPU recovery failed after multiple attempts. Mining stopped for safety.",
+        ),
+      );
+      return;
+    }
+
+    this.recoveryAttempts++;
+    this.lastRecoveryTime = now;
+
+    console.log(
+      `[BitcoinBaby] GPU recovery attempt ${this.recoveryAttempts}/${this.maxRecoveryAttempts}`,
+    );
+
+    try {
+      // Clean up any remaining resources
+      this.cleanupBuffers();
+
+      // Reinitialize GPU
+      await this.init();
+
+      // Restore challenge if we had one
+      if (this.challenge) {
+        await this.prepareChallenge(this.challenge);
+      }
+
+      // Resume mining
+      this.running = true;
+      this.paused = false;
+      this.onStatusChange?.("running");
+      this.miningLoop().catch((err) => {
+        console.error(
+          "[WebGPU] Unhandled mining loop error after recovery:",
+          err,
+        );
+        this.running = false;
+        this.onStatusChange?.("stopped");
+        this.onError?.(
+          err instanceof Error
+            ? err
+            : new Error("Mining loop failed after recovery"),
+        );
+      });
+
+      console.log("[BitcoinBaby] GPU recovery successful!");
+      // Reset attempts on successful recovery
+      this.recoveryAttempts = 0;
+    } catch (err) {
+      console.error("[BitcoinBaby] GPU recovery failed:", err);
+
+      // If we still have attempts left, try again with exponential backoff
+      if (this.recoveryAttempts < this.maxRecoveryAttempts) {
+        const backoffMs = Math.pow(2, this.recoveryAttempts) * 1000; // 2s, 4s, 8s
+        console.log(`[BitcoinBaby] Retrying in ${backoffMs / 1000} seconds...`);
+        setTimeout(() => this.attemptRecovery(), backoffMs);
+      } else {
+        this.onError?.(
+          new Error(
+            "GPU unavailable. Mining will use CPU fallback if available.",
+          ),
+        );
+      }
+    }
+  }
+
+  /**
+   * Clean up GPU buffers without destroying device
+   */
+  private cleanupBuffers(): void {
+    this.challengeBuffer?.destroy();
+    this.uniformBuffer?.destroy();
+    this.bestDigestBuffer?.destroy();
+    this.bestInfoBuffer?.destroy();
+    this.readDigestBuffer?.destroy();
+    this.readInfoBuffer?.destroy();
+
+    this.challengeBuffer = null;
+    this.uniformBuffer = null;
+    this.bestDigestBuffer = null;
+    this.bestInfoBuffer = null;
+    this.readDigestBuffer = null;
+    this.readInfoBuffer = null;
+    this.pipeline = null;
+    this.bindGroup = null;
+  }
 }
 
 // ---- Helpers ----
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Map a GPU buffer with timeout to prevent hanging on device loss
+ * If the device is lost, mapAsync can hang forever - this prevents that
+ */
+async function mapAsyncWithTimeout(
+  buffer: GPUBuffer,
+  mode: GPUMapModeFlags,
+  timeoutMs = 5000,
+): Promise<void> {
+  const mapPromise = buffer.mapAsync(mode);
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(
+      () =>
+        reject(new Error("GPU buffer mapAsync timeout - device may be lost")),
+      timeoutMs,
+    );
+  });
+  await Promise.race([mapPromise, timeoutPromise]);
 }
 
 function getShaderSource(workgroupSize: number): string {
@@ -695,16 +889,20 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let digest2 = sha256_32(digest1);
   let lz = count_leading_zeros(digest2);
 
+  // Lock-free update: try to update best result without spinlock
+  // This avoids GPU hang that can crash the entire system on Apple Silicon
   let prev_best = atomicMax(&bestInfo.bestLz, lz);
   if (lz > prev_best) {
+    // Try to acquire lock with bounded attempts (prevents infinite loop)
     var acquired = false;
-    loop {
+    for (var attempt = 0u; attempt < 32u; attempt++) {
       if (atomicCompareExchangeWeak(&bestInfo.bestLock, 0u, 1u).exchanged) {
         acquired = true;
         break;
       }
     }
     if (acquired) {
+      // Double-check we still have the best result
       if (lz >= atomicLoad(&bestInfo.bestLz)) {
         atomicStore(&bestInfo.bestNonceLo, params.startLo + idx);
         atomicStore(&bestInfo.bestNonceHi, nonceHi);
@@ -714,6 +912,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
       }
       atomicStore(&bestInfo.bestLock, 0u);
     }
+    // If we couldn't acquire lock after 32 attempts, skip this update
+    // Another thread with equal or better result will update instead
   }
 }
 `;

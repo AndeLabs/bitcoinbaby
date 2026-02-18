@@ -47,14 +47,17 @@ export function AddressInput({
     [network, onChange],
   );
 
-  // Re-validate when network changes
+  // Re-validate when network changes (async to comply with React Compiler)
   useEffect(() => {
     if (value) {
-      const result = validateAddress(value, network);
-      setValidationResult(result);
-      onChange(value, result.valid);
+      const timeout = setTimeout(() => {
+        const result = validateAddress(value, network);
+        setValidationResult(result);
+        onChange(value, result.valid);
+      }, 0);
+      return () => clearTimeout(timeout);
     }
-  }, [network]);
+  }, [network, value, onChange]);
 
   // Handle paste
   const handlePaste = useCallback(

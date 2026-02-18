@@ -12,6 +12,14 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Capacitor build artifacts (generated, not source code)
+    "android/**",
+    "ios/**",
+    // Service worker and worker files (plain JS, not TypeScript)
+    "public/sw.js",
+    "public/workers/**",
+    // Node.js scripts
+    "scripts/**",
   ]),
 ]);
 

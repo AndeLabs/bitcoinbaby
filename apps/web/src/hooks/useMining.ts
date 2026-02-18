@@ -1,5 +1,25 @@
 "use client";
 
+/**
+ * @deprecated Use `useGlobalMining` from `@bitcoinbaby/core` instead.
+ *
+ * This hook creates a LOCAL MiningOrchestrator that is NOT persistent
+ * across page navigations. For persistent mining, use:
+ *
+ * ```tsx
+ * import { useGlobalMining } from "@bitcoinbaby/core";
+ *
+ * const mining = useGlobalMining({ difficulty: 16 });
+ * ```
+ *
+ * Or for NFT boost support:
+ * ```tsx
+ * import { useMiningWithNFTs } from "@/hooks";
+ *
+ * const mining = useMiningWithNFTs();
+ * ```
+ */
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   MiningOrchestrator,
@@ -115,19 +135,22 @@ export function useMining(options: UseMiningOptions = {}) {
     };
   }, [difficulty, minerAddress, autoStart]);
 
-  // Sync NFT boost from options
+  // Sync NFT boost from options (async to comply with React Compiler)
   useEffect(() => {
-    setState((prev) => {
-      if (prev.nftBoost === nftBoost) return prev;
-      // Recalculate effective hashrate with new boost
-      const boostMultiplier = 1 + nftBoost / 100;
-      const effectiveHashrate = Math.floor(prev.hashrate * boostMultiplier);
-      return {
-        ...prev,
-        nftBoost,
-        effectiveHashrate,
-      };
-    });
+    const timeout = setTimeout(() => {
+      setState((prev) => {
+        if (prev.nftBoost === nftBoost) return prev;
+        // Recalculate effective hashrate with new boost
+        const boostMultiplier = 1 + nftBoost / 100;
+        const effectiveHashrate = Math.floor(prev.hashrate * boostMultiplier);
+        return {
+          ...prev,
+          nftBoost,
+          effectiveHashrate,
+        };
+      });
+    }, 0);
+    return () => clearTimeout(timeout);
   }, [nftBoost]);
 
   // Start mining

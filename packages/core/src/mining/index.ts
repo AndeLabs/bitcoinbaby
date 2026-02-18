@@ -10,8 +10,18 @@ export { MiningOrchestrator } from "./orchestrator";
 export { CPUMiner } from "./cpu-miner";
 export { WebGPUMiner } from "./webgpu-miner";
 
+// Global mining singleton (persists across navigation)
+export {
+  getMiningManager,
+  destroyMiningManager,
+  MiningManager,
+  type MiningManagerState,
+  type MiningManagerConfig,
+} from "./mining-singleton";
+
 // Device capability detection
 export {
+  getNavigator,
   detectWebGPU,
   detectWebGL,
   detectWorkers,
@@ -22,6 +32,32 @@ export {
   detectCapabilities,
   getRecommendedConfig,
 } from "./capabilities";
+
+// Persistence (IndexedDB state saving)
+export {
+  MiningStatePersistence,
+  getMiningPersistence,
+  initMiningPersistence,
+  type PersistedMiningState,
+  type PersistedSession,
+} from "./persistence";
+
+// Tab Coordinator (Web Locks API)
+export {
+  MiningTabCoordinator,
+  getTabCoordinator,
+  destroyTabCoordinator,
+  type TabCoordinatorEvents,
+  type TabInfo,
+} from "./tab-coordinator";
+
+// Wake Lock (Screen Wake Lock API)
+export {
+  MiningWakeLock,
+  getMiningWakeLock,
+  destroyMiningWakeLock,
+  type WakeLockStatus,
+} from "./wake-lock";
 
 // Types
 export type {

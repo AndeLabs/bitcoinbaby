@@ -6,6 +6,10 @@
 
 import type { BitcoinNetwork } from "../types";
 import type { SpellConfig } from "../scrolls/types";
+import type { SpellV2 } from "../charms/types";
+
+// Spell type union - supports both v1 and v2 formats
+export type Spell = SpellConfig | SpellV2;
 
 /**
  * UTXO for transaction input
@@ -99,7 +103,7 @@ export interface SignedTx {
  * Transaction with Charms spell
  */
 export interface CharmsTx extends UnsignedTx {
-  spell: SpellConfig;
+  spell: Spell;
   spellWitness: Uint8Array;
 }
 

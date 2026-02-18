@@ -35,10 +35,20 @@ export const BABTC_CONFIG = {
     initialReward: 500n * 100_000_000n, // 500 BABTC per block
   },
 
-  // Addresses (testnet4 - will change for mainnet)
+  // Addresses - Configured via environment variables
+  // IMPORTANT: These MUST be set before mainnet deployment
   addresses: {
-    devFund: "tb1qdev_fund_address_here",
-    stakingPool: "tb1qstaking_pool_address_here",
+    // Development fund address (20% of mined tokens)
+    devFund:
+      process.env.NEXT_PUBLIC_DEV_FUND_ADDRESS ||
+      process.env.DEV_FUND_ADDRESS ||
+      "tb1q_configure_dev_fund_address", // Testnet4 placeholder
+
+    // Staking pool address (10% of mined tokens)
+    stakingPool:
+      process.env.NEXT_PUBLIC_STAKING_POOL_ADDRESS ||
+      process.env.STAKING_POOL_ADDRESS ||
+      "tb1q_configure_staking_pool_address", // Testnet4 placeholder
   },
 } as const;
 

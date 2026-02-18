@@ -123,9 +123,10 @@ export function useLeaderboard(
     }
   }, [category, period, page, pageSize, store]);
 
-  // Initial fetch and refresh on filter change
+  // Initial fetch and refresh on filter change (async to comply with React Compiler)
   useEffect(() => {
-    fetchLeaderboard();
+    const timeout = setTimeout(fetchLeaderboard, 0);
+    return () => clearTimeout(timeout);
   }, [fetchLeaderboard]);
 
   // Auto-refresh interval
@@ -139,9 +140,10 @@ export function useLeaderboard(
     return () => clearInterval(interval);
   }, [refreshInterval, fetchLeaderboard]);
 
-  // Reset page when category or period changes
+  // Reset page when category or period changes (async to comply with React Compiler)
   useEffect(() => {
-    setPage(0);
+    const timeout = setTimeout(() => setPage(0), 0);
+    return () => clearTimeout(timeout);
   }, [category, period]);
 
   // Get current entries

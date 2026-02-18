@@ -98,6 +98,8 @@ export function MiningRewardPanel({
         "shadow-[4px_4px_0_0_#000]",
         className,
       )}
+      role="region"
+      aria-label="Mining rewards panel"
     >
       {/* Header */}
       <div
@@ -121,12 +123,15 @@ export function MiningRewardPanel({
             "border-2 border-black",
             canMine ? "bg-pixel-success/20" : "bg-pixel-error/20",
           )}
+          role="status"
+          aria-label={canMine ? "Mining is ready" : "Need funds to mine"}
         >
           <div
             className={clsx(
               "w-3 h-3 rounded-full",
               canMine ? "bg-pixel-success animate-pulse" : "bg-pixel-error",
             )}
+            aria-hidden="true"
           />
           <span className="font-pixel text-[8px] text-pixel-text">
             {canMine ? "READY TO MINE" : "NEED FUNDS"}
@@ -220,10 +225,15 @@ export function MiningRewardPanel({
             <div className="font-pixel text-[8px] text-pixel-text-muted uppercase">
               Recent Submissions
             </div>
-            <div className="space-y-1 max-h-32 overflow-y-auto">
+            <div
+              className="space-y-1 max-h-32 overflow-y-auto"
+              role="list"
+              aria-label="Recent mining submissions"
+            >
               {submissions.slice(0, 5).map((sub) => (
                 <div
                   key={sub.id}
+                  role="listitem"
                   className={clsx(
                     "flex items-center gap-2 p-1",
                     "border border-black",
@@ -272,21 +282,28 @@ export function MiningRewardPanel({
         )}
 
         {/* Status Messages */}
-        {isSubmitting && (
-          <div className="font-pixel text-[8px] text-pixel-secondary animate-pulse">
-            Submitting proof...
-          </div>
-        )}
+        <div aria-live="polite" aria-atomic="true">
+          {isSubmitting && (
+            <div className="font-pixel text-[8px] text-pixel-secondary animate-pulse">
+              Submitting proof...
+            </div>
+          )}
 
-        {error && (
-          <div className="font-pixel text-[8px] text-pixel-error">{error}</div>
-        )}
+          {error && (
+            <div
+              className="font-pixel text-[8px] text-pixel-error"
+              role="alert"
+            >
+              {error}
+            </div>
+          )}
 
-        {isLoading && (
-          <div className="font-pixel text-[8px] text-pixel-text-muted animate-pulse">
-            Loading...
-          </div>
-        )}
+          {isLoading && (
+            <div className="font-pixel text-[8px] text-pixel-text-muted animate-pulse">
+              Loading...
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Footer - Network */}

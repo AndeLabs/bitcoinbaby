@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useMining } from "../hooks/useMining";
-import { useGameLoop } from "../hooks/useGameLoop";
+import {
+  useGlobalMining,
+  useGameLoop,
+  useAchievements,
+} from "@bitcoinbaby/core";
 import { useBabyState } from "../hooks/useBabyState";
-import { useAchievements } from "../hooks/useAchievements";
 import { useMiningSubmitter } from "../hooks/useMiningSubmitter";
 import { useWallet } from "../hooks/useWallet";
 import { useTokenBalance, formatTokenBalance } from "../hooks/useTokenBalance";
@@ -155,8 +157,8 @@ export default function Home() {
     gameState: game.state,
   });
 
-  // Mining hook
-  const mining = useMining({
+  // Mining hook - uses global singleton (persistent across navigation)
+  const mining = useGlobalMining({
     difficulty: 16,
     minerAddress: "baby-miner-001",
   });
@@ -215,10 +217,13 @@ export default function Home() {
     // Check if we can mine (have balance for fees)
     if (!submitter.canMine) {
       console.warn("[Mining] Insufficient balance for mining fees");
-      setSubmissionNotification({
-        type: "error",
-        message: "Fondos insuficientes para fees de mineria",
-      });
+      // Use setTimeout to comply with React Compiler (no sync setState in effect)
+      setTimeout(() => {
+        setSubmissionNotification({
+          type: "error",
+          message: "Fondos insuficientes para fees de mineria",
+        });
+      }, 0);
       return;
     }
 
@@ -283,6 +288,7 @@ export default function Home() {
     };
 
     submitToBlockchain();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     mining.lastShare,
     wallet.isLocked,
@@ -298,6 +304,7 @@ export default function Home() {
     if (game.baby && !game.isDead) {
       game.setMining(mining.isRunning);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mining.isRunning, game.baby, game.isDead, game.setMining]);
 
   // Record mining progress
@@ -305,6 +312,7 @@ export default function Home() {
     if (mining.shares > 0 && game.baby && !game.isDead) {
       game.recordMiningProgress(mining.totalHashes, mining.shares);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     mining.shares,
     mining.totalHashes,
@@ -475,7 +483,7 @@ export default function Home() {
 
             {/* Mining Control */}
             <button
-              onClick={mining.toggle}
+              onClick={() => mining.toggle()}
               disabled={game.isDead || babyState?.isSleeping}
               className={`w-full py-4 font-pixel text-sm border-4 border-black shadow-[4px_4px_0_0_#000] transition-all
                 ${

@@ -14,6 +14,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Card, CardHeader, CardContent, Button } from "@bitcoinbaby/ui";
 import { useTutorialStore } from "@bitcoinbaby/core";
 import { clsx } from "clsx";
@@ -464,12 +465,12 @@ export default function HelpPage() {
                 Todo lo que necesitas saber sobre BitcoinBaby
               </p>
             </div>
-            <a
+            <Link
               href="/"
               className="font-pixel text-[8px] text-pixel-text-muted hover:text-pixel-primary"
             >
               ← VOLVER
-            </a>
+            </Link>
           </div>
         </header>
 
@@ -570,7 +571,7 @@ export default function HelpPage() {
 
                 {filteredGlossary.length === 0 && (
                   <p className="text-center py-8 font-pixel-body text-pixel-text-muted">
-                    No se encontraron terminos para "{glossarySearch}"
+                    No se encontraron terminos para &quot;{glossarySearch}&quot;
                   </p>
                 )}
               </div>

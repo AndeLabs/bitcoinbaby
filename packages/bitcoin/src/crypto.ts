@@ -5,8 +5,8 @@
  * Uses WebCrypto where available, falls back to Node crypto.
  */
 
-import * as secp256k1 from '@noble/secp256k1';
-import { ripemd160 } from '@noble/hashes/ripemd160';
+import * as secp256k1 from "@noble/secp256k1";
+import { ripemd160 } from "@noble/hashes/ripemd160";
 
 /**
  * Securely generate random bytes
@@ -14,12 +14,15 @@ import { ripemd160 } from '@noble/hashes/ripemd160';
 export function randomBytes(length: number): Uint8Array {
   const bytes = new Uint8Array(length);
 
-  if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.getRandomValues) {
+  if (
+    typeof globalThis.crypto !== "undefined" &&
+    globalThis.crypto.getRandomValues
+  ) {
     // Browser/modern Node
     globalThis.crypto.getRandomValues(bytes);
   } else {
     // Fallback (should not happen in modern environments)
-    throw new Error('No secure random source available');
+    throw new Error("No secure random source available");
   }
 
   return bytes;
@@ -35,7 +38,7 @@ export function secureErase(data: Uint8Array): void {
     data.fill(0);
 
     // Additional pass with random data to prevent optimization
-    if (typeof globalThis.crypto !== 'undefined') {
+    if (typeof globalThis.crypto !== "undefined") {
       globalThis.crypto.getRandomValues(data);
     }
 
@@ -48,15 +51,15 @@ export function secureErase(data: Uint8Array): void {
  * SHA256 hash
  */
 export async function sha256(data: Uint8Array): Promise<Uint8Array> {
-  if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.subtle) {
+  if (typeof globalThis.crypto !== "undefined" && globalThis.crypto.subtle) {
     // Convert to ArrayBuffer for SubtleCrypto compatibility
     const buffer = new Uint8Array(data).buffer as ArrayBuffer;
-    const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', buffer);
+    const hashBuffer = await globalThis.crypto.subtle.digest("SHA-256", buffer);
     return new Uint8Array(hashBuffer);
   }
 
   // Fallback for environments without SubtleCrypto
-  throw new Error('WebCrypto not available');
+  throw new Error("WebCrypto not available");
 }
 
 /**
@@ -83,33 +86,39 @@ export async function hash160(data: Uint8Array): Promise<Uint8Array> {
 /**
  * Derive public key from private key
  */
-export function getPublicKey(privateKey: Uint8Array, compressed = true): Uint8Array {
+export function getPublicKey(
+  privateKey: Uint8Array,
+  compressed = true,
+): Uint8Array {
   return secp256k1.getPublicKey(privateKey, compressed);
 }
 
 /**
- * Sign message with private key (Schnorr for Taproot)
+ * Sign message with private key (Schnorr for Taproot/BIP340)
+ * Schnorr signatures are required for Taproot spending
  */
 export async function signSchnorr(
   message: Uint8Array,
-  privateKey: Uint8Array
+  privateKey: Uint8Array,
 ): Promise<Uint8Array> {
-  // Use noble/secp256k1 for Schnorr signatures
-  const signature = secp256k1.sign(message, privateKey);
-  // Return signature as Uint8Array
+  // Use noble/secp256k1's schnorr module for BIP340 Schnorr signatures
+  // This is required for Taproot (P2TR) transactions
+  const signature = secp256k1.schnorr.sign(message, privateKey);
   return new Uint8Array(signature);
 }
 
 /**
- * Verify Schnorr signature
+ * Verify Schnorr signature (BIP340)
+ * For Taproot verification
  */
 export function verifySchnorr(
   signature: Uint8Array,
   message: Uint8Array,
-  publicKey: Uint8Array
+  publicKey: Uint8Array,
 ): boolean {
   try {
-    return secp256k1.verify(signature, message, publicKey);
+    // Use schnorr.verify for BIP340 Schnorr signature verification
+    return secp256k1.schnorr.verify(signature, message, publicKey);
   } catch {
     return false;
   }
@@ -120,7 +129,7 @@ export function verifySchnorr(
  */
 export function hexToBytes(hex: string): Uint8Array {
   if (hex.length % 2 !== 0) {
-    throw new Error('Invalid hex string');
+    throw new Error("Invalid hex string");
   }
 
   const bytes = new Uint8Array(hex.length / 2);
@@ -135,8 +144,8 @@ export function hexToBytes(hex: string): Uint8Array {
  */
 export function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 /**
@@ -144,7 +153,7 @@ export function bytesToHex(bytes: Uint8Array): string {
  */
 export function xorBytes(a: Uint8Array, b: Uint8Array): Uint8Array {
   if (a.length !== b.length) {
-    throw new Error('Arrays must have same length');
+    throw new Error("Arrays must have same length");
   }
 
   const result = new Uint8Array(a.length);

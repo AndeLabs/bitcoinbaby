@@ -203,3 +203,36 @@ export {
   type FeeEstimate,
   type BroadcastResult,
 } from "./transactions";
+
+// Wallet Providers
+export {
+  // Types
+  type WalletProviderType,
+  type WalletAccount,
+  type WalletConnectionState,
+  type SignedMessage,
+  type SignedPsbt,
+  type BroadcastResult as ProviderBroadcastResult,
+  type ProviderCapabilities,
+  type WalletProvider,
+  type ConnectOptions,
+  type SignPsbtOptions,
+  type DetectedProvider,
+  type ProviderRegistry,
+  // Providers
+  InternalWalletProvider,
+  createInternalProvider,
+  type InternalProviderOptions,
+  UnisatProvider,
+  createUnisatProvider,
+  XVerseProvider,
+  createXVerseProvider,
+  // Registry
+  getProviderRegistry,
+  createProviderRegistry,
+  detectWallets,
+  getProvider,
+  getAvailableProviders,
+  hasAvailableWallet,
+  getBestProvider,
+} from "./providers";

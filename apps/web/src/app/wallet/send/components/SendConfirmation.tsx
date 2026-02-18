@@ -31,14 +31,6 @@ export function SendConfirmation({
     return (sats / 100_000_000).toFixed(8);
   };
 
-  const truncateTxid = (id: string): string => {
-    return `${id.slice(0, 12)}...${id.slice(-8)}`;
-  };
-
-  const truncateAddress = (addr: string): string => {
-    return `${addr.slice(0, 12)}...${addr.slice(-8)}`;
-  };
-
   if (status === "success" && txid) {
     return (
       <div className="text-center space-y-6">

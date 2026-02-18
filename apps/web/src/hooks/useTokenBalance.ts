@@ -146,7 +146,7 @@ export function useTokenBalance(
   } = options;
 
   // Network configuration
-  const { config, network } = useNetworkStore();
+  const { config } = useNetworkStore();
   const scrollsNetwork: ScrollsNetwork = config.scrolls;
 
   // Scrolls client ref (recreated on network change)
@@ -433,6 +433,7 @@ export function useTokenBalance(
 
     // Refresh balance when address or network changes
     refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address, scrollsNetwork]); // Don't include refresh to avoid loop
 
   /**

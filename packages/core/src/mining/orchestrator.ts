@@ -3,9 +3,15 @@ import type {
   MinerEvents,
   OrchestratorConfig,
   DeviceCapabilities,
+  BatteryManager,
 } from "./types";
 import { CPUMiner } from "./cpu-miner";
-import { detectCapabilities, isOnBattery, isPageVisible } from "./capabilities";
+import {
+  detectCapabilities,
+  isOnBattery,
+  isPageVisible,
+  getNavigator,
+} from "./capabilities";
 
 const defaultConfig: OrchestratorConfig = {
   preferWebGPU: true,
@@ -28,6 +34,7 @@ export class MiningOrchestrator {
   private isRunning = false;
   private capabilities: DeviceCapabilities | null = null;
   private cleanupFunctions: (() => void)[] = [];
+  private currentBlockData?: string; // Store for fallback recovery
 
   constructor(config: Partial<OrchestratorConfig> = {}) {
     this.config = { ...defaultConfig, ...config };
@@ -48,43 +55,55 @@ export class MiningOrchestrator {
    */
   async start(blockData?: string): Promise<void> {
     if (this.isRunning) {
-      console.warn("Mining already running");
+      console.warn("[Orchestrator] Mining already running");
       return;
     }
 
-    // Detect capabilities
-    const caps = await this.detectCapabilities();
-
-    if (this.config.preferWebGPU && caps.webgpu) {
-      // Use WebGPU miner for 10-100x faster hashing
-      const { WebGPUMiner } = await import("./webgpu-miner");
-      this.activeMiner = new WebGPUMiner({
-        difficulty: this.config.initialDifficulty,
-        address: this.config.minerAddress,
-        onHashrateUpdate: (hashrate) =>
-          this.events.onHashrateUpdate?.(hashrate),
-        onWorkFound: (result) => this.events.onWorkFound?.(result),
-        onStatusChange: (status) => this.events.onStatusChange?.(status),
-      });
-    } else if (this.config.fallbackToCPU && caps.workers) {
-      this.activeMiner = this.createCPUMiner();
-    } else {
-      throw new Error("No mining backend available");
-    }
-
-    // Setup visibility handling
-    if (this.config.throttleWhenHidden) {
-      this.setupVisibilityHandling();
-    }
-
-    // Setup battery handling
-    if (this.config.throttleOnBattery) {
-      this.setupBatteryHandling();
-    }
-
-    await this.activeMiner.start(blockData);
+    // Set running state BEFORE async operations to prevent race conditions
+    // This prevents duplicate miners from being created if start() is called twice quickly
     this.isRunning = true;
-    this.events.onStatusChange?.("running");
+    this.currentBlockData = blockData;
+
+    try {
+      // Detect capabilities
+      const caps = await this.detectCapabilities();
+
+      if (this.config.preferWebGPU && caps.webgpu) {
+        // Use WebGPU miner for 10-100x faster hashing
+        const { WebGPUMiner } = await import("./webgpu-miner");
+        this.activeMiner = new WebGPUMiner({
+          difficulty: this.config.initialDifficulty,
+          address: this.config.minerAddress,
+          onHashrateUpdate: (hashrate) =>
+            this.events.onHashrateUpdate?.(hashrate),
+          onWorkFound: (result) => this.events.onWorkFound?.(result),
+          onStatusChange: (status) => this.events.onStatusChange?.(status),
+          onError: (error) => this.handleMinerError(error),
+        });
+      } else if (this.config.fallbackToCPU && caps.workers) {
+        this.activeMiner = this.createCPUMiner();
+      } else {
+        throw new Error("No mining backend available");
+      }
+
+      // Setup visibility handling
+      if (this.config.throttleWhenHidden) {
+        this.setupVisibilityHandling();
+      }
+
+      // Setup battery handling
+      if (this.config.throttleOnBattery) {
+        this.setupBatteryHandling();
+      }
+
+      await this.activeMiner.start(blockData);
+      this.events.onStatusChange?.("running");
+    } catch (error) {
+      // Reset state on failure
+      this.isRunning = false;
+      this.activeMiner = null;
+      throw error;
+    }
   }
 
   /**
@@ -97,6 +116,13 @@ export class MiningOrchestrator {
       onHashrateUpdate: (hashrate) => this.events.onHashrateUpdate?.(hashrate),
       onWorkFound: (result) => this.events.onWorkFound?.(result),
       onStatusChange: (status) => this.events.onStatusChange?.(status),
+      onError: (error) => {
+        console.error("[Orchestrator] CPU miner error:", error.message);
+        this.events.onError?.(error);
+        // CPU is the last resort, so just stop mining
+        this.isRunning = false;
+        this.events.onStatusChange?.("stopped");
+      },
     });
   }
 
@@ -164,6 +190,48 @@ export class MiningOrchestrator {
   }
 
   /**
+   * Handle miner errors with automatic fallback to CPU
+   * This ensures mining continues even if GPU fails
+   */
+  private async handleMinerError(error: Error): Promise<void> {
+    console.error("[Orchestrator] Miner error:", error.message);
+
+    // Notify listeners of the error
+    this.events.onError?.(error);
+
+    // If current miner is WebGPU and CPU fallback is enabled, switch to CPU
+    if (
+      this.activeMiner?.type === "webgpu" &&
+      this.config.fallbackToCPU &&
+      this.capabilities?.workers
+    ) {
+      console.log("[Orchestrator] Falling back to CPU mining...");
+
+      // Stop the failed GPU miner
+      this.activeMiner.terminate();
+
+      // Create and start CPU miner
+      this.activeMiner = this.createCPUMiner();
+      try {
+        await this.activeMiner.start(this.currentBlockData);
+        this.events.onStatusChange?.("running");
+        console.log("[Orchestrator] CPU fallback successful");
+      } catch (cpuError) {
+        console.error("[Orchestrator] CPU fallback failed:", cpuError);
+        this.isRunning = false;
+        this.events.onStatusChange?.("stopped");
+        this.events.onError?.(
+          cpuError instanceof Error ? cpuError : new Error("CPU mining failed"),
+        );
+      }
+    } else {
+      // No fallback available, stop mining
+      this.isRunning = false;
+      this.events.onStatusChange?.("stopped");
+    }
+  }
+
+  /**
    * Handle page visibility changes
    */
   private setupVisibilityHandling(): void {
@@ -191,11 +259,11 @@ export class MiningOrchestrator {
    * Handle battery status changes
    */
   private setupBatteryHandling(): void {
-    if (typeof navigator === "undefined") return;
-    if (!("getBattery" in navigator)) return;
+    const nav = getNavigator();
+    if (!nav?.getBattery) return;
 
-    (navigator as never as { getBattery: () => Promise<BatteryManager> })
-      .getBattery?.()
+    nav
+      .getBattery()
       .then((battery: BatteryManager) => {
         const updateThrottle = () => {
           if (!this.activeMiner) return;
@@ -244,18 +312,4 @@ export class MiningOrchestrator {
   getCapabilities(): DeviceCapabilities | null {
     return this.capabilities;
   }
-}
-
-// Battery Manager interface (not in standard TypeScript lib)
-interface BatteryManager extends EventTarget {
-  charging: boolean;
-  level: number;
-  addEventListener(
-    type: "chargingchange" | "levelchange",
-    listener: () => void,
-  ): void;
-  removeEventListener(
-    type: "chargingchange" | "levelchange",
-    listener: () => void,
-  ): void;
 }

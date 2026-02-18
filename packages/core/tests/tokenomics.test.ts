@@ -64,11 +64,14 @@ describe("calculateDistribution", () => {
     const babyResult = calculateDistribution(BigInt(1000), "baby_1");
     const adultResult = calculateDistribution(BigInt(1000), "adult_1");
 
-    // Adult should get more due to higher mining bonus
+    // Adult should get more due to higher mining bonus (1.35x vs 1.0x)
     expect(adultResult.playerAmount).toBeGreaterThan(babyResult.playerAmount);
-    // Dev and community stay the same
-    expect(adultResult.devFundAmount).toBe(babyResult.devFundAmount);
-    expect(adultResult.communityAmount).toBe(babyResult.communityAmount);
+    // Dev and community get LESS because player takes more from the fixed pool
+    // Total always equals input, so more for player = less for others
+    expect(adultResult.devFundAmount).toBeLessThan(babyResult.devFundAmount);
+    expect(adultResult.communityAmount).toBeLessThan(
+      babyResult.communityAmount,
+    );
   });
 
   it("should handle large token amounts", () => {
@@ -86,17 +89,26 @@ describe("calculateDistribution", () => {
 
     // Egg stage has 0 mining bonus
     expect(result.playerAmount).toBe(BigInt(0));
-    // But dev and community still get their share
-    expect(result.devFundAmount).toBe(BigInt(200));
-    expect(result.communityAmount).toBe(BigInt(100));
+    // All tokens go to dev and community proportionally (20:10 ratio = 2:1)
+    // remaining = 1000, dev = 1000 * 20/30 = 666, community = 334
+    expect(result.devFundAmount).toBe(BigInt(666));
+    expect(result.communityAmount).toBe(BigInt(334));
+    // Total still equals input
+    expect(result.totalAmount).toBe(BigInt(1000));
   });
 
-  it("should double player rewards for legend stage", () => {
+  it("should max player rewards for legend stage", () => {
     const babyResult = calculateDistribution(BigInt(1000), "baby_1");
     const legendResult = calculateDistribution(BigInt(1000), "legend");
 
     // Legend bonus is 2.0x vs baby 1.0x
-    expect(legendResult.playerAmount).toBe(babyResult.playerAmount * BigInt(2));
+    // baby: 1000 * 70% * 1.0 = 700
+    // legend: 1000 * 70% * 2.0 = 1400, but CLAMPED to totalTokens (1000)
+    expect(babyResult.playerAmount).toBe(BigInt(700));
+    expect(legendResult.playerAmount).toBe(BigInt(1000)); // Clamped to max
+    // Legend gets everything, dev and community get 0
+    expect(legendResult.devFundAmount).toBe(BigInt(0));
+    expect(legendResult.communityAmount).toBe(BigInt(0));
   });
 
   it("should calculate total amount correctly", () => {

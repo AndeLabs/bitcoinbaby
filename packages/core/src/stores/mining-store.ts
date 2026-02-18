@@ -7,7 +7,12 @@ interface MiningStore {
 
   // NFT Boost
   nftBoost: number; // Percentage boost from NFTs (0-200)
-  effectiveHashrate: number; // hashrate * (1 + boost/100)
+  effectiveHashrate: number; // hashrate * boosts
+
+  // Cosmic Energy Integration
+  cosmicMultiplier: number; // From cosmic energy (0.5 - 2.0)
+  cosmicStatus: "thriving" | "normal" | "struggling" | "critical";
+  activeCosmicEffects: string[];
 
   // Actions
   startMining: () => void;
@@ -16,6 +21,11 @@ interface MiningStore {
   addHashes: (count: number) => void;
   addTokens: (amount: number) => void;
   setNFTBoost: (boost: number) => void;
+  setCosmicEnergy: (
+    multiplier: number,
+    status: MiningStore["cosmicStatus"],
+    effects: string[],
+  ) => void;
   reset: () => void;
 }
 
@@ -29,11 +39,26 @@ const initialStats: MiningSession = {
   minerType: "cpu",
 };
 
+/**
+ * Calculate effective hashrate with all boosts
+ */
+function calculateEffectiveHashrate(
+  baseHashrate: number,
+  nftBoost: number,
+  cosmicMultiplier: number,
+): number {
+  // NFT boost is percentage (0-200), cosmic is multiplier (0.5-2.0)
+  return baseHashrate * (1 + nftBoost / 100) * cosmicMultiplier;
+}
+
 export const useMiningStore = create<MiningStore>((set) => ({
   stats: initialStats,
   isInitialized: false,
   nftBoost: 0,
   effectiveHashrate: 0,
+  cosmicMultiplier: 1.0,
+  cosmicStatus: "normal",
+  activeCosmicEffects: [],
 
   startMining: () =>
     set((s) => ({
@@ -50,7 +75,11 @@ export const useMiningStore = create<MiningStore>((set) => ({
   updateStats: (newStats) =>
     set((s) => {
       const updatedStats = { ...s.stats, ...newStats };
-      const effectiveHashrate = updatedStats.hashrate * (1 + s.nftBoost / 100);
+      const effectiveHashrate = calculateEffectiveHashrate(
+        updatedStats.hashrate,
+        s.nftBoost,
+        s.cosmicMultiplier,
+      );
 
       return {
         stats: updatedStats,
@@ -71,7 +100,23 @@ export const useMiningStore = create<MiningStore>((set) => ({
   setNFTBoost: (boost) =>
     set((s) => ({
       nftBoost: boost,
-      effectiveHashrate: s.stats.hashrate * (1 + boost / 100),
+      effectiveHashrate: calculateEffectiveHashrate(
+        s.stats.hashrate,
+        boost,
+        s.cosmicMultiplier,
+      ),
+    })),
+
+  setCosmicEnergy: (multiplier, status, effects) =>
+    set((s) => ({
+      cosmicMultiplier: multiplier,
+      cosmicStatus: status,
+      activeCosmicEffects: effects,
+      effectiveHashrate: calculateEffectiveHashrate(
+        s.stats.hashrate,
+        s.nftBoost,
+        multiplier,
+      ),
     })),
 
   reset: () =>
@@ -80,5 +125,8 @@ export const useMiningStore = create<MiningStore>((set) => ({
       isInitialized: false,
       nftBoost: 0,
       effectiveHashrate: 0,
+      cosmicMultiplier: 1.0,
+      cosmicStatus: "normal",
+      activeCosmicEffects: [],
     }),
 }));

@@ -72,3 +72,16 @@ export {
   useErrorRecovery,
   type ErrorBoundaryProps,
 } from "./error";
+
+// Cosmic Components
+export {
+  CosmicStatusBar,
+  CosmicIndicator,
+  BabyEnergyIndicator,
+  EnergyMultiplierBadge,
+  type CosmicStatusBarProps,
+  type BabyEnergyIndicatorProps,
+  type BabyCosmicEnergy,
+  type EnergyMultipliers,
+  type EnergyStatus,
+} from "./cosmic";

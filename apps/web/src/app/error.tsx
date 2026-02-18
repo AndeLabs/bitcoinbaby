@@ -1,6 +1,7 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
+import { useEffect } from "react";
+import Link from "next/link";
 
 export default function Error({
   error,
@@ -11,7 +12,7 @@ export default function Error({
 }) {
   useEffect(() => {
     // Log the error to an error reporting service
-    console.error('Application error:', error);
+    console.error("Application error:", error);
   }, [error]);
 
   return (
@@ -26,7 +27,7 @@ export default function Error({
               height="96"
               viewBox="0 0 16 16"
               className="mx-auto"
-              style={{ imageRendering: 'pixelated' }}
+              style={{ imageRendering: "pixelated" }}
             >
               {/* Sad face circle */}
               <rect x="4" y="2" width="8" height="2" fill="#ef4444" />
@@ -61,7 +62,7 @@ export default function Error({
           {/* Error Message */}
           <div className="bg-pixel-bg-dark border-2 border-pixel-border p-4 mb-6">
             <p className="font-pixel-mono text-sm text-pixel-text-muted break-words">
-              {error.message || 'An unexpected error occurred'}
+              {error.message || "An unexpected error occurred"}
             </p>
             {error.digest && (
               <p className="font-pixel-mono text-[10px] text-pixel-text-muted mt-2">
@@ -78,12 +79,12 @@ export default function Error({
             >
               TRY AGAIN
             </button>
-            <a
+            <Link
               href="/"
               className="px-6 py-3 font-pixel text-[10px] bg-pixel-bg-light text-pixel-text border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all active:translate-x-[4px] active:translate-y-[4px] active:shadow-none text-center"
             >
               GO HOME
-            </a>
+            </Link>
           </div>
         </div>
 

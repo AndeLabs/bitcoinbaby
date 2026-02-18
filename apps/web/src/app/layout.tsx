@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { RootProvider } from "@/providers";
+import { BottomNav } from "@/components/navigation";
 
 // Pixel Art Fonts
 const fontUrl =
@@ -46,6 +47,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
   themeColor: "#0f0f1b",
 };
 
@@ -87,10 +91,16 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="min-h-screen bg-pixel-bg-dark text-pixel-text antialiased">
-        {/* Scanline overlay for CRT effect */}
-        <div className="pointer-events-none fixed inset-0 z-50 bg-[repeating-linear-gradient(0deg,rgba(0,0,0,0.1),rgba(0,0,0,0.1)_1px,transparent_1px,transparent_2px)] opacity-30" />
+        {/* Scanline overlay for CRT effect - hidden on mobile */}
+        <div className="pointer-events-none fixed inset-0 z-50 bg-[repeating-linear-gradient(0deg,rgba(0,0,0,0.1),rgba(0,0,0,0.1)_1px,transparent_1px,transparent_2px)] opacity-30 hidden md:block" />
 
-        <RootProvider>{children}</RootProvider>
+        <RootProvider>
+          {/* Main content with safe areas and bottom padding for nav */}
+          <div className="safe-top pb-20 md:pb-0">{children}</div>
+
+          {/* Bottom navigation - only visible on mobile/native */}
+          <BottomNav />
+        </RootProvider>
       </body>
     </html>
   );

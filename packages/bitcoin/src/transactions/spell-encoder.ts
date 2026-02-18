@@ -9,6 +9,10 @@
  */
 
 import type { SpellConfig } from "../scrolls/types";
+import type { SpellV2 } from "../charms/types";
+
+// Spell type union - supports both v1 and v2 formats
+type Spell = SpellConfig | SpellV2;
 
 // Charms magic bytes identifier
 const CHARMS_MAGIC = new Uint8Array([0x43, 0x48, 0x52, 0x4d]); // "CHRM"
@@ -29,7 +33,7 @@ const OP_PUSHDATA2 = 0x4d;
  * The spell is wrapped in OP_FALSE OP_IF ... OP_ENDIF to create
  * a no-op script that Bitcoin validates but doesn't execute.
  */
-export function encodeSpellForWitness(spell: SpellConfig): Uint8Array {
+export function encodeSpellForWitness(spell: Spell): Uint8Array {
   // Serialize spell to JSON
   const spellJson = JSON.stringify(spell);
   const encoder = new TextEncoder();
@@ -195,7 +199,7 @@ function extractPushData(
  * Create OP_RETURN output for spell reference
  * Used when spell is too large for witness
  */
-export function createSpellOpReturn(spell: SpellConfig): Uint8Array {
+export function createSpellOpReturn(spell: Spell): Uint8Array {
   const spellJson = JSON.stringify(spell);
   const encoder = new TextEncoder();
   const spellBytes = encoder.encode(spellJson);
@@ -212,7 +216,7 @@ export function createSpellOpReturn(spell: SpellConfig): Uint8Array {
 /**
  * Calculate the size of encoded spell
  */
-export function calculateSpellSize(spell: SpellConfig): number {
+export function calculateSpellSize(spell: Spell): number {
   const spellJson = JSON.stringify(spell);
   const spellBytes = new TextEncoder().encode(spellJson);
 

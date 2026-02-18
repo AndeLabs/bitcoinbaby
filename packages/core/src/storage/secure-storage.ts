@@ -555,8 +555,10 @@ export const SecureStorage = {
     currentPassword: string,
     newPassword: string,
   ): Promise<void> {
-    if (!newPassword || newPassword.length < 8) {
-      throw new Error("New password must be at least 8 characters");
+    if (!newPassword || newPassword.length < MIN_PASSWORD_LENGTH) {
+      throw new Error(
+        `New password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+      );
     }
 
     // Get current mnemonic

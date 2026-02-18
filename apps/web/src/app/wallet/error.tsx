@@ -1,6 +1,7 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
+import Link from "next/link";
 
 export default function WalletError({
   error,
@@ -13,30 +14,31 @@ export default function WalletError({
 
   useEffect(() => {
     // Log the error to an error reporting service
-    console.error('Wallet error:', error);
+    console.error("Wallet error:", error);
   }, [error]);
 
   // Determine if this is likely a wallet-related error
-  const isWalletCorrupted = error.message?.toLowerCase().includes('wallet') ||
-    error.message?.toLowerCase().includes('storage') ||
-    error.message?.toLowerCase().includes('mnemonic') ||
-    error.message?.toLowerCase().includes('address');
+  const isWalletCorrupted =
+    error.message?.toLowerCase().includes("wallet") ||
+    error.message?.toLowerCase().includes("storage") ||
+    error.message?.toLowerCase().includes("mnemonic") ||
+    error.message?.toLowerCase().includes("address");
 
   const handleClearWallet = () => {
     setIsClearing(true);
     try {
-      localStorage.removeItem('wallet_address');
-      localStorage.removeItem('wallet_mnemonic');
+      localStorage.removeItem("wallet_address");
+      localStorage.removeItem("wallet_mnemonic");
       // Clear any other wallet-related data
       Object.keys(localStorage).forEach((key) => {
-        if (key.startsWith('wallet_') || key.startsWith('btc_')) {
+        if (key.startsWith("wallet_") || key.startsWith("btc_")) {
           localStorage.removeItem(key);
         }
       });
       // Reload the page to start fresh
       window.location.reload();
     } catch (e) {
-      console.error('Failed to clear wallet data:', e);
+      console.error("Failed to clear wallet data:", e);
       setIsClearing(false);
     }
   };
@@ -47,12 +49,12 @@ export default function WalletError({
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <h1 className="font-pixel text-xl text-pixel-error">WALLET ERROR</h1>
-          <a
+          <Link
             href="/"
             className="font-pixel text-[8px] text-pixel-text-muted hover:text-pixel-primary transition-colors"
           >
             &larr; BACK
-          </a>
+          </Link>
         </div>
 
         {/* Error Card */}
@@ -63,7 +65,7 @@ export default function WalletError({
               width="80"
               height="80"
               viewBox="0 0 16 16"
-              style={{ imageRendering: 'pixelated' }}
+              style={{ imageRendering: "pixelated" }}
             >
               {/* Triangle warning */}
               <rect x="7" y="1" width="2" height="1" fill="#f7931a" />
@@ -95,7 +97,7 @@ export default function WalletError({
               Error Details:
             </p>
             <p className="font-pixel-mono text-sm text-pixel-text-muted break-words">
-              {error.message || 'Failed to load wallet data'}
+              {error.message || "Failed to load wallet data"}
             </p>
             {error.digest && (
               <p className="font-pixel-mono text-[10px] text-pixel-text-muted mt-2">
@@ -125,11 +127,11 @@ export default function WalletError({
                 disabled={isClearing}
                 className={`w-full py-3 font-pixel text-[10px] border-4 border-black shadow-[4px_4px_0_0_#000] transition-all ${
                   isClearing
-                    ? 'bg-pixel-border text-pixel-text-muted cursor-wait'
-                    : 'bg-pixel-error text-white hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none'
+                    ? "bg-pixel-border text-pixel-text-muted cursor-wait"
+                    : "bg-pixel-error text-white hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none"
                 }`}
               >
-                {isClearing ? 'CLEARING...' : 'CLEAR WALLET DATA & RESTART'}
+                {isClearing ? "CLEARING..." : "CLEAR WALLET DATA & RESTART"}
               </button>
             )}
 
@@ -158,26 +160,26 @@ export default function WalletError({
             IMPORTANT
           </p>
           <p className="font-pixel-body text-sm text-pixel-text-muted">
-            If you clear your wallet data, you will need your recovery phrase to restore access.
-            Never share your recovery phrase with anyone.
+            If you clear your wallet data, you will need your recovery phrase to
+            restore access. Never share your recovery phrase with anyone.
           </p>
         </div>
 
         {/* Navigation */}
         <div className="mt-6 flex justify-center gap-4">
-          <a
+          <Link
             href="/"
             className="font-pixel text-[10px] text-pixel-text-muted hover:text-pixel-primary transition-colors"
           >
             HOME
-          </a>
+          </Link>
           <span className="text-pixel-border">|</span>
-          <a
+          <Link
             href="/characters"
             className="font-pixel text-[10px] text-pixel-text-muted hover:text-pixel-primary transition-colors"
           >
             CHARACTERS
-          </a>
+          </Link>
         </div>
       </div>
     </main>

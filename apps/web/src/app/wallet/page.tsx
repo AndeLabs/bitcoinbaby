@@ -12,6 +12,7 @@
  */
 
 import { useState, useCallback } from "react";
+import Link from "next/link";
 import {
   useWallet,
   useBalance,
@@ -22,8 +23,6 @@ import {
   NetworkSwitcher,
   NetworkBadge,
   WalletOnboarding,
-  Card,
-  Button,
   QRCode,
 } from "@bitcoinbaby/ui";
 import {
@@ -266,12 +265,12 @@ export default function WalletPage() {
                 onNetworkChange={switchNetwork}
                 onEnableMainnet={() => setMainnetAllowed(true)}
               />
-              <a
+              <Link
                 href="/"
                 className="font-pixel text-[8px] text-pixel-text-muted hover:text-pixel-primary"
               >
                 ← BACK
-              </a>
+              </Link>
             </div>
           </div>
           <p className="font-pixel-body text-sm text-pixel-text-muted mt-2">

@@ -1,0 +1,242 @@
+/**
+ * useGlobalMining Hook
+ *
+ * React hook that connects to the global MiningManager singleton.
+ * Mining state persists across page navigations because the manager
+ * lives outside of React's component lifecycle.
+ *
+ * @example
+ * ```tsx
+ * function MiningPage() {
+ *   const { isRunning, hashrate, start, stop } = useGlobalMining();
+ *
+ *   return (
+ *     <div>
+ *       <p>Hashrate: {hashrate} H/s</p>
+ *       <button onClick={isRunning ? stop : start}>
+ *         {isRunning ? 'Stop' : 'Start'}
+ *       </button>
+ *     </div>
+ *   );
+ * }
+ * ```
+ */
+
+import { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  getMiningManager,
+  type MiningManagerState,
+  type MiningManagerConfig,
+} from "../mining/mining-singleton";
+import { useMiningStore } from "../stores/mining-store";
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+export interface UseGlobalMiningOptions {
+  /** Mining difficulty (leading zero bits) */
+  difficulty?: number;
+  /** Miner address for rewards */
+  minerAddress?: string;
+  /** Auto-start mining when hook mounts */
+  autoStart?: boolean;
+  /** NFT boost percentage (0-200) */
+  nftBoost?: number;
+  /** Cosmic energy multiplier (0.5-2.0) */
+  cosmicMultiplier?: number;
+  /** Callback when work is found */
+  onWorkFound?: MiningManagerConfig["onWorkFound"];
+  /** Callback on error */
+  onError?: MiningManagerConfig["onError"];
+}
+
+export interface UseGlobalMiningReturn extends MiningManagerState {
+  /** Effective hashrate with all boosts applied */
+  effectiveHashrate: number;
+  /** NFT boost percentage */
+  nftBoost: number;
+  /** Cosmic energy multiplier */
+  cosmicMultiplier: number;
+  /** Session uptime in seconds */
+  uptime: number;
+  /** Start mining */
+  start: (blockData?: string) => Promise<void>;
+  /** Stop mining */
+  stop: () => void;
+  /** Pause mining */
+  pause: () => void;
+  /** Resume mining */
+  resume: () => void;
+  /** Toggle mining state */
+  toggle: (blockData?: string) => Promise<void>;
+  /** Set difficulty */
+  setDifficulty: (difficulty: number) => void;
+  /** Set NFT boost */
+  setNFTBoost: (boost: number) => void;
+}
+
+// =============================================================================
+// HOOK IMPLEMENTATION
+// =============================================================================
+
+export function useGlobalMining(
+  options: UseGlobalMiningOptions = {},
+): UseGlobalMiningReturn {
+  const {
+    difficulty = 16,
+    minerAddress,
+    autoStart = false,
+    nftBoost: initialNftBoost = 0,
+    cosmicMultiplier: initialCosmicMultiplier = 1.0,
+    onWorkFound,
+    onError,
+  } = options;
+
+  // Get global manager
+  const manager = useMemo(() => getMiningManager(), []);
+
+  // Local state from manager
+  const [managerState, setManagerState] = useState<MiningManagerState>(
+    manager.getState(),
+  );
+
+  // Get Zustand store for boosts
+  const {
+    nftBoost,
+    cosmicMultiplier,
+    setNFTBoost: setStoreNFTBoost,
+    updateStats,
+  } = useMiningStore();
+
+  // Uptime counter
+  const [uptime, setUptime] = useState(0);
+
+  // Initialize manager on mount
+  useEffect(() => {
+    manager.initialize({
+      initialDifficulty: difficulty,
+      minerAddress,
+      onWorkFound,
+      onError,
+    });
+
+    // Subscribe to state changes
+    const unsubscribe = manager.subscribe((state) => {
+      setManagerState(state);
+
+      // Sync with Zustand store
+      updateStats({
+        hashrate: state.hashrate,
+        totalHashes: state.totalHashes,
+        isActive: state.isRunning,
+        minerType: state.minerType ?? "cpu",
+        difficulty: state.difficulty,
+      });
+    });
+
+    return () => {
+      unsubscribe();
+      // Note: We do NOT destroy the manager here!
+      // The manager persists across navigation
+    };
+  }, [manager, difficulty, minerAddress, onWorkFound, onError, updateStats]);
+
+  // Auto-start if requested
+  useEffect(() => {
+    if (autoStart && !managerState.isRunning && manager.isInitialized()) {
+      manager.start().catch(console.error);
+    }
+  }, [autoStart, manager, managerState.isRunning]);
+
+  // Initialize NFT boost from options
+  useEffect(() => {
+    if (initialNftBoost > 0) {
+      setStoreNFTBoost(initialNftBoost);
+    }
+  }, [initialNftBoost, setStoreNFTBoost]);
+
+  // Uptime timer
+  useEffect(() => {
+    if (!managerState.isRunning) {
+      setUptime(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setUptime(manager.getUptime());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [managerState.isRunning, manager]);
+
+  // Calculate effective hashrate with boosts
+  const effectiveHashrate = useMemo(() => {
+    const boostMultiplier = 1 + (nftBoost || initialNftBoost) / 100;
+    const cosmic = cosmicMultiplier || initialCosmicMultiplier;
+    return Math.floor(managerState.hashrate * boostMultiplier * cosmic);
+  }, [
+    managerState.hashrate,
+    nftBoost,
+    initialNftBoost,
+    cosmicMultiplier,
+    initialCosmicMultiplier,
+  ]);
+
+  // Actions
+  const start = useCallback(
+    async (blockData?: string) => {
+      await manager.start(blockData);
+    },
+    [manager],
+  );
+
+  const stop = useCallback(() => {
+    manager.stop();
+  }, [manager]);
+
+  const pause = useCallback(() => {
+    manager.pause();
+  }, [manager]);
+
+  const resume = useCallback(() => {
+    manager.resume();
+  }, [manager]);
+
+  const toggle = useCallback(
+    async (blockData?: string) => {
+      await manager.toggle(blockData);
+    },
+    [manager],
+  );
+
+  const setDifficulty = useCallback(
+    (newDifficulty: number) => {
+      manager.setDifficulty(newDifficulty);
+    },
+    [manager],
+  );
+
+  const setNFTBoost = useCallback(
+    (boost: number) => {
+      const clamped = Math.max(0, Math.min(200, boost));
+      setStoreNFTBoost(clamped);
+    },
+    [setStoreNFTBoost],
+  );
+
+  return {
+    ...managerState,
+    effectiveHashrate,
+    nftBoost: nftBoost || initialNftBoost,
+    cosmicMultiplier: cosmicMultiplier || initialCosmicMultiplier,
+    uptime,
+    start,
+    stop,
+    pause,
+    resume,
+    toggle,
+    setDifficulty,
+    setNFTBoost,
+  };
+}

@@ -9,21 +9,12 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useMiningWithNFTs } from "@/hooks";
-import { useWalletStore, useNFTStore } from "@bitcoinbaby/core";
-
-function formatHashrate(h: number): string {
-  if (h >= 1_000_000_000) return `${(h / 1_000_000_000).toFixed(2)} GH/s`;
-  if (h >= 1_000_000) return `${(h / 1_000_000).toFixed(2)} MH/s`;
-  if (h >= 1_000) return `${(h / 1_000).toFixed(2)} KH/s`;
-  return `${h.toFixed(0)} H/s`;
-}
-
-function formatDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
+import {
+  useWalletStore,
+  useNFTStore,
+  formatHashrate,
+  formatTime,
+} from "@bitcoinbaby/core";
 
 export default function MinePage() {
   const wallet = useWalletStore((s) => s.wallet);
@@ -42,38 +33,32 @@ export default function MinePage() {
     capabilities,
     nftBoost,
     boostMultiplier,
-    nftCount,
     start,
     stop,
     pause,
     resume,
-    toggle,
-    setDifficulty,
   } = useMiningWithNFTs({
     difficulty: 16,
     minerAddress: wallet?.address || "",
     autoStart: false,
   });
 
-  // Uptime counter
+  // Uptime counter - resets when mining stops, counts when running
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-    if (isRunning && !isPaused) {
-      interval = setInterval(() => {
+    // Reset uptime when mining stops (async to comply with React Compiler)
+    if (!isRunning) {
+      const timeout = setTimeout(() => setUptime(0), 0);
+      return () => clearTimeout(timeout);
+    }
+
+    // Count up when running and not paused
+    if (!isPaused) {
+      const interval = setInterval(() => {
         setUptime((prev) => prev + 1);
       }, 1000);
+      return () => clearInterval(interval);
     }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
   }, [isRunning, isPaused]);
-
-  // Reset uptime when mining stops
-  useEffect(() => {
-    if (!isRunning) {
-      setUptime(0);
-    }
-  }, [isRunning]);
 
   return (
     <main className="min-h-screen p-4 md:p-8 bg-pixel-bg-dark">
@@ -202,7 +187,7 @@ export default function MinePage() {
               Uptime
             </div>
             <div className="font-pixel text-lg text-pixel-text">
-              {formatDuration(uptime)}
+              {formatTime(uptime)}
             </div>
           </div>
 

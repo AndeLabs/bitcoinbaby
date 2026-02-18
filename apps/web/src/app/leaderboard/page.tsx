@@ -8,6 +8,7 @@
  */
 
 import { useState } from "react";
+import Link from "next/link";
 import { clsx } from "clsx";
 import {
   LeaderboardTable,
@@ -60,12 +61,11 @@ function TabButton({
  * Category card component
  */
 function CategoryCard({
-  category,
   info,
   active,
   onClick,
 }: {
-  category: LeaderboardCategory;
+  category?: LeaderboardCategory; // Unused but kept for API compatibility
   info: { label: string; description: string; icon: string };
   active: boolean;
   onClick: () => void;
@@ -134,7 +134,7 @@ export default function LeaderboardPage() {
       <header className="max-w-4xl mx-auto mb-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <a
+            <Link
               href="/"
               className="flex items-center gap-3 hover:opacity-80 transition-opacity"
             >
@@ -146,19 +146,19 @@ export default function LeaderboardPage() {
               <h1 className="font-pixel text-lg md:text-xl text-pixel-primary">
                 BITCOIN<span className="text-pixel-secondary">BABY</span>
               </h1>
-            </a>
+            </Link>
           </div>
 
           <nav className="flex items-center gap-2">
             {/* Network Badge */}
             <NetworkBadge network={network} />
 
-            <a
+            <Link
               href="/"
               className="px-3 py-2 font-pixel text-[8px] text-pixel-text-muted hover:text-pixel-primary transition-colors"
             >
               HOME
-            </a>
+            </Link>
 
             {/* Wallet Status */}
             {wallet.wallet ? (
@@ -168,12 +168,12 @@ export default function LeaderboardPage() {
                 onClick={() => (window.location.href = "/wallet")}
               />
             ) : (
-              <a
+              <Link
                 href="/wallet"
                 className="px-3 py-2 font-pixel text-[8px] bg-pixel-primary text-pixel-text-dark border-2 border-black shadow-[2px_2px_0_0_#000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_#000] transition-all"
               >
                 CONNECT
-              </a>
+              </Link>
             )}
           </nav>
         </div>
@@ -242,12 +242,12 @@ export default function LeaderboardPage() {
               Connect your wallet to see your rank and compete!
             </p>
             <div className="flex justify-center mt-3">
-              <a
+              <Link
                 href="/wallet"
                 className="px-4 py-2 font-pixel text-xs bg-pixel-primary text-pixel-text-dark border-2 border-black shadow-[2px_2px_0_0_#000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_#000] transition-all"
               >
                 CONNECT WALLET
-              </a>
+              </Link>
             </div>
           </div>
         </div>
@@ -353,24 +353,24 @@ export default function LeaderboardPage() {
             Built on Bitcoin with Charms Protocol
           </p>
           <div className="flex gap-4">
-            <a
+            <Link
               href="#"
               className="font-pixel text-[8px] text-pixel-text-muted hover:text-pixel-primary"
             >
               DOCS
-            </a>
-            <a
+            </Link>
+            <Link
               href="#"
               className="font-pixel text-[8px] text-pixel-text-muted hover:text-pixel-primary"
             >
               GITHUB
-            </a>
-            <a
+            </Link>
+            <Link
               href="#"
               className="font-pixel text-[8px] text-pixel-text-muted hover:text-pixel-primary"
             >
               DISCORD
-            </a>
+            </Link>
           </div>
         </div>
       </footer>

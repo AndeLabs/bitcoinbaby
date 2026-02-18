@@ -11,6 +11,7 @@ export type {
   Bloodline,
   RarityTier,
   BaseType,
+  Heritage,
 } from "./types";
 
 export {
@@ -50,3 +51,42 @@ export {
   type ColorPalette,
   type EffectsConfig,
 } from "./trait-config";
+
+// Genesis Baby Sprite System (new pixel art sprites)
+export {
+  // Main component
+  GenesisBabySprite,
+  GenesisBabyPreview,
+  generateRandomTraits,
+  traitsFromHash,
+  type GenesisBabyTraits,
+  // Base type sprites
+  HumanSprite,
+  RobotSprite,
+  MysticSprite,
+  AlienSprite,
+  ShamanSprite,
+  ElementalSprite,
+  DragonSprite,
+  // Overlay components
+  BloodlineOverlay,
+  BloodlineAura,
+  HeritageOverlay,
+  HeritageBackground,
+  RarityEffects,
+  RarityFrame,
+  RarityBadge,
+  // Types from genesis system (renamed to avoid conflicts)
+  type GenesisBabyState,
+  type GenesisBaseType,
+  type GenesisBloodline,
+  type GenesisHeritage,
+  type GenesisRarity,
+  type DNATraits,
+  // Constants
+  BASE_TYPE_COLORS,
+  BLOODLINE_STYLES,
+  HERITAGE_STYLES,
+  RARITY_EFFECTS,
+  parseDNA,
+} from "../sprites/genesis";

@@ -499,6 +499,98 @@ export const BASE_TYPE_CONFIGS: Record<BaseType, TraitVisualConfig> = {
       },
     ],
   },
+  // Elemental - uses mystic as base with fire colors
+  elemental: {
+    name: "Elemental Baby",
+    palette: {
+      primary: "#ff6b35",
+      secondary: "#f7c59f",
+      accent: "#ffd700",
+      outline: "#c41e3a",
+      background: "#1a0f0a",
+      glow: "#ff6b35",
+    },
+    effects: {
+      aura: true,
+      auraColor: "#ff6b35",
+      particles: true,
+      particleColor: "#ffd700",
+      glowIntensity: 0.5,
+    },
+    features: [
+      {
+        type: "ellipse",
+        x: 8,
+        y: 9,
+        width: 8,
+        height: 10,
+        fill: "primary",
+        stroke: "outline",
+        strokeWidth: 0.5,
+      },
+      {
+        type: "ellipse",
+        x: 8,
+        y: 5,
+        width: 6,
+        height: 5,
+        fill: "primary",
+        stroke: "outline",
+        strokeWidth: 0.5,
+      },
+      { type: "circle", cx: 6, cy: 4, r: 1.2, fill: "accent" },
+      { type: "circle", cx: 10, cy: 4, r: 1.2, fill: "accent" },
+      { type: "circle", cx: 6, cy: 3.5, r: 0.4, fill: "#ffffff" },
+      { type: "circle", cx: 10, cy: 3.5, r: 0.4, fill: "#ffffff" },
+    ],
+  },
+  // Spirit - ethereal ghostly appearance
+  spirit: {
+    name: "Spirit Baby",
+    palette: {
+      primary: "#e0b0ff",
+      secondary: "#dda0dd",
+      accent: "#ffffff",
+      outline: "#9370db",
+      background: "#0a0a14",
+      glow: "#e0b0ff",
+    },
+    effects: {
+      aura: true,
+      auraColor: "#e0b0ff",
+      particles: true,
+      particleColor: "#ffffff",
+      glowIntensity: 0.6,
+    },
+    features: [
+      {
+        type: "ellipse",
+        x: 8,
+        y: 8,
+        width: 7,
+        height: 10,
+        fill: "primary",
+        opacity: 0.8,
+        stroke: "outline",
+        strokeWidth: 0.5,
+      },
+      {
+        type: "ellipse",
+        x: 8,
+        y: 5,
+        width: 6,
+        height: 5,
+        fill: "primary",
+        opacity: 0.9,
+        stroke: "outline",
+        strokeWidth: 0.5,
+      },
+      { type: "circle", cx: 6, cy: 4, r: 1, fill: "#ffffff", opacity: 0.9 },
+      { type: "circle", cx: 10, cy: 4, r: 1, fill: "#ffffff", opacity: 0.9 },
+      { type: "circle", cx: 6, cy: 4, r: 0.4, fill: "accent" },
+      { type: "circle", cx: 10, cy: 4, r: 0.4, fill: "accent" },
+    ],
+  },
 };
 
 // =============================================================================
@@ -672,6 +764,81 @@ export const BLOODLINE_CONFIGS: Record<Bloodline, TraitVisualConfig> = {
       { type: "circle", cx: 2, cy: 6, r: 0.5, fill: "accent", opacity: 0.7 },
       { type: "circle", cx: 14, cy: 8, r: 0.4, fill: "accent", opacity: 0.6 },
       { type: "circle", cx: 1, cy: 10, r: 0.3, fill: "accent", opacity: 0.5 },
+    ],
+  },
+
+  scholar: {
+    name: "Scholar Bloodline",
+    palette: {
+      primary: "#6366f1",
+      secondary: "#4f46e5",
+      accent: "#a5b4fc",
+      outline: "#312e81",
+      background: "#0f0f23",
+    },
+    effects: {
+      aura: true,
+      auraColor: "#6366f1",
+      particles: false,
+      glowIntensity: 0.3,
+    },
+    features: [],
+    accessories: [
+      // Glasses
+      {
+        type: "circle",
+        cx: 5.5,
+        cy: 4,
+        r: 1.5,
+        fill: "none",
+        stroke: "accent",
+        strokeWidth: 0.4,
+      },
+      {
+        type: "circle",
+        cx: 10.5,
+        cy: 4,
+        r: 1.5,
+        fill: "none",
+        stroke: "accent",
+        strokeWidth: 0.4,
+      },
+      {
+        type: "path",
+        d: "M7 4 L9 4",
+        fill: "none",
+        stroke: "accent",
+        strokeWidth: 0.3,
+      },
+      // Book
+      { type: "rect", x: 12, y: 8, width: 3, height: 4, fill: "primary" },
+      { type: "rect", x: 12.5, y: 8.5, width: 2, height: 3, fill: "#fef3c7" },
+    ],
+  },
+
+  merchant: {
+    name: "Merchant Bloodline",
+    palette: {
+      primary: "#fbbf24",
+      secondary: "#f59e0b",
+      accent: "#fcd34d",
+      outline: "#92400e",
+      background: "#1a1505",
+    },
+    effects: {
+      aura: false,
+      particles: true,
+      particleColor: "#fcd34d",
+      glowIntensity: 0.2,
+    },
+    features: [],
+    accessories: [
+      // Coin bag
+      { type: "ellipse", x: 13, y: 10, width: 3, height: 4, fill: "#78350f" },
+      { type: "circle", cx: 13, cy: 9, r: 0.8, fill: "accent" },
+      // Coins
+      { type: "circle", cx: 2, cy: 12, r: 0.6, fill: "primary" },
+      { type: "circle", cx: 3, cy: 11, r: 0.5, fill: "accent" },
     ],
   },
 };

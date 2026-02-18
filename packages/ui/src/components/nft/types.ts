@@ -1,28 +1,44 @@
 /**
  * NFT Types for UI Components
  *
- * Local type definitions that mirror @bitcoinbaby/bitcoin/charms/nft.
- * Kept here to avoid cross-package dependency.
+ * Imports canonical types from @bitcoinbaby/core and extends them
+ * for UI-specific visualization needs.
  */
 
+// Import canonical on-chain types
+import type {
+  Bloodline as CoreBloodline,
+  BaseType as CoreBaseType,
+  RarityTier,
+  Heritage,
+  BabyNFTState as CoreBabyNFTState,
+} from "@bitcoinbaby/core";
+
+// Re-export canonical types
+export type { RarityTier, Heritage };
+export type { CoreBabyNFTState };
+
 // =============================================================================
-// CORE TYPES
+// EXTENDED UI TYPES
+// These extend the on-chain types for visualization purposes only.
+// Note: "scholar" and "merchant" bloodlines, and "elemental" and "spirit"
+// base types are UI-only extensions for special visual effects.
 // =============================================================================
-
-export type Bloodline = "royal" | "warrior" | "rogue" | "mystic";
-
-export type RarityTier =
-  | "common"
-  | "uncommon"
-  | "rare"
-  | "epic"
-  | "legendary"
-  | "mythic";
-
-export type BaseType = "human" | "animal" | "robot" | "mystic" | "alien";
 
 /**
- * Full NFT state (mirrors BabyNFTState from bitcoin package)
+ * Extended Bloodline for UI visualization
+ * Includes canonical bloodlines + UI-only visual variants
+ */
+export type Bloodline = CoreBloodline | "scholar" | "merchant";
+
+/**
+ * Extended BaseType for UI visualization
+ * Includes canonical base types + UI-only visual variants
+ */
+export type BaseType = CoreBaseType | "elemental" | "spirit";
+
+/**
+ * UI-extended NFT state that supports both canonical and extended types
  */
 export interface BabyNFTState {
   readonly dna: string;

@@ -3,10 +3,13 @@
  *
  * Renders a Genesis Baby NFT sprite based on its traits.
  * Combines base type, bloodline accessories, and rarity effects.
+ *
+ * UPDATED: Now supports both legacy mode and new Genesis Sprite system.
+ * Use useGenesisSprites={true} for the new pixel art system.
  */
 
 import { FC, useMemo } from "react";
-import type { Bloodline, BaseType, RarityTier } from "./types";
+import type { Bloodline, BaseType, RarityTier, Heritage } from "./types";
 import {
   getNFTVisualConfig,
   resolvePaletteColor,
@@ -14,6 +17,15 @@ import {
   type SpriteFeature,
   type ColorPalette,
 } from "./trait-config";
+import {
+  GenesisBabySprite,
+  type GenesisBabyTraits,
+  type GenesisBabyState,
+  type GenesisBaseType,
+  type GenesisBloodline,
+  type GenesisHeritage,
+  type GenesisRarity,
+} from "../sprites/genesis";
 
 // =============================================================================
 // TYPES
@@ -23,11 +35,72 @@ interface NFTSpriteProps {
   baseType: BaseType;
   bloodline: Bloodline;
   rarityTier: RarityTier;
+  heritage?: Heritage;
   dna?: string;
   size?: number;
   className?: string;
   animate?: boolean;
+  state?: GenesisBabyState;
+  /** Use new Genesis pixel art sprite system */
+  useGenesisSprites?: boolean;
+  /** Show rarity frame around sprite */
+  showFrame?: boolean;
+  /** Show rarity badge */
+  showBadge?: boolean;
 }
+
+// =============================================================================
+// TYPE MAPPERS (Legacy → Genesis)
+// =============================================================================
+
+const mapBaseType = (baseType: BaseType): GenesisBaseType => {
+  const mapping: Record<BaseType, GenesisBaseType> = {
+    human: "human",
+    animal: "dragon", // Legacy animal → dragon
+    robot: "robot",
+    mystic: "mystic",
+    alien: "alien",
+    elemental: "elemental", // Elemental → elemental
+    spirit: "shaman", // Spirit → shaman
+  };
+  return mapping[baseType] || "human";
+};
+
+const mapBloodline = (bloodline: Bloodline): GenesisBloodline => {
+  const mapping: Record<Bloodline, GenesisBloodline> = {
+    royal: "royal",
+    warrior: "warrior",
+    rogue: "rogue",
+    mystic: "mystic",
+    scholar: "mystic", // Fallback
+    merchant: "rogue", // Fallback
+  };
+  return mapping[bloodline] || "royal";
+};
+
+const mapRarity = (rarity: RarityTier): GenesisRarity => {
+  const mapping: Record<RarityTier, GenesisRarity> = {
+    common: "common",
+    uncommon: "uncommon",
+    rare: "rare",
+    epic: "epic",
+    legendary: "legendary",
+    mythic: "mythic",
+  };
+  return mapping[rarity] || "common";
+};
+
+const mapHeritage = (heritage?: Heritage): GenesisHeritage => {
+  if (!heritage) return "americas";
+  const mapping: Record<Heritage, GenesisHeritage> = {
+    americas: "americas",
+    africa: "africa",
+    asia: "asia",
+    europa: "europa",
+    oceania: "oceania",
+  };
+  return mapping[heritage] || "americas";
+};
 
 // =============================================================================
 // FEATURE RENDERER
@@ -204,11 +277,40 @@ export const NFTSprite: FC<NFTSpriteProps> = ({
   baseType,
   bloodline,
   rarityTier,
+  heritage,
   dna,
   size = 96,
   className = "",
   animate = true,
+  state = "idle",
+  useGenesisSprites = true,
+  showFrame = false,
+  showBadge = true,
 }) => {
+  // Use new Genesis Sprite system
+  if (useGenesisSprites) {
+    const genesisTraits: GenesisBabyTraits = {
+      baseType: mapBaseType(baseType),
+      bloodline: mapBloodline(bloodline),
+      heritage: mapHeritage(heritage),
+      rarity: mapRarity(rarityTier),
+      dna: dna || "0000000000000000",
+    };
+
+    return (
+      <GenesisBabySprite
+        traits={genesisTraits}
+        size={size}
+        state={state}
+        className={className}
+        showFrame={showFrame}
+        showBadge={showBadge}
+        animated={animate}
+      />
+    );
+  }
+
+  // Legacy sprite system (original implementation)
   const config = useMemo(
     () => getNFTVisualConfig(baseType, bloodline, rarityTier),
     [baseType, bloodline, rarityTier],

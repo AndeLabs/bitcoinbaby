@@ -20,7 +20,6 @@ import {
   TransactionBuilder,
   createMempoolClient,
   type TxUTXO,
-  type FeeEstimates,
 } from "@bitcoinbaby/bitcoin";
 
 import {

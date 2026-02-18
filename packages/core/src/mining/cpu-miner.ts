@@ -344,23 +344,78 @@ export class CPUMiner implements Miner {
 
   /**
    * Fallback mining for environments without Web Workers
+   * WARNING: This runs in the main thread and will be significantly slower
+   * Uses real SHA-256d hashing via crypto.subtle
    */
   private startFallbackMining(): void {
+    console.warn(
+      "[CPUMiner] Running in fallback mode (no Web Workers). " +
+        "Mining will be slower and may affect UI responsiveness.",
+    );
+
+    let nonce = 0;
     let lastUpdate = Date.now();
     let hashesThisSecond = 0;
+    const currentBlock = Date.now().toString();
 
-    const mine = () => {
+    // SHA-256 using Web Crypto API
+    const sha256 = async (message: string): Promise<string> => {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(message);
+      const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    };
+
+    // Double SHA-256 (Bitcoin standard)
+    const hash256 = async (message: string): Promise<string> => {
+      const first = await sha256(message);
+      return sha256(first);
+    };
+
+    // Count leading zero bits
+    const countLeadingZeroBits = (hash: string): number => {
+      let count = 0;
+      for (const char of hash) {
+        const nibble = parseInt(char, 16);
+        if (nibble === 0) {
+          count += 4;
+        } else {
+          if (nibble < 8) count += 1;
+          if (nibble < 4) count += 1;
+          if (nibble < 2) count += 1;
+          break;
+        }
+      }
+      return count;
+    };
+
+    const mine = async () => {
       if (!this.running) return;
       if (this.paused) {
         setTimeout(mine, 100);
         return;
       }
 
-      const workAmount = Math.floor(100 * (this.throttle / 100));
+      // Process fewer hashes per batch in main thread to keep UI responsive
+      const batchSize = Math.max(1, Math.floor(10 * (this.throttle / 100)));
 
-      for (let i = 0; i < workAmount; i++) {
+      for (let i = 0; i < batchSize && this.running && !this.paused; i++) {
+        const blockData = `${currentBlock}:${this.minerAddress}:${nonce}`;
+        const hash = await hash256(blockData);
         this.totalHashes++;
         hashesThisSecond++;
+        nonce++;
+
+        const zeroBits = countLeadingZeroBits(hash);
+        if (zeroBits >= this.difficulty) {
+          this.onWorkFound?.({
+            hash,
+            nonce: nonce - 1,
+            difficulty: zeroBits,
+            timestamp: Date.now(),
+          });
+        }
       }
 
       const now = Date.now();
@@ -371,10 +426,18 @@ export class CPUMiner implements Miner {
         lastUpdate = now;
       }
 
-      setTimeout(mine, 10);
+      // Yield to event loop more frequently in fallback mode
+      setTimeout(mine, 1);
     };
 
-    mine();
+    mine().catch((err) => {
+      console.error("[CPUMiner] Fallback mining error:", err);
+      this.running = false;
+      this.onStatusChange?.("stopped");
+      this.onError?.(
+        err instanceof Error ? err : new Error("Fallback mining failed"),
+      );
+    });
     this.onStatusChange?.("running");
   }
 }

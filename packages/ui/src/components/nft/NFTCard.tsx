@@ -35,6 +35,8 @@ const BLOODLINE_COLORS: Record<
   warrior: { bg: "#7c1d1d", accent: "#ef4444", label: "Warrior" },
   rogue: { bg: "#1a2e1a", accent: "#22c55e", label: "Rogue" },
   mystic: { bg: "#1a1a2e", accent: "#4fc3f7", label: "Mystic" },
+  scholar: { bg: "#1a1a2e", accent: "#818cf8", label: "Scholar" },
+  merchant: { bg: "#2e2a1a", accent: "#fbbf24", label: "Merchant" },
 };
 
 const RARITY_COLORS: Record<
@@ -75,6 +77,8 @@ const BASE_TYPE_COLORS: Record<BaseType, { body: string; label: string }> = {
   robot: { body: "#7dd3fc", label: "Robot" },
   mystic: { body: "#c4b5fd", label: "Mystic" },
   alien: { body: "#6ee7b7", label: "Alien" },
+  elemental: { body: "#fb923c", label: "Elemental" },
+  spirit: { body: "#e879f9", label: "Spirit" },
 };
 
 // =============================================================================

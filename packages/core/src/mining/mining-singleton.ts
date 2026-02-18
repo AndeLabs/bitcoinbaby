@@ -1,0 +1,519 @@
+/**
+ * Mining Singleton
+ *
+ * Global singleton that manages the MiningOrchestrator.
+ * This ensures mining persists across page navigations in SPA.
+ *
+ * Integrates:
+ * - IndexedDB persistence (resume after browser close)
+ * - Web Locks (one tab mines at a time)
+ * - Wake Lock (screen stays on while mining)
+ *
+ * The orchestrator lives at module level, not inside React components,
+ * so it survives when components unmount during navigation.
+ */
+
+import { MiningOrchestrator } from "./orchestrator";
+import {
+  MiningStatePersistence,
+  type PersistedMiningState,
+} from "./persistence";
+import { MiningTabCoordinator } from "./tab-coordinator";
+import { MiningWakeLock } from "./wake-lock";
+import type {
+  OrchestratorConfig,
+  MiningResult,
+  DeviceCapabilities,
+} from "./types";
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+export interface MiningManagerState {
+  isRunning: boolean;
+  isPaused: boolean;
+  hashrate: number;
+  totalHashes: number;
+  shares: number;
+  difficulty: number;
+  minerType: "cpu" | "webgpu" | null;
+  capabilities: DeviceCapabilities | null;
+  lastShare: MiningResult | null;
+  error: string | null;
+  sessionStartTime: number | null;
+
+  // Feature states
+  isLeader: boolean;
+  isWaitingForLeadership: boolean;
+  wakeLockActive: boolean;
+  canResume: boolean;
+  lifetimeHashes: number;
+  lifetimeShares: number;
+}
+
+export interface MiningManagerConfig extends Partial<OrchestratorConfig> {
+  onStateChange?: (state: MiningManagerState) => void;
+  onWorkFound?: (result: MiningResult) => void;
+  onError?: (error: Error) => void;
+
+  // Feature options
+  enablePersistence?: boolean;
+  enableTabCoordination?: boolean;
+  enableWakeLock?: boolean;
+  autoResumeOnInit?: boolean;
+}
+
+type StateListener = (state: MiningManagerState) => void;
+
+// =============================================================================
+// SINGLETON IMPLEMENTATION
+// =============================================================================
+
+class MiningManager {
+  private orchestrator: MiningOrchestrator | null = null;
+  private config: MiningManagerConfig = {};
+  private listeners: Set<StateListener> = new Set();
+
+  // Feature instances
+  private persistence: MiningStatePersistence | null = null;
+  private tabCoordinator: MiningTabCoordinator | null = null;
+  private wakeLock: MiningWakeLock | null = null;
+
+  private state: MiningManagerState = {
+    isRunning: false,
+    isPaused: false,
+    hashrate: 0,
+    totalHashes: 0,
+    shares: 0,
+    difficulty: 16,
+    minerType: null,
+    capabilities: null,
+    lastShare: null,
+    error: null,
+    sessionStartTime: null,
+    // Feature states
+    isLeader: true,
+    isWaitingForLeadership: false,
+    wakeLockActive: false,
+    canResume: false,
+    lifetimeHashes: 0,
+    lifetimeShares: 0,
+  };
+
+  /**
+   * Initialize the mining manager with config
+   * Safe to call multiple times - will only initialize once
+   */
+  initialize(config: MiningManagerConfig = {}): void {
+    if (this.orchestrator) {
+      // Already initialized, just update config
+      this.config = { ...this.config, ...config };
+      return;
+    }
+
+    this.config = {
+      enablePersistence: true,
+      enableTabCoordination: true,
+      enableWakeLock: true,
+      autoResumeOnInit: false,
+      ...config,
+    };
+
+    this.orchestrator = new MiningOrchestrator({
+      initialDifficulty: config.initialDifficulty ?? 16,
+      minerAddress: config.minerAddress,
+      preferWebGPU: config.preferWebGPU ?? true,
+      fallbackToCPU: config.fallbackToCPU ?? true,
+      throttleOnBattery: config.throttleOnBattery ?? true,
+      throttleWhenHidden: config.throttleWhenHidden ?? true,
+    });
+
+    // Setup event handlers
+    this.orchestrator.on("onHashrateUpdate", (hashrate) => {
+      this.updateState({
+        hashrate,
+        totalHashes: this.orchestrator?.getTotalHashes() ?? 0,
+      });
+    });
+
+    this.orchestrator.on("onWorkFound", (result) => {
+      this.updateState({
+        shares: this.state.shares + 1,
+        lastShare: result,
+      });
+      this.config.onWorkFound?.(result);
+    });
+
+    this.orchestrator.on("onStatusChange", (status) => {
+      this.updateState({
+        isRunning: status === "running",
+        isPaused: status === "paused",
+        minerType: this.orchestrator?.getMinerType() ?? null,
+      });
+
+      // Handle wake lock based on mining status
+      if (status === "running" && this.config.enableWakeLock) {
+        this.wakeLock?.acquire();
+      } else if (status === "stopped") {
+        this.wakeLock?.release();
+      }
+    });
+
+    this.orchestrator.on("onError", (error) => {
+      this.updateState({ error: error.message });
+      this.config.onError?.(error);
+    });
+
+    // Detect capabilities
+    this.orchestrator.detectCapabilities().then((caps) => {
+      this.updateState({ capabilities: caps });
+    });
+
+    // Initialize features
+    this.initializeFeatures();
+  }
+
+  /**
+   * Initialize persistence, tab coordination, and wake lock
+   */
+  private async initializeFeatures(): Promise<void> {
+    // Initialize persistence
+    if (this.config.enablePersistence) {
+      this.persistence = new MiningStatePersistence();
+      try {
+        await this.persistence.open();
+        const savedState = await this.persistence.loadState();
+        const stats = await this.persistence.getLifetimeStats();
+
+        this.updateState({
+          canResume: savedState !== null,
+          lifetimeHashes: stats.totalHashes,
+          lifetimeShares: stats.totalShares,
+          difficulty: savedState?.difficulty ?? this.state.difficulty,
+        });
+
+        console.log("[MiningManager] Persistence initialized", {
+          canResume: savedState !== null,
+          lifetimeHashes: stats.totalHashes,
+        });
+      } catch (err) {
+        console.warn("[MiningManager] Persistence init failed:", err);
+      }
+    }
+
+    // Initialize tab coordinator
+    if (
+      this.config.enableTabCoordination &&
+      MiningTabCoordinator.isSupported()
+    ) {
+      this.tabCoordinator = new MiningTabCoordinator({
+        onBecomeLeader: () => {
+          this.updateState({ isLeader: true, isWaitingForLeadership: false });
+          console.log("[MiningManager] This tab is now the mining leader");
+        },
+        onLostLeadership: () => {
+          this.updateState({ isLeader: false });
+          // Stop mining if we lose leadership
+          if (this.state.isRunning) {
+            console.log("[MiningManager] Lost leadership, stopping mining");
+            this.stop();
+          }
+        },
+        onWaitingForLeadership: () => {
+          this.updateState({ isWaitingForLeadership: true });
+        },
+      });
+    }
+
+    // Initialize wake lock
+    if (this.config.enableWakeLock && MiningWakeLock.isSupported()) {
+      this.wakeLock = new MiningWakeLock();
+      this.wakeLock.enableAutoReacquire();
+    }
+  }
+
+  /**
+   * Subscribe to state changes
+   */
+  subscribe(listener: StateListener): () => void {
+    this.listeners.add(listener);
+    // Immediately call with current state
+    listener(this.state);
+    // Return unsubscribe function
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  /**
+   * Update state and notify listeners
+   */
+  private updateState(partial: Partial<MiningManagerState>): void {
+    this.state = { ...this.state, ...partial };
+    this.listeners.forEach((listener) => listener(this.state));
+    this.config.onStateChange?.(this.state);
+  }
+
+  /**
+   * Get current state
+   */
+  getState(): MiningManagerState {
+    return this.state;
+  }
+
+  /**
+   * Start mining
+   */
+  async start(blockData?: string): Promise<void> {
+    if (!this.orchestrator) {
+      throw new Error(
+        "MiningManager not initialized. Call initialize() first.",
+      );
+    }
+
+    if (this.state.isRunning) {
+      console.warn("[MiningManager] Mining already running");
+      return;
+    }
+
+    // Request leadership if tab coordination is enabled
+    if (this.tabCoordinator && !this.state.isLeader) {
+      const isAnotherMining = await this.tabCoordinator.isAnotherTabMining();
+      if (isAnotherMining) {
+        console.log(
+          "[MiningManager] Another tab is mining, requesting leadership...",
+        );
+        this.updateState({ isWaitingForLeadership: true });
+        await this.tabCoordinator.requestLeadership();
+      } else {
+        await this.tabCoordinator.tryImmediateLeadership();
+      }
+    }
+
+    this.updateState({
+      error: null,
+      sessionStartTime: Date.now(),
+    });
+
+    try {
+      await this.orchestrator.start(blockData);
+
+      // Start auto-saving state
+      if (this.persistence) {
+        this.persistence.startAutoSave(() => ({
+          lastNonce: 0, // Would need orchestrator to expose this
+          totalHashes: this.state.totalHashes,
+          totalShares: this.state.shares,
+          difficulty: this.state.difficulty,
+          lastBlockData: blockData ?? "",
+          sessionUptime: this.getUptime(),
+          tokensEarned: 0,
+        }));
+      }
+
+      // Acquire wake lock
+      if (this.wakeLock) {
+        const acquired = await this.wakeLock.acquire();
+        this.updateState({ wakeLockActive: acquired });
+      }
+    } catch (error) {
+      this.updateState({
+        error:
+          error instanceof Error ? error.message : "Failed to start mining",
+        sessionStartTime: null,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Stop mining
+   */
+  async stop(): Promise<void> {
+    if (!this.orchestrator) return;
+
+    // Save final state before stopping
+    if (this.persistence) {
+      this.persistence.stopAutoSave();
+      try {
+        await this.persistence.saveState({
+          lastNonce: 0,
+          totalHashes: this.state.lifetimeHashes + this.state.totalHashes,
+          totalShares: this.state.lifetimeShares + this.state.shares,
+          difficulty: this.state.difficulty,
+          lastBlockData: "",
+          lastSavedAt: Date.now(),
+          sessionUptime: this.getUptime(),
+          tokensEarned: 0,
+        });
+        console.log("[MiningManager] State saved before stop");
+      } catch (err) {
+        console.warn("[MiningManager] Failed to save state:", err);
+      }
+    }
+
+    this.orchestrator.stop();
+
+    // Release wake lock
+    if (this.wakeLock) {
+      await this.wakeLock.release();
+      this.updateState({ wakeLockActive: false });
+    }
+
+    // Release leadership
+    this.tabCoordinator?.releaseLeadership();
+
+    this.updateState({ sessionStartTime: null });
+  }
+
+  /**
+   * Pause mining
+   */
+  pause(): void {
+    this.orchestrator?.pause();
+  }
+
+  /**
+   * Resume mining
+   */
+  resume(): void {
+    this.orchestrator?.resume();
+  }
+
+  /**
+   * Toggle mining state
+   */
+  async toggle(blockData?: string): Promise<void> {
+    if (this.state.isRunning) {
+      await this.stop();
+    } else {
+      await this.start(blockData);
+    }
+  }
+
+  /**
+   * Set difficulty
+   */
+  setDifficulty(difficulty: number): void {
+    this.orchestrator?.setDifficulty(difficulty);
+    this.updateState({ difficulty });
+  }
+
+  /**
+   * Check if manager is initialized
+   */
+  isInitialized(): boolean {
+    return this.orchestrator !== null;
+  }
+
+  /**
+   * Get session uptime in seconds
+   */
+  getUptime(): number {
+    if (!this.state.sessionStartTime || !this.state.isRunning) {
+      return 0;
+    }
+    return Math.floor((Date.now() - this.state.sessionStartTime) / 1000);
+  }
+
+  /**
+   * Destroy the manager and cleanup
+   * Use this only when the app is closing
+   */
+  destroy(): void {
+    // Cleanup features
+    this.persistence?.stopAutoSave();
+    this.persistence?.close();
+    this.persistence = null;
+
+    this.tabCoordinator?.destroy();
+    this.tabCoordinator = null;
+
+    this.wakeLock?.destroy();
+    this.wakeLock = null;
+
+    // Cleanup orchestrator
+    this.orchestrator?.terminate();
+    this.orchestrator = null;
+    this.listeners.clear();
+    this.state = {
+      isRunning: false,
+      isPaused: false,
+      hashrate: 0,
+      totalHashes: 0,
+      shares: 0,
+      difficulty: 16,
+      minerType: null,
+      capabilities: null,
+      lastShare: null,
+      error: null,
+      sessionStartTime: null,
+      isLeader: true,
+      isWaitingForLeadership: false,
+      wakeLockActive: false,
+      canResume: false,
+      lifetimeHashes: 0,
+      lifetimeShares: 0,
+    };
+  }
+
+  /**
+   * Get saved state from persistence
+   */
+  async getSavedState(): Promise<PersistedMiningState | null> {
+    return this.persistence?.loadState() ?? null;
+  }
+
+  /**
+   * Clear saved state
+   */
+  async clearSavedState(): Promise<void> {
+    await this.persistence?.clearState();
+    this.updateState({ canResume: false });
+  }
+
+  /**
+   * Check if wake lock is supported
+   */
+  isWakeLockSupported(): boolean {
+    return MiningWakeLock.isSupported();
+  }
+
+  /**
+   * Check if tab coordination is supported
+   */
+  isTabCoordinationSupported(): boolean {
+    return MiningTabCoordinator.isSupported();
+  }
+}
+
+// =============================================================================
+// SINGLETON EXPORT
+// =============================================================================
+
+// Single global instance
+let instance: MiningManager | null = null;
+
+/**
+ * Get the global mining manager instance
+ * Creates one if it doesn't exist
+ */
+export function getMiningManager(): MiningManager {
+  if (!instance) {
+    instance = new MiningManager();
+  }
+  return instance;
+}
+
+/**
+ * Destroy the global mining manager
+ * Use this only when the app is completely closing
+ */
+export function destroyMiningManager(): void {
+  instance?.destroy();
+  instance = null;
+}
+
+// Export class for testing
+export { MiningManager };

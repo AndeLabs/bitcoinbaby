@@ -4,7 +4,7 @@
  * NFTs Page - Genesis Babies Collection
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import {
   NFTGrid,
@@ -65,6 +65,8 @@ function generateDemoNFT(tokenId: number): BabyNFTState {
   };
 }
 
+// Generate demo collection - used when isDemo is true
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function generateDemoCollection(count: number): BabyNFTState[] {
   return Array.from({ length: count }, (_, i) => generateDemoNFT(i + 1));
 }
@@ -74,7 +76,9 @@ function generateDemoCollection(count: number): BabyNFTState[] {
 // =============================================================================
 
 export default function NFTsPage() {
-  const [isDemo, setIsDemo] = useState(false);
+  // Demo mode - set to true to use fake NFTs for testing
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [isDemo, _setIsDemo] = useState(false);
   const [demoNFTs, setDemoNFTs] = useState<BabyNFTState[]>([]);
   const [evolvingIds, setEvolvingIds] = useState<Set<number>>(new Set());
   const [showMintModal, setShowMintModal] = useState(false);
@@ -95,13 +99,6 @@ export default function NFTsPage() {
     reset: resetMint,
     canMint,
   } = useMintNFT();
-
-  // Generate demo data on demand
-  useEffect(() => {
-    if (isDemo && demoNFTs.length === 0) {
-      setDemoNFTs(generateDemoCollection(12));
-    }
-  }, [isDemo, demoNFTs.length]);
 
   // Open mint modal and generate preview
   const handleOpenMint = useCallback(() => {
@@ -184,22 +181,6 @@ export default function NFTsPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Demo Mode Toggle */}
-              <button
-                onClick={() => setIsDemo(!isDemo)}
-                className={`
-                  font-pixel text-[8px] uppercase px-3 py-2
-                  border-4 border-black transition-all
-                  ${
-                    isDemo
-                      ? "bg-pixel-secondary text-pixel-text-dark shadow-[4px_4px_0_0_#000]"
-                      : "bg-pixel-bg-medium text-pixel-text hover:bg-pixel-bg-light"
-                  }
-                `}
-              >
-                {isDemo ? "DEMO ON" : "DEMO OFF"}
-              </button>
-
               {/* Back to Wallet */}
               <Link
                 href="/wallet"
@@ -212,14 +193,13 @@ export default function NFTsPage() {
         </header>
 
         {/* Connection Warning */}
-        {!wallet && !isDemo && (
+        {!wallet && (
           <div className="mb-8 p-4 bg-pixel-bg-medium border-4 border-pixel-warning text-center">
             <p className="font-pixel text-[9px] text-pixel-warning uppercase mb-2">
               Wallet Not Connected
             </p>
             <p className="font-pixel-body text-sm text-pixel-text-muted mb-4">
-              Connect your wallet to view your Genesis Babies, or enable Demo
-              Mode to preview.
+              Connect your wallet to view your Genesis Babies.
             </p>
             <Link
               href="/wallet"

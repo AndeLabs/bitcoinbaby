@@ -64,3 +64,12 @@ export {
   type TxTrackerOptions,
   type TxApiResponse,
 } from "./tx-tracker";
+
+// Formatting Utilities
+export {
+  formatHashrate,
+  formatTotal,
+  formatDuration,
+  formatTime,
+  formatBytes,
+} from "./format";

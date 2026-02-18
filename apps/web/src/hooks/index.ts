@@ -1,18 +1,30 @@
+// =============================================================================
+// APP-SPECIFIC HOOKS
+// These hooks are specific to the web app with features like caching,
+// pending balance tracking, and integration with app-specific stores.
+// For shared/general hooks, see @bitcoinbaby/core
+// =============================================================================
+
 // Blockchain hooks
+/**
+ * @deprecated Use `useGlobalMining` from `@bitcoinbaby/core` for persistent mining.
+ * This local hook is kept for backwards compatibility only.
+ */
+/**
+ * @deprecated Use `useGlobalMining` from `@bitcoinbaby/core` for persistent mining.
+ */
 export {
   useMining,
   type MiningState,
   type UseMiningOptions,
 } from "./useMining";
+// Note: This is the app-specific CharmsService wrapper, different from
+// the simpler hooks in @bitcoinbaby/core/hooks/useCharms
 export {
-  useMiningWithNFTs,
-  type UseMiningWithNFTsOptions,
-} from "./useMiningWithNFTs";
-export {
-  useCharms,
+  useCharmsService,
   type CharmsState,
   type UseCharmsOptions,
-} from "./useCharms";
+} from "./useCharmsService";
 export {
   useBalance,
   type BalanceState,
@@ -50,10 +62,78 @@ export {
   type UseTransactionHistoryOptions,
 } from "./useTransactionHistory";
 
-// Game hooks
-export { useGameLoop } from "./useGameLoop";
-export { useAchievements } from "./useAchievements";
+// Game hooks - re-exported from @bitcoinbaby/core
+// Local versions deprecated, use from core
 export { useBabyState } from "./useBabyState";
 
 // NFT hooks
+/**
+ * @deprecated Use `useNFTMinting` from `@bitcoinbaby/core` for full blockchain integration.
+ */
 export { useMintNFT, type MintState, type MintResult } from "./useMintNFT";
+
+// Platform hooks
+export { useCapacitor, type UseCapacitorReturn } from "./useCapacitor";
+export { usePlatform, type Platform, type PlatformInfo } from "./usePlatform";
+
+// SharedWorker mining (persists across tabs/navigation)
+export {
+  useSharedMining,
+  useSharedMiningShares,
+  supportsSharedWorker,
+  type SharedMiningState,
+  type SharedMiningConfig,
+  type UseSharedMiningReturn,
+  type ShareData,
+} from "./useSharedMining";
+
+// Unified persistent mining (auto-selects best strategy)
+export {
+  usePersistentMining,
+  type UsePersistentMiningOptions,
+  type UsePersistentMiningReturn,
+  type MiningStrategy,
+} from "./usePersistentMining";
+
+// =============================================================================
+// RE-EXPORTS FROM @bitcoinbaby/core
+// These are the shared hooks from core package for convenience
+// =============================================================================
+export {
+  // Cosmic hooks
+  useCosmicState,
+  useCosmicEnergy,
+  useMoonPhase,
+  useCosmicEvents,
+  useBabyCosmicStatus,
+  // Mining + Cosmic
+  useMiningCosmic,
+  useCosmicMiningMultiplier,
+  useCosmicMiningConditions,
+  // Global mining (singleton pattern)
+  useGlobalMining,
+  type UseGlobalMiningOptions,
+  type UseGlobalMiningReturn,
+  // Game hooks (centralized)
+  useGameLoop,
+  type UseGameLoopOptions,
+  type UseGameLoopReturn,
+  useAchievements,
+  type UseAchievementsOptions,
+  type UseAchievementsReturn,
+  type AchievementNotification,
+  useLeaderboard,
+  type UseLeaderboardOptions,
+  type UseLeaderboardReturn,
+  CATEGORY_INFO,
+  PERIOD_INFO,
+  // Mining with NFT boost (centralized)
+  useMiningWithNFTs,
+  type UseMiningWithNFTsOptions,
+  type UseMiningWithNFTsReturn,
+  // NFT minting (centralized)
+  useNFTMinting,
+  type UseNFTMintingOptions,
+  type UseNFTMintingReturn,
+  type NFTMintResult,
+} from "@bitcoinbaby/core";

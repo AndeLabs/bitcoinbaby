@@ -10,6 +10,10 @@ import * as ecc from "tiny-secp256k1";
 import type { BitcoinNetwork } from "../types";
 import type { UTXO } from "../blockchain/types";
 import type { SpellConfig } from "../scrolls/types";
+import type { SpellV2 } from "../charms/types";
+
+// Spell type union - supports both v1 and v2 formats
+type Spell = SpellConfig | SpellV2;
 import type {
   TxUTXO,
   TxInput,
@@ -243,7 +247,7 @@ export class TransactionBuilder {
   buildMiningTx(
     inputs: TxUTXO[],
     minerAddress: string,
-    spell: SpellConfig,
+    spell: Spell,
     charmsFeeAddress: string,
     charmsFee: number,
   ): CharmsTx {

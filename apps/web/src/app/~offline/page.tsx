@@ -2,27 +2,27 @@
 
 export default function OfflinePage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="pixel-container max-w-md text-center">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-pixel-bg-dark p-4">
+      <div className="max-w-md text-center bg-pixel-bg-medium border-4 border-pixel-border p-8 shadow-[8px_8px_0_0_#000]">
         {/* Pixel art style offline indicator */}
         <div className="mb-8 text-6xl">
-          <span className="pixel-text text-pixel-secondary">{"[  ]"}</span>
+          <span className="font-pixel text-pixel-secondary">{"[  ]"}</span>
         </div>
 
-        <h1 className="pixel-title mb-4 text-2xl text-pixel-primary">
+        <h1 className="font-pixel mb-4 text-lg text-pixel-primary">
           You are Offline
         </h1>
 
-        <p className="pixel-body mb-6 text-pixel-text-muted">
+        <p className="font-pixel-body text-sm mb-6 text-pixel-text-muted">
           It looks like you have lost your internet connection. Mining requires
           an active connection to the Bitcoin network.
         </p>
 
         <div className="space-y-4">
-          <p className="pixel-body text-sm text-pixel-text-muted">
+          <p className="font-pixel-body text-sm text-pixel-text-muted">
             While offline, you can:
           </p>
-          <ul className="pixel-body space-y-2 text-left text-sm text-pixel-text-muted">
+          <ul className="font-pixel-body space-y-2 text-left text-sm text-pixel-text-muted">
             <li className="flex items-center gap-2">
               <span className="text-pixel-secondary">{">"}</span>
               View your cached baby stats
@@ -40,9 +40,10 @@ export default function OfflinePage() {
 
         <button
           onClick={() => window.location.reload()}
-          className="pixel-button mt-8 rounded border-2 border-pixel-primary bg-pixel-primary/10 px-6 py-3 text-pixel-primary transition-colors hover:bg-pixel-primary hover:text-pixel-bg-dark"
+          className="mt-8 border-4 border-pixel-primary bg-pixel-primary/10 px-6 py-3 font-pixel text-xs text-pixel-primary transition-colors hover:bg-pixel-primary hover:text-pixel-bg-dark"
+          aria-label="Reload page to try reconnecting"
         >
-          Try Again
+          TRY AGAIN
         </button>
       </div>
     </main>

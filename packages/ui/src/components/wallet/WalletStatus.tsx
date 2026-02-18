@@ -76,6 +76,8 @@ export function WalletStatus({
         "bg-pixel-bg-dark",
         className,
       )}
+      role="region"
+      aria-label="Wallet status"
     >
       {/* Status Icon */}
       <div
@@ -139,8 +141,9 @@ export function WalletStatus({
                 "transition-colors",
               )}
               title="Lock Wallet"
+              aria-label="Lock wallet"
             >
-              L
+              <span aria-hidden="true">L</span>
             </button>
             {/* Open Wallet Button */}
             <button
@@ -154,8 +157,9 @@ export function WalletStatus({
                 "hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_#000]",
               )}
               title="Open Wallet"
+              aria-label="Open wallet"
             >
-              W
+              <span aria-hidden="true">W</span>
             </button>
           </>
         ) : isLocked ? (
@@ -169,6 +173,7 @@ export function WalletStatus({
               "shadow-[2px_2px_0_0_#000]",
               "hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_#000]",
             )}
+            aria-label="Unlock wallet"
           >
             Unlock
           </button>
@@ -183,6 +188,7 @@ export function WalletStatus({
               "shadow-[2px_2px_0_0_#000]",
               "hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_#000]",
             )}
+            aria-label="Connect wallet"
           >
             Connect
           </button>
@@ -239,6 +245,13 @@ export function WalletStatusCompact({
         "hover:opacity-80",
         className,
       )}
+      aria-label={
+        isConnected && address
+          ? `Wallet connected: ${formatAddress(address, 4)}`
+          : isLocked
+            ? "Wallet locked - click to unlock"
+            : "Connect wallet"
+      }
     >
       <span
         className={clsx(
@@ -249,6 +262,7 @@ export function WalletStatusCompact({
               ? "bg-red-400"
               : "bg-gray-400",
         )}
+        aria-hidden="true"
       />
       {isConnected && address
         ? formatAddress(address, 4)

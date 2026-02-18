@@ -352,3 +352,197 @@ canvas,
   color: var(--pixel-success);
   text-shadow: 2px 2px 0 var(--pixel-shadow);
 }
+
+/* ========================================
+   NFT SPRITE ANIMATIONS
+   ======================================== */
+
+/* Particle float - for background particles */
+@keyframes nft-particle-float {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+/* Crystal shimmer - for rare tier */
+@keyframes nft-crystal-shimmer {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.1);
+  }
+}
+
+/* Rune glow - for epic tier */
+@keyframes nft-rune-glow {
+  0%, 100% {
+    opacity: 0.4;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 0.8;
+    filter: brightness(1.3);
+  }
+}
+
+/* Divine spark - for legendary tier */
+@keyframes nft-divine-spark {
+  0% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+
+/* Divine pulse - smooth pulsing for legendary */
+@keyframes nft-divine-pulse {
+  0%, 100% {
+    opacity: 0.6;
+    filter: drop-shadow(0 0 2px currentColor);
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 4px currentColor);
+  }
+}
+
+/* Rainbow cycle - for mythic tier */
+@keyframes nft-rainbow-cycle {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+/* Mythic star twinkle */
+@keyframes nft-star-twinkle {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1.3);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.9);
+  }
+  75% {
+    opacity: 0.9;
+    transform: scale(1.1);
+  }
+}
+
+/* Sprite idle bob - subtle movement */
+@keyframes nft-sprite-bob {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+/* Aura pulse - for bloodline auras */
+@keyframes nft-aura-pulse {
+  0%, 100% {
+    opacity: 0.15;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.25;
+    transform: scale(1.03);
+  }
+}
+
+/* Heritage particle drift */
+@keyframes nft-heritage-drift {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+    opacity: 0.4;
+  }
+  25% {
+    transform: translateY(-2px) translateX(1px);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-1px) translateX(-1px);
+    opacity: 0.5;
+  }
+  75% {
+    transform: translateY(1px) translateX(1px);
+    opacity: 0.7;
+  }
+}
+
+/* NFT Animation Utility Classes */
+.animate-nft-float { animation: nft-particle-float 2s ease-in-out infinite; }
+.animate-nft-shimmer { animation: nft-crystal-shimmer 1.5s ease-in-out infinite; }
+.animate-nft-rune { animation: nft-rune-glow 2s ease-in-out infinite; }
+.animate-nft-divine { animation: nft-divine-pulse 1.5s ease-in-out infinite; }
+.animate-nft-spark { animation: nft-divine-spark 1s ease-out infinite; }
+.animate-nft-rainbow { animation: nft-rainbow-cycle 5s linear infinite; }
+.animate-nft-twinkle { animation: nft-star-twinkle 2s ease-in-out infinite; }
+.animate-nft-bob { animation: nft-sprite-bob 3s ease-in-out infinite; }
+.animate-nft-aura { animation: nft-aura-pulse 2s ease-in-out infinite; }
+.animate-nft-drift { animation: nft-heritage-drift 4s ease-in-out infinite; }
+
+/* ========================================
+   NFT RARITY GLOW EFFECTS
+   ======================================== */
+
+/* Uncommon - subtle green glow */
+.nft-glow-uncommon {
+  filter: drop-shadow(0 0 2px #22c55e);
+}
+
+/* Rare - blue crystal glow */
+.nft-glow-rare {
+  filter: drop-shadow(0 0 3px #3b82f6) drop-shadow(0 0 6px #60a5fa);
+}
+
+/* Epic - purple arcane glow */
+.nft-glow-epic {
+  filter: drop-shadow(0 0 4px #8b5cf6) drop-shadow(0 0 8px #a78bfa);
+}
+
+/* Legendary - golden divine glow */
+.nft-glow-legendary {
+  filter: drop-shadow(0 0 4px #fbbf24) drop-shadow(0 0 8px #fcd34d) drop-shadow(0 0 12px #fef3c7);
+}
+
+/* Mythic - rainbow shimmer */
+.nft-glow-mythic {
+  filter: drop-shadow(0 0 3px #ef4444)
+          drop-shadow(0 0 6px #f97316)
+          drop-shadow(0 0 9px #eab308)
+          drop-shadow(0 0 12px #22c55e)
+          drop-shadow(0 0 15px #3b82f6);
+  animation: nft-rainbow-cycle 5s linear infinite;
+}
+
+/* ========================================
+   SVG PIXEL RENDERING
+   ======================================== */
+
+svg[data-pixel],
+svg.pixel-sprite,
+.nft-sprite svg {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  shape-rendering: crispEdges;
+}
