@@ -9,21 +9,39 @@
  * - Stats grid
  * - NFT boost panel
  * - Device capabilities
+ * - V10 blockchain submission for rewards
  */
 
-import { useState, useEffect } from "react";
-import { useMiningWithNFTs } from "@/hooks";
+import { useState, useEffect, useCallback } from "react";
+import { useMiningWithNFTs, useMiningSubmitter } from "@/hooks";
 import {
   useWalletStore,
   useNFTStore,
   formatHashrate,
   formatTime,
+  type MiningResult,
 } from "@bitcoinbaby/core";
 
 export function MiningSection() {
   const wallet = useWalletStore((s) => s.wallet);
   const { bestBoost, totalNFTs } = useNFTStore();
   const [uptime, setUptime] = useState(0);
+  const [lastSubmittedShare, setLastSubmittedShare] = useState<string | null>(
+    null,
+  );
+
+  // Mining submitter for blockchain submission
+  const {
+    canMine,
+    balance,
+    pendingRewards,
+    confirmedRewards,
+    feeEstimates,
+    isSubmitting,
+    error: submitterError,
+    submitProof,
+    calculateReward,
+  } = useMiningSubmitter();
 
   const {
     isRunning,
@@ -41,11 +59,50 @@ export function MiningSection() {
     stop,
     pause,
     resume,
+    lastShare,
   } = useMiningWithNFTs({
     difficulty: 16,
     minerAddress: wallet?.address || "",
     autoStart: false,
   });
+
+  // Auto-submit shares to blockchain when found
+  const handleShareFound = useCallback(
+    async (share: MiningResult) => {
+      if (!canMine || isSubmitting) return;
+      if (lastSubmittedShare === share.hash) return; // Prevent double submission
+
+      setLastSubmittedShare(share.hash);
+
+      try {
+        console.log(
+          "[Mining] Submitting share to blockchain:",
+          share.hash.slice(0, 16),
+        );
+        const result = await submitProof({
+          hash: share.hash,
+          nonce: share.nonce,
+          difficulty: share.difficulty,
+          timestamp: share.timestamp,
+          blockData: share.blockData || "",
+        });
+
+        if (result.success && result.txid) {
+          console.log("[Mining] Share submitted! TX:", result.txid);
+        }
+      } catch (err) {
+        console.error("[Mining] Share submission failed:", err);
+      }
+    },
+    [canMine, isSubmitting, lastSubmittedShare, submitProof],
+  );
+
+  // Submit share when found
+  useEffect(() => {
+    if (lastShare && lastShare.hash !== lastSubmittedShare) {
+      handleShareFound(lastShare);
+    }
+  }, [lastShare, lastSubmittedShare, handleShareFound]);
 
   // Uptime counter
   useEffect(() => {
@@ -84,6 +141,76 @@ export function MiningSection() {
             </p>
             <p className="font-pixel text-[8px] text-pixel-primary">
               Go to Wallet tab to connect
+            </p>
+          </div>
+        )}
+
+        {/* Balance Warning */}
+        {wallet && !canMine && (
+          <div className="mb-6 p-4 bg-pixel-bg-medium border-4 border-pixel-error text-center">
+            <p className="font-pixel text-[9px] text-pixel-error uppercase mb-2">
+              Insufficient Balance
+            </p>
+            <p className="font-pixel-body text-sm text-pixel-text-muted mb-2">
+              Need at least 7,000 sats for mining transactions
+            </p>
+            <p className="font-pixel text-[10px] text-pixel-text">
+              Current: {balance.toLocaleString()} sats
+            </p>
+          </div>
+        )}
+
+        {/* Rewards Panel */}
+        {wallet && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {/* Balance */}
+            <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4">
+              <div className="font-pixel text-[7px] text-pixel-text-muted uppercase mb-2">
+                tBTC Balance
+              </div>
+              <div className="font-pixel text-lg text-pixel-primary">
+                {(balance / 100_000_000).toFixed(8)}
+              </div>
+              <div className="font-pixel text-[8px] text-pixel-text-muted">
+                {balance.toLocaleString()} sats
+              </div>
+            </div>
+
+            {/* Pending Rewards */}
+            <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4">
+              <div className="font-pixel text-[7px] text-pixel-text-muted uppercase mb-2">
+                Pending $BABY
+              </div>
+              <div className="font-pixel text-lg text-pixel-warning">
+                {pendingRewards.toString()}
+              </div>
+              {isSubmitting && (
+                <div className="font-pixel text-[8px] text-pixel-secondary animate-pulse">
+                  Submitting...
+                </div>
+              )}
+            </div>
+
+            {/* Confirmed Rewards */}
+            <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4">
+              <div className="font-pixel text-[7px] text-pixel-text-muted uppercase mb-2">
+                Confirmed $BABY
+              </div>
+              <div className="font-pixel text-lg text-pixel-success">
+                {confirmedRewards.toString()}
+              </div>
+              <div className="font-pixel text-[8px] text-pixel-text-muted">
+                Mined tokens
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Submitter Error */}
+        {submitterError && (
+          <div className="mb-6 p-3 bg-pixel-bg-medium border-4 border-pixel-error">
+            <p className="font-pixel text-[8px] text-pixel-error">
+              {submitterError}
             </p>
           </div>
         )}
