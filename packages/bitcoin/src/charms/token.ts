@@ -3,9 +3,21 @@
  *
  * Token configuration and types for the BitcoinBaby fungible token.
  * Distributed via Proof-of-Useful-Work mining.
+ *
+ * Updated for Charms Protocol v10 (January 2026)
  */
 
-import type { SpellV2, AppType } from "./types";
+import type {
+  SpellV2,
+  SpellV10,
+  AppType,
+  MiningMintSpellParams,
+} from "./types";
+import {
+  createMiningMintSpellV10,
+  createTokenTransferSpellV10,
+  MIN_SPELL_OUTPUT_SATS,
+} from "./types";
 
 // =============================================================================
 // TOKEN CONFIGURATION
@@ -193,6 +205,7 @@ export interface TokenMintParams {
 
 /**
  * Generate a token mint spell
+ * @deprecated Use createBABTCMintSpellV10 for new implementations
  */
 export function createTokenMintSpell(params: TokenMintParams): SpellV2 {
   const reward = calculateMiningReward(params.blockHeight);
@@ -249,6 +262,7 @@ export interface TokenTransferParams {
 
 /**
  * Generate a token transfer spell
+ * @deprecated Use createTokenTransferSpellV10 for new implementations
  */
 export function createTokenTransferSpell(params: TokenTransferParams): SpellV2 {
   const appRef = `t/${params.appId}/${params.appVk}`;
@@ -290,4 +304,119 @@ export function createTokenTransferSpell(params: TokenTransferParams): SpellV2 {
     ],
     outs,
   };
+}
+
+// =============================================================================
+// SPELL GENERATION V10 (Current Protocol - January 2026)
+// =============================================================================
+
+/**
+ * Token mint spell parameters for V10 (with Merkle proofs)
+ *
+ * BRO-style mining flow:
+ * 1. Mine PoW → create mining TX with OP_RETURN
+ * 2. Broadcast and wait for confirmation
+ * 3. Get Merkle proof of inclusion
+ * 4. Create mint spell with private_inputs
+ */
+export interface TokenMintParamsV10 {
+  /** BABTC app ID (SHA256 of genesis UTXO) */
+  appId: string;
+  /** Verification key (SHA256 of WASM binary) */
+  appVk: string;
+  /** Miner's Bitcoin address (receives 70%) */
+  minerAddress: string;
+  /** Dev fund address (receives 20%) */
+  devAddress: string;
+  /** Staking pool address (receives 10%) */
+  stakingAddress: string;
+  /** Block height for reward calculation */
+  blockHeight: number;
+  /** Mining transaction hex (confirmed in block) */
+  miningTxHex: string;
+  /** Merkle block proof hex */
+  merkleProofHex: string;
+  /** UTXO from mining transaction to consume */
+  miningUtxo: {
+    txid: string;
+    vout: number;
+  };
+}
+
+/**
+ * Generate a token mint spell (V10 format with Merkle proofs)
+ *
+ * This is the main entry point for creating mint spells after mining.
+ * Follows the BRO token pattern for proving work on-chain.
+ */
+export function createBABTCMintSpellV10(params: TokenMintParamsV10): SpellV10 {
+  const reward = calculateMiningReward(params.blockHeight);
+
+  // Use the shared V10 spell creator for miner's share
+  const baseSpell = createMiningMintSpellV10({
+    appId: params.appId,
+    appVk: params.appVk,
+    miningTxHex: params.miningTxHex,
+    merkleProofHex: params.merkleProofHex,
+    miningUtxo: params.miningUtxo,
+    minerAddress: params.minerAddress,
+    mintAmount: reward.minerShare,
+  });
+
+  // Extend with dev and staking outputs
+  return {
+    ...baseSpell,
+    outs: [
+      // Miner share (70%)
+      {
+        address: params.minerAddress,
+        charms: { $01: Number(reward.minerShare) },
+        sats: MIN_SPELL_OUTPUT_SATS,
+      },
+      // Dev fund (20%)
+      {
+        address: params.devAddress,
+        charms: { $01: Number(reward.devShare) },
+        sats: MIN_SPELL_OUTPUT_SATS,
+      },
+      // Staking pool (10%)
+      {
+        address: params.stakingAddress,
+        charms: { $01: Number(reward.stakingShare) },
+        sats: MIN_SPELL_OUTPUT_SATS,
+      },
+    ],
+  };
+}
+
+/**
+ * Generate a token transfer spell (V10 format)
+ */
+export function createBABTCTransferSpellV10(
+  params: TokenTransferParams,
+): SpellV10 {
+  return createTokenTransferSpellV10({
+    appId: params.appId,
+    appVk: params.appVk,
+    fromUtxo: params.fromUtxo,
+    fromAmount: params.fromAmount,
+    toAddress: params.toAddress,
+    toAmount: params.toAmount,
+    changeAddress: params.changeAddress,
+  });
+}
+
+/**
+ * Validate BigInt amount is safe for spell encoding
+ * Charms spells use Number for amounts, so we must validate range
+ */
+export function validateAmountForSpell(amount: bigint): void {
+  if (amount > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error(
+      `Token amount ${amount} exceeds safe integer range for spell encoding`,
+    );
+  }
+  if (amount < 0n) {
+    throw new Error("Token amount must be non-negative");
+  }
 }

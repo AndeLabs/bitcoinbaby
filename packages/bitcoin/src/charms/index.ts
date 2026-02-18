@@ -13,10 +13,20 @@ export type {
   CharmsNetwork,
   CharmsConfig,
   ScrollsConfigResponse,
-  // Spell Format
+  // Spell Format V2 (deprecated)
   SpellV2,
   SpellV2Input,
   SpellV2Output,
+  // Spell Format V10 (current)
+  SpellV10,
+  SpellV10Input,
+  SpellV10Output,
+  Spell,
+  SpellInput,
+  SpellOutput,
+  MiningPrivateInputs,
+  MiningMintSpellParams,
+  // Common
   AppType,
   AppReference,
   // Charm Data
@@ -35,11 +45,16 @@ export type {
 export {
   // Constants
   DUST_LIMIT,
+  CHARMS_PROTOCOL_VERSION,
+  MIN_SPELL_OUTPUT_SATS,
   SCROLLS_URLS,
   MEMPOOL_URLS,
   // Utilities
   parseAppReference,
   createAppReference,
+  // V10 Spell Builders
+  createMiningMintSpellV10,
+  createTokenTransferSpellV10,
 } from "./types";
 
 // =============================================================================
@@ -52,6 +67,7 @@ export type {
   MiningReward,
   TokenMintParams,
   TokenTransferParams,
+  TokenMintParamsV10,
 } from "./token";
 
 export {
@@ -64,9 +80,13 @@ export {
   calculateMiningReward,
   formatTokenAmount,
   parseTokenAmount,
-  // Spell Generation
+  // Spell Generation (V2 - deprecated)
   createTokenMintSpell,
   createTokenTransferSpell,
+  // Spell Generation (V10 - current)
+  createBABTCMintSpellV10,
+  createBABTCTransferSpellV10,
+  validateAmountForSpell,
 } from "./token";
 
 // =============================================================================
@@ -126,3 +146,17 @@ export {
   EvolutionError,
   createEvolutionService,
 } from "./evolution";
+
+// =============================================================================
+// BALANCE SERVICE (V10)
+// =============================================================================
+
+export type { BABTCBalance, BalanceQueryOptions } from "./balance";
+
+export {
+  BABTCBalanceService,
+  createBABTCBalanceService,
+  getBABTCBalance,
+  formatBABTCBalance,
+  hasSufficientBalance,
+} from "./balance";
