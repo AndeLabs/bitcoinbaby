@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { RootProvider } from "@/providers";
-import { BottomNav } from "@/components/navigation";
 
 // Pixel Art Fonts
 const fontUrl =
@@ -95,11 +94,8 @@ export default function RootLayout({
         <div className="pointer-events-none fixed inset-0 z-50 bg-[repeating-linear-gradient(0deg,rgba(0,0,0,0.1),rgba(0,0,0,0.1)_1px,transparent_1px,transparent_2px)] opacity-30 hidden md:block" />
 
         <RootProvider>
-          {/* Main content with safe areas and bottom padding for nav */}
-          <div className="safe-top pb-20 md:pb-0">{children}</div>
-
-          {/* Bottom navigation - only visible on mobile/native */}
-          <BottomNav />
+          {/* Main content with safe areas */}
+          <div className="safe-top">{children}</div>
         </RootProvider>
       </body>
     </html>
