@@ -2,11 +2,25 @@
  * Mining Submitter
  *
  * Handles submission of mining proofs to Bitcoin network via Charms protocol.
- * Complete flow: PoW proof → Spell → Bitcoin TX → Broadcast
+ *
+ * BRO-style Flow (v10):
+ * 1. Mine PoW → create mining TX with OP_RETURN
+ * 2. Broadcast mining TX and wait for confirmation
+ * 3. Get Merkle proof of inclusion
+ * 4. Create mint spell V10 with private_inputs
+ * 5. Cast spell via Charms proving service
+ *
+ * Updated for Charms Protocol v10 (January 2026)
  */
 
 import { CharmsService, createCharmsService } from "../scrolls";
-import { MempoolClient, createMempoolClient } from "../blockchain";
+import {
+  MempoolClient,
+  createMempoolClient,
+  getMerkleProof,
+  encodeMerkleProofHex,
+  type MerkleProof,
+} from "../blockchain";
 import { TransactionBuilder, createTransactionBuilder } from "../transactions";
 import type { ScrollsNetwork } from "../scrolls/types";
 import type { BitcoinNetwork } from "../types";
@@ -24,6 +38,11 @@ import {
   validateTimestamp,
   assertValid,
 } from "../validation";
+import {
+  createBABTCMintSpellV10,
+  BABTC_CONFIG,
+  type TokenMintParamsV10,
+} from "../charms/token";
 
 export interface MiningSubmitterOptions {
   network?: ScrollsNetwork;
@@ -483,7 +502,427 @@ export class MiningSubmitter {
       }
     }
   }
+
+  // ==========================================================================
+  // V10 BRO-STYLE MINING FLOW
+  // ==========================================================================
+
+  /**
+   * Submit proof using V10 BRO-style flow
+   *
+   * COMPLETE BRO-STYLE FLOW:
+   * 1. Build mining TX with OP_RETURN containing challenge + nonce + hash
+   * 2. Sign and broadcast mining TX
+   * 3. Wait for confirmation (returns PSBT for step 4-5 if not confirmed yet)
+   * 4. Get Merkle proof of inclusion
+   * 5. Create V10 mint spell with private_inputs
+   * 6. Build mint TX (PSBT) for external signing
+   *
+   * This is a multi-step process. Call this method multiple times:
+   * - First call: Returns PSBT for mining TX signing
+   * - After mining TX confirmed: Returns PSBT for mint spell TX signing
+   */
+  async submitProofV10(
+    proof: MiningProof,
+    options: {
+      /** App ID for BABTC token (required for real testnet4 deployment) */
+      appId?: string;
+      /** Verification key (required for real testnet4 deployment) */
+      appVk?: string;
+      /** Skip mining TX and use existing confirmed txid */
+      existingMiningTxid?: string;
+      /** Mining TX hex (if already built) */
+      existingMiningTxHex?: string;
+    } = {},
+  ): Promise<SubmissionResultV10> {
+    // Validate proof inputs
+    assertValid(validateHash(proof.hash), "hash", "INVALID_HASH");
+    assertValid(validateNonce(proof.nonce), "nonce", "INVALID_NONCE");
+    assertValid(
+      validateDifficulty(proof.difficulty),
+      "difficulty",
+      "INVALID_DIFFICULTY",
+    );
+
+    const submissionId = `v10-${proof.hash.substring(0, 16)}-${proof.nonce}`;
+
+    try {
+      // Step 1-3: Mining TX (can be skipped if already confirmed)
+      let miningTxid: string;
+      let miningTxHex: string;
+
+      if (options.existingMiningTxid && options.existingMiningTxHex) {
+        // Use existing confirmed mining TX
+        miningTxid = options.existingMiningTxid;
+        miningTxHex = options.existingMiningTxHex;
+      } else {
+        // Build mining TX with OP_RETURN
+        const miningTxResult = await this.buildMiningTxWithOpReturn(proof);
+
+        if (!miningTxResult.success) {
+          return {
+            success: false,
+            phase: "mining_tx_build",
+            error: miningTxResult.error,
+          };
+        }
+
+        // Return PSBT for signing
+        return {
+          success: true,
+          phase: "mining_tx_ready",
+          miningPsbt: miningTxResult.psbt,
+          miningTxHex: miningTxResult.txHex,
+          submissionId,
+          message:
+            "Sign and broadcast the mining TX, then call submitProofV10 again with existingMiningTxid",
+        };
+      }
+
+      // Step 4: Wait for confirmation and get Merkle proof
+      const merkleResult = await this.fetchMerkleProofForMiningTx(miningTxid);
+
+      if (!merkleResult.success) {
+        return {
+          success: false,
+          phase: "merkle_proof",
+          error: merkleResult.error,
+          miningTxid,
+        };
+      }
+
+      // Step 5: Create V10 mint spell
+      const appId = options.appId ?? BABTC_CONFIG_V10_PLACEHOLDER.appId;
+      const appVk = options.appVk ?? BABTC_CONFIG_V10_PLACEHOLDER.appVk;
+
+      const reward = this.calculateReward(proof.difficulty);
+
+      const spellParams: TokenMintParamsV10 = {
+        appId,
+        appVk,
+        minerAddress: this.minerAddress,
+        devAddress: BABTC_CONFIG.addresses.devFund,
+        stakingAddress: BABTC_CONFIG.addresses.stakingPool,
+        blockHeight: merkleResult.merkleProof!.blockHeight,
+        miningTxHex,
+        merkleProofHex: merkleResult.merkleProofHex!,
+        miningUtxo: {
+          txid: miningTxid,
+          vout: 0, // First output is the spell input
+        },
+      };
+
+      const spell = createBABTCMintSpellV10(spellParams);
+
+      // Step 6: Build mint TX PSBT
+      const mintTxResult = await this.buildMintTxFromSpellV10(
+        spell,
+        miningTxid,
+      );
+
+      if (!mintTxResult.success) {
+        return {
+          success: false,
+          phase: "mint_tx_build",
+          error: mintTxResult.error,
+          miningTxid,
+        };
+      }
+
+      return {
+        success: true,
+        phase: "mint_tx_ready",
+        mintPsbt: mintTxResult.psbt,
+        spell,
+        miningTxid,
+        merkleProof: merkleResult.merkleProof,
+        reward,
+        submissionId,
+        message: "Sign and broadcast the mint TX to claim your reward",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        phase: "unknown",
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Build mining TX with OP_RETURN
+   *
+   * The OP_RETURN contains: challenge (txid:vout) + nonce + hash
+   * Output 0: 700 sats for spell input (goes to miner address)
+   * Output 1: change
+   */
+  private async buildMiningTxWithOpReturn(proof: MiningProof): Promise<{
+    success: boolean;
+    psbt?: string;
+    txHex?: string;
+    error?: string;
+  }> {
+    try {
+      // Get UTXOs
+      const utxos = await this.mempoolClient.getUTXOs(this.minerAddress);
+      const validUtxos = utxos.filter((u) => u.value >= MIN_UTXO_VALUE);
+
+      if (validUtxos.length === 0) {
+        return {
+          success: false,
+          error: `No UTXOs with at least ${MIN_UTXO_VALUE} sats`,
+        };
+      }
+
+      // Check x-only public key
+      if (!this.minerXOnlyPubKey) {
+        return {
+          success: false,
+          error: "minerPublicKey is required for Taproot mining transactions",
+        };
+      }
+
+      // Build OP_RETURN data: challenge:nonce:hash
+      const opReturnData = `${proof.blockData || "challenge"}:${proof.nonce}:${proof.hash}`;
+
+      // Convert UTXOs
+      const txUtxos = TransactionBuilder.convertUTXOs(
+        validUtxos,
+        this.minerAddress,
+        scrollsToBitcoinNetwork(this.network),
+        this.minerXOnlyPubKey,
+      );
+
+      // Get fee estimates
+      const feeEstimates = await this.mempoolClient.getFeeEstimates();
+      this.txBuilder.setFeeRate(feeEstimates.halfHourFee);
+
+      // Build TX with OP_RETURN
+      const tx = this.txBuilder.buildMiningTxWithOpReturn(
+        txUtxos,
+        this.minerAddress,
+        opReturnData,
+        MIN_SPELL_OUTPUT_SATS, // 700 sats for spell input
+      );
+
+      // Build PSBT
+      const psbt = this.txBuilder.buildPSBT(tx);
+
+      return {
+        success: true,
+        psbt: psbt.toBase64(),
+        txHex: tx.hex,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Fetch Merkle proof for a confirmed mining TX
+   */
+  private async fetchMerkleProofForMiningTx(txid: string): Promise<{
+    success: boolean;
+    merkleProof?: MerkleProof;
+    merkleProofHex?: string;
+    error?: string;
+  }> {
+    try {
+      // Check if TX is confirmed
+      const tx = await this.mempoolClient.getTransaction(txid);
+
+      if (!tx.status?.confirmed) {
+        return {
+          success: false,
+          error: `Mining TX ${txid} not yet confirmed. Wait for confirmation.`,
+        };
+      }
+
+      // Get Merkle proof
+      const merkleProof = await getMerkleProof(this.mempoolClient, txid);
+      const merkleProofHex = encodeMerkleProofHex(merkleProof);
+
+      return {
+        success: true,
+        merkleProof,
+        merkleProofHex,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Build mint TX from V10 spell
+   */
+  private async buildMintTxFromSpellV10(
+    spell: ReturnType<typeof createBABTCMintSpellV10>,
+    miningTxid: string,
+  ): Promise<{
+    success: boolean;
+    psbt?: string;
+    error?: string;
+  }> {
+    try {
+      // Get UTXOs (need additional for fees)
+      const utxos = await this.mempoolClient.getUTXOs(this.minerAddress);
+
+      if (utxos.length === 0) {
+        return {
+          success: false,
+          error: "No UTXOs available for mint transaction fees",
+        };
+      }
+
+      // Check x-only public key
+      if (!this.minerXOnlyPubKey) {
+        return {
+          success: false,
+          error: "minerPublicKey is required for Taproot transactions",
+        };
+      }
+
+      // Get fee info
+      const [feeCalc, feeEstimates] = await Promise.all([
+        this.charmsService.calculateFee(1, utxos[0].value),
+        this.mempoolClient.getFeeEstimates(),
+      ]);
+
+      this.txBuilder.setFeeRate(feeEstimates.halfHourFee);
+
+      // Convert UTXOs
+      const txUtxos = TransactionBuilder.convertUTXOs(
+        utxos,
+        this.minerAddress,
+        scrollsToBitcoinNetwork(this.network),
+        this.minerXOnlyPubKey,
+      );
+
+      // Build TX with V10 spell
+      const tx = this.txBuilder.buildMiningTx(
+        txUtxos,
+        this.minerAddress,
+        spell,
+        feeCalc.feeAddress,
+        feeCalc.fee,
+      );
+
+      // Build PSBT with spell witness
+      const psbt = this.txBuilder.buildPSBT(tx, tx.spellWitness);
+
+      return {
+        success: true,
+        psbt: psbt.toBase64(),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Wait for mining TX confirmation
+   *
+   * Polls until confirmed or timeout
+   */
+  async waitForMiningTxConfirmation(
+    txid: string,
+    options: {
+      timeoutMs?: number;
+      pollIntervalMs?: number;
+      onProgress?: (status: string) => void;
+    } = {},
+  ): Promise<{
+    confirmed: boolean;
+    blockHash?: string;
+    blockHeight?: number;
+    error?: string;
+  }> {
+    const { timeoutMs = 600000, pollIntervalMs = 10000 } = options;
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeoutMs) {
+      try {
+        const tx = await this.mempoolClient.getTransaction(txid);
+
+        if (tx.status?.confirmed) {
+          return {
+            confirmed: true,
+            blockHash: tx.status.block_hash,
+            blockHeight: tx.status.block_height,
+          };
+        }
+
+        options.onProgress?.(
+          `Waiting for confirmation... (${Math.floor((Date.now() - startTime) / 1000)}s)`,
+        );
+
+        await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+      } catch (error) {
+        // Transaction might not be visible yet, keep polling
+        await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+      }
+    }
+
+    return {
+      confirmed: false,
+      error: `Transaction ${txid} not confirmed within ${timeoutMs}ms`,
+    };
+  }
 }
+
+// =============================================================================
+// V10 TYPES
+// =============================================================================
+
+/**
+ * Result from V10 submission flow
+ */
+export interface SubmissionResultV10 {
+  success: boolean;
+  phase:
+    | "mining_tx_build"
+    | "mining_tx_ready"
+    | "merkle_proof"
+    | "mint_tx_build"
+    | "mint_tx_ready"
+    | "unknown";
+  error?: string;
+  message?: string;
+
+  // Mining TX phase
+  miningPsbt?: string;
+  miningTxHex?: string;
+  miningTxid?: string;
+
+  // Mint TX phase
+  mintPsbt?: string;
+  spell?: ReturnType<typeof createBABTCMintSpellV10>;
+  merkleProof?: MerkleProof;
+  reward?: bigint;
+
+  submissionId?: string;
+}
+
+/**
+ * Placeholder config for testnet4 deployment
+ * TODO: Replace with real app ID and VK after deployment
+ */
+const BABTC_CONFIG_V10_PLACEHOLDER = {
+  appId: "placeholder_app_id_deploy_to_get_real_id",
+  appVk: "placeholder_vk_compile_rust_contract_to_get_real_vk",
+};
+
+// Minimum sats for spell outputs (from Charms protocol)
+const MIN_SPELL_OUTPUT_SATS = 700;
 
 /**
  * Create a mining submitter instance

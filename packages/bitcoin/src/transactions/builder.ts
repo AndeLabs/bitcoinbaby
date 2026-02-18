@@ -10,10 +10,10 @@ import * as ecc from "tiny-secp256k1";
 import type { BitcoinNetwork } from "../types";
 import type { UTXO } from "../blockchain/types";
 import type { SpellConfig } from "../scrolls/types";
-import type { SpellV2 } from "../charms/types";
+import type { SpellV2, SpellV10 } from "../charms/types";
 
-// Spell type union - supports both v1 and v2 formats
-type Spell = SpellConfig | SpellV2;
+// Spell type union - supports v1, v2, and v10 formats
+type Spell = SpellConfig | SpellV2 | SpellV10;
 import type {
   TxUTXO,
   TxInput,
@@ -295,6 +295,117 @@ export class TransactionBuilder {
       spell,
       spellWitness,
     };
+  }
+
+  /**
+   * Build mining TX with OP_RETURN (BRO-style Phase 1)
+   *
+   * Creates a transaction with:
+   * - Output 0: OP_RETURN with challenge:nonce:hash
+   * - Output 1: spellOutputSats to miner address (for spell input)
+   * - Output 2: change to miner address
+   *
+   * @param inputs - UTXOs to spend
+   * @param minerAddress - Miner's address for outputs
+   * @param opReturnData - Data for OP_RETURN (challenge:nonce:hash)
+   * @param spellOutputSats - Sats for spell input output (default 700)
+   */
+  buildMiningTxWithOpReturn(
+    inputs: TxUTXO[],
+    minerAddress: string,
+    opReturnData: string,
+    spellOutputSats: number = 700,
+  ): UnsignedTx & { hex: string } {
+    const totalInput = inputs.reduce((sum, u) => sum + u.value, 0);
+
+    // Estimate fee: inputs + OP_RETURN + spell output + change
+    const baseVsize = this.estimateVsize(inputs, 3);
+    const opReturnVsize = Math.ceil((opReturnData.length + 3) / 4); // OP_RETURN overhead
+    const vsize = baseVsize + opReturnVsize;
+    const btcFee = Math.ceil(vsize * this.feeRate);
+
+    const change = totalInput - btcFee - spellOutputSats;
+
+    if (change < 0) {
+      throw new Error(
+        `Insufficient funds: need ${btcFee + spellOutputSats} sats, have ${totalInput} sats`,
+      );
+    }
+
+    // Build OP_RETURN script
+    const opReturnScript = bitcoin.script.compile([
+      bitcoin.opcodes.OP_RETURN,
+      Buffer.from(opReturnData, "utf8"),
+    ]);
+
+    // Build outputs
+    const outputs: TxOutput[] = [
+      // OP_RETURN (no value)
+      { address: "", value: 0, script: opReturnScript },
+      // Spell input output (for future mint spell)
+      { address: minerAddress, value: spellOutputSats },
+    ];
+
+    // Add change if above dust
+    if (change >= this.dustThreshold) {
+      outputs.push({ address: minerAddress, value: change });
+    }
+
+    // Build transaction
+    const txb = new bitcoin.Psbt({ network: this.networkConfig });
+
+    // Add inputs
+    for (const utxo of inputs) {
+      const inputData: Parameters<typeof txb.addInput>[0] = {
+        hash: utxo.txid,
+        index: utxo.vout,
+        sequence: this.enableRBF ? RBF_SEQUENCE : FINAL_SEQUENCE,
+        witnessUtxo: {
+          script: Buffer.from(
+            utxo.witnessUtxo?.script || this.addressToScript(minerAddress),
+          ),
+          value: utxo.value,
+        },
+      };
+
+      if (utxo.tapInternalKey) {
+        inputData.tapInternalKey = Buffer.from(utxo.tapInternalKey);
+      }
+
+      txb.addInput(inputData);
+    }
+
+    // Add outputs
+    for (const output of outputs) {
+      if (output.script) {
+        // OP_RETURN output
+        txb.addOutput({
+          script: output.script,
+          value: output.value,
+        });
+      } else {
+        txb.addOutput({
+          address: output.address,
+          value: output.value,
+        });
+      }
+    }
+
+    // Extract hex (unsigned, for reference)
+    // Note: This won't be valid until signed
+    const tx: UnsignedTx & { hex: string } = {
+      inputs: inputs.map((utxo) => ({
+        utxo,
+        sequence: this.enableRBF ? RBF_SEQUENCE : FINAL_SEQUENCE,
+      })),
+      outputs,
+      fee: btcFee,
+      changeAddress: minerAddress,
+      network: this.network,
+      hex: "", // Will be filled after signing
+    };
+
+    return tx;
   }
 
   /**
