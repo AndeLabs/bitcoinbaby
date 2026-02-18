@@ -6,10 +6,10 @@
 
 import type { BitcoinNetwork } from "../types";
 import type { SpellConfig } from "../scrolls/types";
-import type { SpellV2 } from "../charms/types";
+import type { SpellV2, SpellV10 } from "../charms/types";
 
-// Spell type union - supports both v1 and v2 formats
-export type Spell = SpellConfig | SpellV2;
+// Spell type union - supports v1, v2, and v10 formats
+export type Spell = SpellConfig | SpellV2 | SpellV10;
 
 /**
  * UTXO for transaction input
@@ -44,6 +44,8 @@ export interface TxInput {
 export interface TxOutput {
   address: string;
   value: number; // satoshis
+  /** Custom script (for OP_RETURN outputs) */
+  script?: Buffer;
 }
 
 /**

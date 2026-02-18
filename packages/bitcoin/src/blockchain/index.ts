@@ -11,7 +11,7 @@ export type {
   TransactionInfo,
   FeeEstimates,
   BlockchainAPI,
-} from './types';
+} from "./types";
 
 // Mempool.space client
 export {
@@ -19,4 +19,27 @@ export {
   MempoolAPIError,
   createMempoolClient,
   type MempoolClientOptions,
-} from './mempool';
+  type BlockInfo,
+} from "./mempool";
+
+// Merkle proof utilities
+export {
+  // Types
+  type MerkleProof,
+  type BlockHeader,
+  type EncodedMerkleProof,
+  // Core functions
+  doubleSha256,
+  reverseHex,
+  buildMerkleTree,
+  extractMerklePath,
+  verifyMerkleProof,
+  // Proof fetching
+  getMerkleProof,
+  encodeMerkleProofHex,
+  getEncodedMerkleProof,
+  // Mining utilities
+  countLeadingZeroBits,
+  computeMiningHash,
+  calculateMiningReward as calculateMerkleReward,
+} from "./merkle";

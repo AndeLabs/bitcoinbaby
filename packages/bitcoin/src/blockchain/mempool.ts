@@ -191,6 +191,75 @@ export class MempoolClient implements BlockchainAPI {
       : `/address/${validAddress}/txs`;
     return this.fetch<TransactionInfo[]>(path);
   }
+
+  /**
+   * Get block information
+   */
+  async getBlock(blockHash: string): Promise<BlockInfo> {
+    return this.fetch<BlockInfo>(`/block/${blockHash}`);
+  }
+
+  /**
+   * Get all transaction IDs in a block
+   */
+  async getBlockTxids(blockHash: string): Promise<string[]> {
+    return this.fetch<string[]>(`/block/${blockHash}/txids`);
+  }
+
+  /**
+   * Get raw transaction hex
+   */
+  async getTransactionHex(txid: string): Promise<string> {
+    const validTxid = requireValidTxid(txid);
+    return this.fetch<string>(`/tx/${validTxid}/hex`);
+  }
+
+  /**
+   * Wait for transaction confirmation
+   * Polls until transaction is confirmed or timeout
+   */
+  async waitForConfirmation(
+    txid: string,
+    options: {
+      timeoutMs?: number;
+      pollIntervalMs?: number;
+    } = {},
+  ): Promise<TransactionInfo> {
+    const { timeoutMs = 600000, pollIntervalMs = 10000 } = options;
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeoutMs) {
+      const tx = await this.getTransaction(txid);
+      if (tx.status.confirmed) {
+        return tx;
+      }
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+    }
+
+    throw new MempoolAPIError(
+      `Transaction ${txid} not confirmed within ${timeoutMs}ms`,
+      408,
+    );
+  }
+}
+
+/**
+ * Block information from Mempool API
+ */
+export interface BlockInfo {
+  id: string;
+  height: number;
+  version: number;
+  timestamp: number;
+  tx_count: number;
+  size: number;
+  weight: number;
+  merkle_root: string;
+  previousblockhash: string;
+  mediantime: number;
+  nonce: number;
+  bits: number;
+  difficulty: number;
 }
 
 /**

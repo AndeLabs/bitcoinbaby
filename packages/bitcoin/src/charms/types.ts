@@ -1,8 +1,13 @@
 /**
- * Charms Protocol Types (v2)
+ * Charms Protocol Types (v10)
  *
  * Core types for Charms protocol integration.
  * Based on official Charms documentation and BRO reference implementation.
+ *
+ * Protocol Version History:
+ * - v2: Initial implementation
+ * - v7: BRO token launch
+ * - v10: Current (January 2026, SP1 v4.0.1)
  */
 
 import {
@@ -61,6 +66,85 @@ export interface SpellV2Output {
   charms: Record<string, unknown>;
   sats: number;
 }
+
+// =============================================================================
+// SPELL FORMAT (v10 - Current Protocol Version)
+// =============================================================================
+
+/**
+ * Charms Spell v10 format (Current - January 2026)
+ * Reference: https://docs.charms.dev/references/spell-json/
+ *
+ * Key changes from v2:
+ * - private_inputs for Merkle proofs (tx_block_proof)
+ * - SP1 zkVM proof format
+ * - Updated app reference format
+ */
+export interface SpellV10 {
+  version: 10;
+  apps: Record<string, string>; // "$00" -> "n/<app_id>/<vk>" or "t/<app_id>/<vk>"
+  private_inputs?: Record<
+    string,
+    {
+      tx?: string; // Mining transaction hex
+      tx_block_proof?: string; // Merkle block proof hex
+    }
+  >;
+  ins: SpellV10Input[];
+  outs: SpellV10Output[];
+}
+
+export interface SpellV10Input {
+  utxo_id: string; // "txid:vout"
+  charms: Record<string, unknown>; // "$00" -> state object or amount (number)
+}
+
+export interface SpellV10Output {
+  address: string;
+  charms: Record<string, unknown>;
+  sats?: number; // Optional, defaults to DUST_LIMIT (546)
+}
+
+/**
+ * Mining private inputs for token minting
+ * Required to prove the mining transaction was included in a block
+ */
+export interface MiningPrivateInputs {
+  /** Raw hex of the mining transaction */
+  tx: string;
+  /** Merkle block proof in hex format */
+  tx_block_proof: string;
+}
+
+/**
+ * Parameters for creating a mining mint spell
+ */
+export interface MiningMintSpellParams {
+  /** App ID (SHA256 of genesis UTXO) */
+  appId: string;
+  /** Verification key (SHA256 of WASM binary) */
+  appVk: string;
+  /** Mining transaction hex */
+  miningTxHex: string;
+  /** Merkle proof hex */
+  merkleProofHex: string;
+  /** UTXO from mining transaction to consume */
+  miningUtxo: {
+    txid: string;
+    vout: number;
+  };
+  /** Recipient address for minted tokens */
+  minerAddress: string;
+  /** Amount of tokens to mint (in base units) */
+  mintAmount: bigint;
+}
+
+/**
+ * Current spell type alias (points to latest version)
+ */
+export type Spell = SpellV10;
+export type SpellInput = SpellV10Input;
+export type SpellOutput = SpellV10Output;
 
 /**
  * App type prefix
@@ -191,6 +275,105 @@ export interface SignedCharmTransaction {
 // =============================================================================
 
 export const DUST_LIMIT = 546;
+
+/** Current Charms protocol version */
+export const CHARMS_PROTOCOL_VERSION = 10;
+
+/** Minimum sats for spell outputs */
+export const MIN_SPELL_OUTPUT_SATS = 700;
+
+// =============================================================================
+// SPELL CREATION HELPERS (v10)
+// =============================================================================
+
+/**
+ * Create a token mint spell for mining rewards (v10 format)
+ */
+export function createMiningMintSpellV10(
+  params: MiningMintSpellParams,
+): SpellV10 {
+  const appRef = createAppReference("t", params.appId, params.appVk);
+
+  return {
+    version: 10,
+    apps: {
+      $01: appRef,
+    },
+    private_inputs: {
+      $01: {
+        tx: params.miningTxHex,
+        tx_block_proof: params.merkleProofHex,
+      },
+    },
+    ins: [
+      {
+        utxo_id: `${params.miningUtxo.txid}:${params.miningUtxo.vout}`,
+        charms: {}, // No input charms for mint
+      },
+    ],
+    outs: [
+      {
+        address: params.minerAddress,
+        charms: {
+          $01: Number(params.mintAmount), // Token amount as number
+        },
+        sats: MIN_SPELL_OUTPUT_SATS,
+      },
+    ],
+  };
+}
+
+/**
+ * Create a token transfer spell (v10 format)
+ */
+export function createTokenTransferSpellV10(params: {
+  appId: string;
+  appVk: string;
+  fromUtxo: { txid: string; vout: number };
+  fromAmount: bigint;
+  toAddress: string;
+  toAmount: bigint;
+  changeAddress: string;
+}): SpellV10 {
+  const appRef = createAppReference("t", params.appId, params.appVk);
+  const changeAmount = params.fromAmount - params.toAmount;
+
+  const outs: SpellV10Output[] = [
+    {
+      address: params.toAddress,
+      charms: {
+        $01: Number(params.toAmount),
+      },
+      sats: DUST_LIMIT,
+    },
+  ];
+
+  if (changeAmount > 0n) {
+    outs.push({
+      address: params.changeAddress,
+      charms: {
+        $01: Number(changeAmount),
+      },
+      sats: DUST_LIMIT,
+    });
+  }
+
+  return {
+    version: 10,
+    apps: {
+      $01: appRef,
+    },
+    ins: [
+      {
+        utxo_id: `${params.fromUtxo.txid}:${params.fromUtxo.vout}`,
+        charms: {
+          $01: Number(params.fromAmount),
+        },
+      },
+    ],
+    outs,
+  };
+}
 
 /** @deprecated Use NETWORK_ENDPOINTS from ../types instead */
 export const SCROLLS_URLS: Record<ScrollsNetwork, string> = {

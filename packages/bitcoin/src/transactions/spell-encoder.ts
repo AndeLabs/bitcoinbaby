@@ -9,10 +9,10 @@
  */
 
 import type { SpellConfig } from "../scrolls/types";
-import type { SpellV2 } from "../charms/types";
+import type { SpellV2, SpellV10 } from "../charms/types";
 
-// Spell type union - supports both v1 and v2 formats
-type Spell = SpellConfig | SpellV2;
+// Spell type union - supports v1, v2, and v10 formats
+type Spell = SpellConfig | SpellV2 | SpellV10;
 
 // Charms magic bytes identifier
 const CHARMS_MAGIC = new Uint8Array([0x43, 0x48, 0x52, 0x4d]); // "CHRM"
