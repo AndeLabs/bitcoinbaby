@@ -19,3 +19,13 @@ export {
   // Status
   getDeploymentStatus,
 } from "./testnet4";
+
+export {
+  // Deployment Config
+  type DeploymentConfig,
+  BABTC_TESTNET4 as BABTC_DEPLOY_CONFIG,
+  BABTC_MAINNET as BABTC_DEPLOY_MAINNET,
+  getDeploymentConfig,
+  isDeploymentReady,
+  validateDeployment,
+} from "./deployment";

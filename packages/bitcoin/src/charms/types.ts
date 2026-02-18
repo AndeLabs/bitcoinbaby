@@ -199,11 +199,14 @@ export function createAppReference(
  * Extracted charm from a transaction
  */
 export interface ExtractedCharm {
-  ticker: string;
-  amount: bigint;
-  address: string;
   appId: string;
   appType: AppType;
+  amount: bigint;
+  txid: string;
+  vout: number;
+  address: string;
+  ticker?: string;
+  name?: string;
   state?: Record<string, unknown>;
 }
 

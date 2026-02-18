@@ -173,6 +173,18 @@ describe("Merkle Tree", () => {
 
 describe("Merkle Proof Encoding", () => {
   describe("encodeMerkleProofHex", () => {
+    const mockBlockInfo = {
+      version: 0x20000000,
+      previousblockhash: "0".repeat(64),
+      merkle_root: "c".repeat(64),
+      timestamp: 1700000000,
+      bits: 0x1f00ffff,
+      nonce: 12345,
+      tx_count: 2,
+    };
+
+    const mockTxids = ["a".repeat(64), "d".repeat(64)];
+
     it("should encode proof to hex", () => {
       const proof = {
         txid: "a".repeat(64),
@@ -183,10 +195,12 @@ describe("Merkle Proof Encoding", () => {
         txIndex: 0,
       };
 
-      const hex = encodeMerkleProofHex(proof);
+      const hex = encodeMerkleProofHex(proof, mockBlockInfo, mockTxids);
       expect(hex).toBeTruthy();
       expect(typeof hex).toBe("string");
       expect(/^[0-9a-f]+$/.test(hex)).toBe(true);
+      // MerkleBlock should start with block header (80 bytes = 160 hex chars)
+      expect(hex.length).toBeGreaterThanOrEqual(160);
     });
 
     it("should be deterministic", () => {
@@ -199,8 +213,8 @@ describe("Merkle Proof Encoding", () => {
         txIndex: 0,
       };
 
-      const hex1 = encodeMerkleProofHex(proof);
-      const hex2 = encodeMerkleProofHex(proof);
+      const hex1 = encodeMerkleProofHex(proof, mockBlockInfo, mockTxids);
+      const hex2 = encodeMerkleProofHex(proof, mockBlockInfo, mockTxids);
       expect(hex1).toBe(hex2);
     });
   });

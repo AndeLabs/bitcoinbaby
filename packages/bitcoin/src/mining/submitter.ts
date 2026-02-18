@@ -17,8 +17,7 @@ import { CharmsService, createCharmsService } from "../scrolls";
 import {
   MempoolClient,
   createMempoolClient,
-  getMerkleProof,
-  encodeMerkleProofHex,
+  getEncodedMerkleProof,
   type MerkleProof,
 } from "../blockchain";
 import { TransactionBuilder, createTransactionBuilder } from "../transactions";
@@ -741,9 +740,9 @@ export class MiningSubmitter {
         };
       }
 
-      // Get Merkle proof
-      const merkleProof = await getMerkleProof(this.mempoolClient, txid);
-      const merkleProofHex = encodeMerkleProofHex(merkleProof);
+      // Get encoded Merkle proof (includes block info for proper encoding)
+      const { proof: merkleProof, hex: merkleProofHex } =
+        await getEncodedMerkleProof(this.mempoolClient, txid);
 
       return {
         success: true,
@@ -913,12 +912,14 @@ export interface SubmissionResultV10 {
 }
 
 /**
- * Placeholder config for testnet4 deployment
- * TODO: Replace with real app ID and VK after deployment
+ * BABTC Testnet4 Deployment Config
+ *
+ * Genesis UTXO: b3deba0743aeffd0e455ce442b1693107090341381e3d8bcc5f586667c3e8a81:0
+ * Deployed: 2026-02-18
  */
 const BABTC_CONFIG_V10_PLACEHOLDER = {
-  appId: "placeholder_app_id_deploy_to_get_real_id",
-  appVk: "placeholder_vk_compile_rust_contract_to_get_real_vk",
+  appId: "87b5ecfbfa392550b0a221e20f28a9453ed212a343551a2a43387d0cd183681b",
+  appVk: "ab70796e62562b5245cf746d7ecf4b95b86df582921ae42ec2ceea25612807c6",
 };
 
 // Minimum sats for spell outputs (from Charms protocol)

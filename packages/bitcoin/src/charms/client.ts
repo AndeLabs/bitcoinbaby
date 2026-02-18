@@ -22,6 +22,11 @@ import type {
 } from "../blockchain/types";
 import { ApiError } from "../errors";
 import { sha256 as cryptoSha256, hexToBytes } from "../crypto";
+// charms-js SDK for real charm extraction
+import {
+  extractCharmsForWallet as charmsJsExtract,
+  type CharmObj,
+} from "charms-js";
 
 // =============================================================================
 // CLIENT OPTIONS
@@ -275,41 +280,79 @@ export class CharmsClient {
   }
 
   // ===========================================================================
-  // CHARM EXTRACTION (Client-Side Validation)
+  // CHARM EXTRACTION (Using charms-js SDK)
   // ===========================================================================
 
   /**
    * Extract charms from transactions for a wallet
    *
-   * NOTE: In production, this should use @charms-dev/charms-js
-   * This is a simplified implementation for the MVP
+   * Uses charms-js SDK for real charm extraction and verification.
    */
   async extractCharmsForWallet(
     address: string,
     appId?: string,
   ): Promise<ExtractedCharm[]> {
     const utxos = await this.getUTXOs(address);
-    const outpoints = utxos.map((u) => `${u.txid}:${u.vout}`);
+    const outpoints = new Set(utxos.map((u) => `${u.txid}:${u.vout}`));
     const txHistory = await this.getAddressTransactions(address);
 
     const charms: ExtractedCharm[] = [];
+    const network = this.network === "main" ? "mainnet" : "testnet4";
 
     for (const txInfo of txHistory.slice(0, 50)) {
-      // Last 50 txs
       try {
         const txHex = await this.getRawTransaction(txInfo.txid);
 
-        // In production: use charms-js extractCharmsForWallet
-        // For MVP: parse witness data for spell
-        const extracted = this.parseCharmsFromTx(txHex, outpoints, appId);
-        charms.push(...extracted);
+        // Use charms-js SDK for extraction
+        const extracted = await charmsJsExtract(
+          txHex,
+          txInfo.txid,
+          outpoints,
+          network,
+        );
+
+        // Convert CharmObj to ExtractedCharm
+        for (const charm of extracted) {
+          // Filter by appId if specified
+          if (appId && charm.appId !== appId) {
+            continue;
+          }
+
+          charms.push(this.convertCharmObjToExtracted(charm, txInfo.txid));
+        }
       } catch {
-        // Skip invalid txs
+        // Skip invalid txs (may not contain charms)
         continue;
       }
     }
 
     return charms;
+  }
+
+  /**
+   * Convert charms-js CharmObj to our ExtractedCharm type
+   */
+  private convertCharmObjToExtracted(
+    charm: CharmObj,
+    txid: string,
+  ): ExtractedCharm {
+    // Determine app type from metadata (token has ticker, NFT doesn't)
+    const hasToken = !!charm.metadata?.ticker;
+    const appType = hasToken ? "t" : "n";
+
+    return {
+      appId: charm.appId,
+      appType: appType as "t" | "n",
+      amount: BigInt(charm.amount || 0),
+      txid,
+      vout: charm.outputIndex,
+      address: charm.address,
+      ticker: charm.metadata?.ticker,
+      name: charm.metadata?.name,
+      // For NFTs, extract state from app data
+      state:
+        appType === "n" ? (charm.app as Record<string, unknown>) : undefined,
+    };
   }
 
   /**
@@ -352,26 +395,8 @@ export class CharmsClient {
     return Math.max(...nfts.map((nft) => getMiningBoost(nft)));
   }
 
-  // ===========================================================================
-  // HELPERS
-  // ===========================================================================
-
-  /**
-   * Parse charms from transaction (simplified MVP)
-   * In production: use charms-js
-   */
-  private parseCharmsFromTx(
-    txHex: string,
-    _outpoints: string[],
-    _appId?: string,
-  ): ExtractedCharm[] {
-    // TODO: Implement with charms-js
-    // For MVP, return empty (will be implemented when charms-js is integrated)
-    return [];
-  }
-
-  // NOTE: sha256 and hexToBytes are now imported from '../crypto'
-  // providing real cryptographic hashing instead of placeholder djb2 hash
+  // NOTE: sha256 and hexToBytes are imported from '../crypto'
+  // providing real cryptographic hashing for nonce calculation
 }
 
 // =============================================================================
