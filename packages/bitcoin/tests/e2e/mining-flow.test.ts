@@ -217,17 +217,22 @@ describe("E2E: Mining Flow on Testnet4", () => {
       };
 
       // Submit using V10 flow - first phase returns PSBT for signing
-      const result = await submitter.submitProofV10(mockProof);
+      try {
+        const result = await submitter.submitProofV10(mockProof);
 
-      if (result.success && result.phase === "mining_tx_ready") {
-        console.log("Mining TX PSBT created successfully");
-        console.log(`  PSBT length: ${result.miningPsbt?.length}`);
-        expect(result.miningPsbt).toBeDefined();
-        expect(result.miningTxHex).toBeDefined();
-      } else {
-        console.log(
-          `Mining TX build result: ${result.phase} - ${result.error}`,
-        );
+        if (result.success && result.phase === "mining_tx_ready") {
+          console.log("Mining TX PSBT created successfully");
+          console.log(`  PSBT length: ${result.miningPsbt?.length}`);
+          expect(result.miningPsbt).toBeDefined();
+          expect(result.miningTxHex).toBeDefined();
+        } else {
+          console.log(
+            `Mining TX build result: ${result.phase} - ${result.error}`,
+          );
+        }
+      } catch (error) {
+        console.log(`Mining TX build exception: ${error}`);
+        throw error;
       }
     });
   });

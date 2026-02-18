@@ -418,6 +418,26 @@ export class TransactionBuilder {
     for (const input of tx.inputs) {
       const { utxo } = input;
 
+      // Get the script for the input
+      // Priority: witnessUtxo.script > changeAddress > first non-OP_RETURN output
+      let script: Uint8Array;
+      if (utxo.witnessUtxo?.script && utxo.witnessUtxo.script.length > 0) {
+        script = utxo.witnessUtxo.script;
+      } else if (tx.changeAddress) {
+        script = this.addressToScript(tx.changeAddress);
+      } else {
+        // Find first output with a valid address (skip OP_RETURN outputs)
+        const validOutput = tx.outputs.find(
+          (o) => o.address && o.address.length > 0,
+        );
+        if (!validOutput) {
+          throw new Error(
+            "Cannot determine script for input - no valid output address found",
+          );
+        }
+        script = this.addressToScript(validOutput.address);
+      }
+
       // Base input data
       const inputData: Parameters<typeof psbt.addInput>[0] = {
         hash: utxo.txid,
@@ -425,10 +445,7 @@ export class TransactionBuilder {
         sequence:
           input.sequence ?? (this.enableRBF ? RBF_SEQUENCE : FINAL_SEQUENCE),
         witnessUtxo: {
-          script: Buffer.from(
-            utxo.witnessUtxo?.script ||
-              this.addressToScript(tx.changeAddress || tx.outputs[0].address),
-          ),
+          script: Buffer.from(script),
           value: utxo.value,
         },
       };
@@ -449,10 +466,21 @@ export class TransactionBuilder {
 
     // Add outputs
     for (const output of tx.outputs) {
-      psbt.addOutput({
-        address: output.address,
-        value: output.value,
-      });
+      if (output.script) {
+        // Script-based output (e.g., OP_RETURN)
+        psbt.addOutput({
+          script: output.script,
+          value: output.value,
+        });
+      } else if (output.address && output.address.length > 0) {
+        // Address-based output
+        psbt.addOutput({
+          address: output.address,
+          value: output.value,
+        });
+      } else {
+        throw new Error("Output must have either script or valid address");
+      }
     }
 
     // Add OP_RETURN if spell witness is provided and small enough
@@ -608,17 +636,24 @@ export class TransactionBuilder {
   }
 
   /**
-   * Create a tweaked signer for Taproot
+   * Create a tweaked signer for Taproot (BIP86 key path spend)
+   *
+   * For Taproot signing with bitcoinjs-lib:
+   * - publicKey must be the x-only public key (32 bytes)
+   * - The private key must be tweaked with the TapTweak hash
+   * - Signatures use Schnorr (BIP340)
    */
   private createTweakedSigner(privateKey: Uint8Array): bitcoin.Signer {
-    // Get public key
+    // Get compressed public key (33 bytes: 02/03 prefix + 32 byte x-coordinate)
     const publicKey = ecc.pointFromScalar(privateKey);
     if (!publicKey) {
       throw new Error("Invalid private key");
     }
 
-    // Tweak private key for Taproot (BIP86)
+    // Extract x-only public key (32 bytes) for Taproot
     const xOnlyPubKey = publicKey.slice(1, 33);
+
+    // Tweak private key for Taproot (BIP86 key path spend)
     const tweakHash = bitcoin.crypto.taggedHash(
       "TapTweak",
       Buffer.from(xOnlyPubKey),
@@ -630,7 +665,9 @@ export class TransactionBuilder {
     }
 
     return {
-      publicKey: Buffer.from(publicKey),
+      // For Taproot, publicKey must be the x-only key (32 bytes)
+      // bitcoinjs-lib uses this to match against tapInternalKey in the input
+      publicKey: Buffer.from(xOnlyPubKey),
       sign: (hash: Buffer): Buffer => {
         const signature = ecc.signSchnorr(hash, tweakedPrivateKey);
         return Buffer.from(signature);
