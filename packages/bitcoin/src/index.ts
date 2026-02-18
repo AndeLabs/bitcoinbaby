@@ -61,28 +61,40 @@ export {
   type CharmsConfig,
 } from "./charms-legacy";
 
-// Charms Protocol (v2)
+// Charms Protocol (v2 + v10)
 export {
-  // Types
+  // Types V2 (legacy)
   type CharmsNetwork,
   type SpellV2,
   type SpellV2Input,
   type SpellV2Output,
+  // Types V10 (current)
+  type SpellV10,
+  type SpellV10Input,
+  type SpellV10Output,
+  type Spell,
+  type MiningPrivateInputs,
+  type MiningMintSpellParams,
   type AppType,
   type ExtractedCharm,
   type CharmBalance,
   type ScrollsConfigResponse,
   // Constants
   DUST_LIMIT,
+  CHARMS_PROTOCOL_VERSION,
+  MIN_SPELL_OUTPUT_SATS,
   SCROLLS_URLS,
   MEMPOOL_URLS,
   // Utilities
   parseAppReference,
   createAppReference,
+  createMiningMintSpellV10,
+  createTokenTransferSpellV10,
   // Token ($BABTC)
   type BABTCMetadata,
   type TokenBalance as CharmsTokenBalance,
   type MiningReward,
+  type TokenMintParamsV10,
   BABTC_CONFIG,
   BABTC_METADATA,
   getCurrentEpoch,
@@ -92,6 +104,17 @@ export {
   parseTokenAmount,
   createTokenMintSpell,
   createTokenTransferSpell,
+  createBABTCMintSpellV10,
+  createBABTCTransferSpellV10,
+  validateAmountForSpell,
+  // Balance Service
+  type BABTCBalance,
+  type BalanceQueryOptions,
+  BABTCBalanceService,
+  createBABTCBalanceService,
+  getBABTCBalance,
+  formatBABTCBalance,
+  hasSufficientBalance,
   // NFT (Genesis Babies)
   type Bloodline,
   type RarityTier,
@@ -161,6 +184,22 @@ export {
   type TransactionInfo,
   type FeeEstimates,
   type BlockchainAPI,
+  type BlockInfo,
+  // Merkle Proofs (V10)
+  type MerkleProof,
+  type BlockHeader,
+  type EncodedMerkleProof,
+  doubleSha256,
+  reverseHex,
+  buildMerkleTree,
+  extractMerklePath,
+  verifyMerkleProof,
+  getMerkleProof,
+  encodeMerkleProofHex,
+  getEncodedMerkleProof,
+  countLeadingZeroBits,
+  computeMiningHash,
+  calculateMerkleReward,
 } from "./blockchain";
 
 // Mining integration
@@ -173,7 +212,21 @@ export {
   type SubmissionResult,
   type MiningProof,
   type RewardParams,
+  // V10 Mining Flow
+  type SubmissionResultV10,
 } from "./mining";
+
+// Configuration (Testnet4)
+export {
+  TESTNET4_ENDPOINTS,
+  BABTC_TESTNET4,
+  isBABTCConfigured,
+  requireBABTCConfigured,
+  MINING_CONFIG_TESTNET4,
+  toScrollsNetwork,
+  toBitcoinNetwork,
+  getDeploymentStatus,
+} from "./config";
 
 // Re-export bitcoinjs-lib Psbt for PSBT handling
 export { Psbt } from "bitcoinjs-lib";
