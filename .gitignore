@@ -42,6 +42,23 @@ apps/native/android/app/build/
 # Claude local files
 .claude/CLAUDE.local.md
 .claude/settings.local.json
+.claude/plans/
+
+# Documentation (keep only README.md in repo)
+docs/
+
+# Scripts with sensitive data (keys, test wallets)
+packages/bitcoin/scripts/
+packages/bitcoin/tests/e2e/
+
+# Local development files
+*.local.ts
+*.secret.ts
+debug-*.ts
+
+# Research and AI investigation files
+research/
+investigation/
 
 # PWA Service Worker (generated at build time)
 apps/web/public/sw.js
