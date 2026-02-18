@@ -154,6 +154,24 @@ async function main() {
     // Step 4: Sign and broadcast
     console.log("\nStep 4: Signing and broadcasting...");
 
+    // Debug: Parse PSBT to see what's inside
+    const { Psbt } = await import("bitcoinjs-lib");
+    const debugPsbt = Psbt.fromBase64(result.miningPsbt);
+    console.log("  Debug - PSBT inputs:");
+    for (let i = 0; i < debugPsbt.data.inputs.length; i++) {
+      const input = debugPsbt.data.inputs[i];
+      console.log(`    Input ${i}:`);
+      console.log(
+        `      tapInternalKey: ${input.tapInternalKey?.toString("hex") || "NOT SET"}`,
+      );
+      console.log(
+        `      witnessUtxo script: ${input.witnessUtxo?.script.toString("hex") || "NOT SET"}`,
+      );
+    }
+    console.log(
+      `  Debug - Signer pubkey: ${Buffer.from(publicKey.slice(1, 33)).toString("hex")}`,
+    );
+
     const broadcastResult = await submitter.signAndBroadcast(
       result.miningPsbt,
       privateKey,

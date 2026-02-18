@@ -639,40 +639,58 @@ export class TransactionBuilder {
    * Create a tweaked signer for Taproot (BIP86 key path spend)
    *
    * For Taproot signing with bitcoinjs-lib:
-   * - publicKey must be the x-only public key (32 bytes)
+   * - publicKey must be the TWEAKED x-only public key (matches the output script)
    * - The private key must be tweaked with the TapTweak hash
-   * - Signatures use Schnorr (BIP340)
+   * - Signer needs signSchnorr() method for Taproot
+   *
+   * Note: bitcoinjs-lib compares signer.publicKey against the tweaked key
+   * extracted from the witnessUtxo script, NOT against tapInternalKey.
    */
-  private createTweakedSigner(privateKey: Uint8Array): bitcoin.Signer {
+  private createTweakedSigner(
+    privateKey: Uint8Array,
+  ): bitcoin.Signer & { signSchnorr: (hash: Buffer) => Buffer } {
     // Get compressed public key (33 bytes: 02/03 prefix + 32 byte x-coordinate)
     const publicKey = ecc.pointFromScalar(privateKey);
     if (!publicKey) {
       throw new Error("Invalid private key");
     }
 
-    // Extract x-only public key (32 bytes) for Taproot
-    const xOnlyPubKey = publicKey.slice(1, 33);
+    // Extract x-only public key (32 bytes) - this is the INTERNAL key
+    const xOnlyInternalKey = Buffer.from(publicKey.slice(1, 33));
 
-    // Tweak private key for Taproot (BIP86 key path spend)
-    const tweakHash = bitcoin.crypto.taggedHash(
-      "TapTweak",
-      Buffer.from(xOnlyPubKey),
-    );
+    // Tweak the key for Taproot (BIP86 key path spend)
+    const tweakHash = bitcoin.crypto.taggedHash("TapTweak", xOnlyInternalKey);
     const tweakedPrivateKey = ecc.privateAdd(privateKey, tweakHash);
 
     if (!tweakedPrivateKey) {
       throw new Error("Failed to tweak private key");
     }
 
-    return {
-      // For Taproot, publicKey must be the x-only key (32 bytes)
-      // bitcoinjs-lib uses this to match against tapInternalKey in the input
-      publicKey: Buffer.from(xOnlyPubKey),
+    // Compute the TWEAKED x-only public key
+    // This is what appears in the P2TR output script
+    const tweakedPubKey = ecc.xOnlyPointAddTweak(xOnlyInternalKey, tweakHash);
+    if (!tweakedPubKey) {
+      throw new Error("Failed to compute tweaked public key");
+    }
+    const xOnlyTweakedKey = Buffer.from(tweakedPubKey.xOnlyPubkey);
+
+    // Return signer with TWEAKED publicKey (for matching against output script)
+    const signer = {
+      // publicKey must match the key in the P2TR output script
+      publicKey: xOnlyTweakedKey,
       sign: (hash: Buffer): Buffer => {
-        const signature = ecc.signSchnorr(hash, tweakedPrivateKey);
-        return Buffer.from(signature);
+        // For non-Taproot inputs (ECDSA with original key)
+        const sig = ecc.sign(hash, privateKey);
+        return Buffer.from(sig);
+      },
+      signSchnorr: (hash: Buffer): Buffer => {
+        // For Taproot inputs (Schnorr with TWEAKED key)
+        const sig = ecc.signSchnorr(hash, tweakedPrivateKey);
+        return Buffer.from(sig);
       },
     };
+
+    return signer;
   }
 
   /**
