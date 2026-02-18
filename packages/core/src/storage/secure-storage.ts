@@ -26,10 +26,54 @@ export const MIN_PASSWORD_LENGTH = 12;
 // BRUTE FORCE PROTECTION
 // =============================================================================
 
+// Rate limiter storage key
+const RATE_LIMITER_KEY = "unlock_rate_limiter";
+
+/**
+ * Load rate limiter state from localStorage
+ */
+function loadRateLimiterState(): {
+  failedAttempts: number;
+  lastAttemptTime: number;
+} {
+  if (typeof localStorage === "undefined") {
+    return { failedAttempts: 0, lastAttemptTime: 0 };
+  }
+  try {
+    const stored = localStorage.getItem(RATE_LIMITER_KEY);
+    if (stored) {
+      const data = JSON.parse(stored);
+      return {
+        failedAttempts: data.failedAttempts || 0,
+        lastAttemptTime: data.lastAttemptTime || 0,
+      };
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return { failedAttempts: 0, lastAttemptTime: 0 };
+}
+
+/**
+ * Save rate limiter state to localStorage
+ */
+function saveRateLimiterState(state: {
+  failedAttempts: number;
+  lastAttemptTime: number;
+}): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(RATE_LIMITER_KEY, JSON.stringify(state));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 /**
  * Unlock attempt rate limiter
  *
  * Implements exponential backoff after failed attempts to prevent brute force attacks.
+ * State is persisted to localStorage to survive page reloads.
  * - First 3 attempts: no delay
  * - 4th attempt: 1s delay
  * - 5th attempt: 2s delay
@@ -37,8 +81,8 @@ export const MIN_PASSWORD_LENGTH = 12;
  * - etc. up to max 5 minutes
  */
 const unlockRateLimiter = {
-  failedAttempts: 0,
-  lastAttemptTime: 0,
+  // Initialize from persisted state
+  ...loadRateLimiterState(),
   maxDelay: 300000, // 5 minutes
 
   /**
@@ -74,19 +118,27 @@ const unlockRateLimiter = {
   },
 
   /**
-   * Record a failed attempt
+   * Record a failed attempt (persists to localStorage)
    */
   recordFailure(): void {
     this.failedAttempts++;
     this.lastAttemptTime = Date.now();
+    saveRateLimiterState({
+      failedAttempts: this.failedAttempts,
+      lastAttemptTime: this.lastAttemptTime,
+    });
   },
 
   /**
-   * Record a successful attempt (reset counter)
+   * Record a successful attempt (reset counter, persists to localStorage)
    */
   recordSuccess(): void {
     this.failedAttempts = 0;
     this.lastAttemptTime = 0;
+    saveRateLimiterState({
+      failedAttempts: 0,
+      lastAttemptTime: 0,
+    });
   },
 
   /**
@@ -97,11 +149,15 @@ const unlockRateLimiter = {
   },
 
   /**
-   * Reset the rate limiter (e.g., after password change)
+   * Reset the rate limiter (e.g., after password change, persists to localStorage)
    */
   reset(): void {
     this.failedAttempts = 0;
     this.lastAttemptTime = 0;
+    saveRateLimiterState({
+      failedAttempts: 0,
+      lastAttemptTime: 0,
+    });
   },
 };
 

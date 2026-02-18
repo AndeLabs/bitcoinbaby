@@ -499,20 +499,25 @@ export class TransactionBuilder {
 
   /**
    * Sign a PSBT with private key
+   * Note: Properly cleans up tweaked private key from memory after signing
    */
   signPSBT(
     psbt: bitcoin.Psbt,
     privateKey: Uint8Array,
     inputIndices?: number[],
   ): bitcoin.Psbt {
-    const tweakedSigner = this.createTweakedSigner(privateKey);
+    const { signer, cleanup } = this.createTweakedSigner(privateKey);
     const indicesToSign = inputIndices ?? psbt.data.inputs.map((_, i) => i);
 
-    for (const index of indicesToSign) {
-      psbt.signInput(index, tweakedSigner);
+    try {
+      for (const index of indicesToSign) {
+        psbt.signInput(index, signer);
+      }
+      return psbt;
+    } finally {
+      // Always clean up sensitive key material
+      cleanup();
     }
-
-    return psbt;
   }
 
   /**
@@ -646,9 +651,10 @@ export class TransactionBuilder {
    * Note: bitcoinjs-lib compares signer.publicKey against the tweaked key
    * extracted from the witnessUtxo script, NOT against tapInternalKey.
    */
-  private createTweakedSigner(
-    privateKey: Uint8Array,
-  ): bitcoin.Signer & { signSchnorr: (hash: Buffer) => Buffer } {
+  private createTweakedSigner(privateKey: Uint8Array): {
+    signer: bitcoin.Signer & { signSchnorr: (hash: Buffer) => Buffer };
+    cleanup: () => void;
+  } {
     // Get compressed public key (33 bytes: 02/03 prefix + 32 byte x-coordinate)
     const publicKey = ecc.pointFromScalar(privateKey);
     if (!publicKey) {
@@ -665,6 +671,9 @@ export class TransactionBuilder {
     if (!tweakedPrivateKey) {
       throw new Error("Failed to tweak private key");
     }
+
+    // Store in a mutable array so we can zero it later
+    const tweakedKeyArray = new Uint8Array(tweakedPrivateKey);
 
     // Compute the TWEAKED x-only public key
     // This is what appears in the P2TR output script
@@ -685,12 +694,17 @@ export class TransactionBuilder {
       },
       signSchnorr: (hash: Buffer): Buffer => {
         // For Taproot inputs (Schnorr with TWEAKED key)
-        const sig = ecc.signSchnorr(hash, tweakedPrivateKey);
+        const sig = ecc.signSchnorr(hash, tweakedKeyArray);
         return Buffer.from(sig);
       },
     };
 
-    return signer;
+    // Cleanup function to zero out sensitive key material
+    const cleanup = () => {
+      tweakedKeyArray.fill(0);
+    };
+
+    return { signer, cleanup };
   }
 
   /**
