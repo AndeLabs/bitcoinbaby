@@ -150,7 +150,7 @@ export function useLeaderboard(
   }, [store, category, period, page, pageSize]);
 
   // Get total entries count (for pagination)
-  const totalEntries = 100; // Mock data always has 100 entries
+  const totalEntries = entries.length; // Real data count
 
   // Calculate total pages
   const totalPages = Math.ceil(totalEntries / pageSize);

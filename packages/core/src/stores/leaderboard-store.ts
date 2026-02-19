@@ -1,8 +1,8 @@
 /**
  * Leaderboard Store
  *
- * Manages leaderboard state with local user stats and mock data.
- * Structured for easy backend integration later.
+ * Manages leaderboard state with local user stats.
+ * Ready for backend integration - currently shows only real user data.
  */
 
 import { create } from "zustand";
@@ -52,19 +52,6 @@ export interface UserLeaderboardStats {
   lastUpdated: number;
 }
 
-/**
- * Mock player data for generating leaderboard
- */
-interface MockPlayer {
-  address: string;
-  displayName?: string;
-  hashrate: number; // H/s average
-  totalHashes: number;
-  babyLevel: number;
-  tokensEarned: number;
-  badge?: LeaderboardBadge;
-}
-
 interface LeaderboardStore {
   // User's stats
   userStats: UserLeaderboardStats;
@@ -95,28 +82,13 @@ interface LeaderboardStore {
   ) => number;
 
   // Mock data helpers
-  generateMockLeaderboard: (
+  generateLeaderboard: (
     category: LeaderboardCategory,
     period: LeaderboardPeriod,
   ) => LeaderboardEntry[];
 
   // Reset
   reset: () => void;
-}
-
-// Generate realistic Bitcoin addresses
-function generateBtcAddress(): string {
-  const prefixes = ["bc1q", "bc1p", "3", "1"];
-  const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let address = prefix;
-  const length = prefix.startsWith("bc1") ? 39 : 33;
-
-  for (let i = 0; i < length - prefix.length; i++) {
-    address += chars[Math.floor(Math.random() * chars.length)];
-  }
-
-  return address;
 }
 
 // Truncate address for display
@@ -135,74 +107,7 @@ function getBadgeForRank(rank: number): LeaderboardBadge | undefined {
   return undefined;
 }
 
-// Generate mock players (deterministic based on seed)
-function generateMockPlayers(count: number, seed: number): MockPlayer[] {
-  const players: MockPlayer[] = [];
-
-  // Use seeded random for consistency
-  const seededRandom = (n: number) => {
-    const x = Math.sin(seed + n) * 10000;
-    return x - Math.floor(x);
-  };
-
-  // Generate player names (some have display names)
-  const displayNames = [
-    "SatoshiFan",
-    "BitcoinMaxi",
-    "HODLer4Life",
-    "MoonBoy",
-    "DiamondHands",
-    "WhaleWatcher",
-    "BlockchainBro",
-    "CryptoKid",
-    "HashMaster",
-    "MiningLord",
-    "BTCWhale",
-    "SatsStacker",
-    "NodeRunner",
-    "LightningLad",
-    "TaprootTom",
-    "SegWitSam",
-    "UTXOKing",
-    "MempoolMike",
-    "FeeSniper",
-    "BlockBuilder",
-  ];
-
-  for (let i = 0; i < count; i++) {
-    const r = seededRandom(i);
-    const hasDisplayName = r < 0.3; // 30% have display names
-
-    // Generate stats with power law distribution (top players much stronger)
-    const rankFactor = 1 - i / count;
-    const variance = seededRandom(i * 100) * 0.5 + 0.75; // 0.75 - 1.25
-
-    players.push({
-      address: generateBtcAddress(),
-      displayName: hasDisplayName
-        ? displayNames[Math.floor(seededRandom(i * 50) * displayNames.length)]
-        : undefined,
-      hashrate: Math.floor(
-        (100000 + rankFactor * 900000) * variance * seededRandom(i * 10),
-      ),
-      totalHashes: Math.floor(
-        (1e9 + rankFactor * 1e12) * variance * seededRandom(i * 20),
-      ),
-      babyLevel: Math.min(
-        21,
-        Math.max(1, Math.floor(1 + rankFactor * 20 * variance)),
-      ),
-      tokensEarned: Math.floor(
-        (1000 + rankFactor * 1000000) * variance * seededRandom(i * 30),
-      ),
-      badge: getBadgeForRank(i + 1),
-    });
-  }
-
-  return players;
-}
-
-// Period multipliers for mock data
+// Period multipliers for score calculation
 const periodMultipliers: Record<LeaderboardPeriod, number> = {
   daily: 0.01,
   weekly: 0.1,
@@ -274,7 +179,7 @@ export const useLeaderboardStore = create<LeaderboardStore>()(
         const isStale = now - cacheTime > 5 * 60 * 1000;
 
         if (!state.cachedLeaderboards[key] || isStale) {
-          const leaderboard = state.generateMockLeaderboard(category, period);
+          const leaderboard = state.generateLeaderboard(category, period);
           set((s) => ({
             cachedLeaderboards: {
               ...s.cachedLeaderboards,
@@ -300,7 +205,7 @@ export const useLeaderboardStore = create<LeaderboardStore>()(
 
         // Ensure leaderboard is generated
         if (!state.cachedLeaderboards[key]) {
-          const leaderboard = state.generateMockLeaderboard(category, period);
+          const leaderboard = state.generateLeaderboard(category, period);
           set((s) => ({
             cachedLeaderboards: {
               ...s.cachedLeaderboards,
@@ -318,85 +223,43 @@ export const useLeaderboardStore = create<LeaderboardStore>()(
         return userEntry?.rank ?? -1;
       },
 
-      generateMockLeaderboard: (category, period) => {
+      generateLeaderboard: (category, period) => {
         const state = get();
         const multiplier = periodMultipliers[period];
 
-        // Generate deterministic mock players based on period
-        const seed =
-          period === "daily"
-            ? Math.floor(Date.now() / 86400000)
-            : period === "weekly"
-              ? Math.floor(Date.now() / 604800000)
-              : 12345;
+        // Only show real user data - no mock players
+        // Backend integration will populate real leaderboard data
+        const entries: LeaderboardEntry[] = [];
 
-        const mockPlayers = generateMockPlayers(100, seed);
-
-        // Calculate scores based on category
-        const scoredPlayers = mockPlayers.map((player) => {
-          let score: number;
+        // Add user entry if they have an address and stats
+        if (state.userAddress) {
+          let userScore: number;
           switch (category) {
             case "miners":
-              score = Math.floor(player.totalHashes * multiplier);
+              userScore = Math.floor(state.userStats.totalHashes * multiplier);
               break;
             case "babies":
-              score = player.babyLevel;
+              userScore = state.userStats.babyLevel;
               break;
             case "earners":
-              score = Math.floor(player.tokensEarned * multiplier);
+              userScore = Math.floor(state.userStats.tokensEarned * multiplier);
               break;
             default:
-              score = 0;
+              userScore = 0;
           }
-          return { ...player, score };
-        });
 
-        // Get user score
-        let userScore: number;
-        switch (category) {
-          case "miners":
-            userScore = Math.floor(state.userStats.totalHashes * multiplier);
-            break;
-          case "babies":
-            userScore = state.userStats.babyLevel;
-            break;
-          case "earners":
-            userScore = Math.floor(state.userStats.tokensEarned * multiplier);
-            break;
-          default:
-            userScore = 0;
+          // Only show if user has activity
+          if (userScore > 0) {
+            entries.push({
+              rank: 1,
+              address: state.userAddress,
+              displayName: undefined,
+              score: userScore,
+              badge: getBadgeForRank(1),
+              isCurrentUser: true,
+            });
+          }
         }
-
-        // Add user entry if they have an address
-        const allPlayers = state.userAddress
-          ? [
-              ...scoredPlayers,
-              {
-                address: state.userAddress,
-                displayName: undefined,
-                score: userScore,
-                badge: undefined as LeaderboardBadge | undefined,
-              },
-            ]
-          : scoredPlayers;
-
-        // Sort by score descending
-        allPlayers.sort((a, b) => b.score - a.score);
-
-        // Convert to leaderboard entries with ranks
-        const entries: LeaderboardEntry[] = allPlayers.map((player, index) => {
-          const rank = index + 1;
-          return {
-            rank,
-            address: player.address,
-            displayName: player.displayName,
-            score: player.score,
-            badge: getBadgeForRank(rank),
-            isCurrentUser:
-              state.userAddress !== null &&
-              player.address === state.userAddress,
-          };
-        });
 
         return entries;
       },

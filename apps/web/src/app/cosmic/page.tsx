@@ -21,15 +21,15 @@ import {
   CosmicIndicator,
 } from "@bitcoinbaby/ui";
 
-// Mock baby data for demo - in production this would come from wallet/NFT store
-const DEMO_BABY = {
-  baseType: "mystic" as const,
-  bloodline: "mystic" as const,
+// Default baby data for users without NFTs
+const DEFAULT_BABY = {
+  baseType: "human" as const,
+  bloodline: "royal" as const,
   heritage: "americas" as const,
-  level: 15,
-  rarity: "rare" as const,
-  energy: 75,
-  equippedItemsBonus: 0.05,
+  level: 1,
+  rarity: "common" as const,
+  energy: 100,
+  equippedItemsBonus: 0,
 };
 
 /**
@@ -80,21 +80,21 @@ export default function CosmicPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Get selected baby or use demo
+  // Get selected baby from NFTs or use default (new user)
   const selectedBaby = useMemo(() => {
     if (ownedNFTs.length > 0 && ownedNFTs[selectedBabyIndex]) {
       const nft = ownedNFTs[selectedBabyIndex];
       return {
-        baseType: (nft.baseType || "human") as typeof DEMO_BABY.baseType,
-        bloodline: (nft.bloodline || "royal") as typeof DEMO_BABY.bloodline,
-        heritage: "americas" as typeof DEMO_BABY.heritage, // Default heritage
+        baseType: (nft.baseType || "human") as typeof DEFAULT_BABY.baseType,
+        bloodline: (nft.bloodline || "royal") as typeof DEFAULT_BABY.bloodline,
+        heritage: "americas" as typeof DEFAULT_BABY.heritage,
         level: nft.level || 1,
-        rarity: (nft.rarityTier || "common") as typeof DEMO_BABY.rarity,
-        energy: 100, // Default full energy
+        rarity: (nft.rarityTier || "common") as typeof DEFAULT_BABY.rarity,
+        energy: 100,
         equippedItemsBonus: 0,
       };
     }
-    return DEMO_BABY;
+    return DEFAULT_BABY;
   }, [ownedNFTs]);
 
   // Get mining cosmic integration
