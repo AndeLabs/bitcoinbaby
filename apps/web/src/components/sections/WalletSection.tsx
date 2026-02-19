@@ -33,10 +33,12 @@ import {
 import {
   generateMnemonicFromEntropy,
   validateMnemonic,
+  getDeploymentConfig,
 } from "@bitcoinbaby/bitcoin";
 
-const BABTC_APP_ID = "babtc_placeholder_app_id";
-const NFT_APP_ID = "genesis_babies_placeholder_app_id";
+// Real App IDs from deployment
+const { appId: BABTC_APP_ID } = getDeploymentConfig("testnet4");
+const NFT_APP_ID = "genesis_babies_testnet4"; // Genesis Babies NFT collection
 
 // Copy button component
 function CopyButton({ text, label }: { text: string; label: string }) {

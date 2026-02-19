@@ -226,6 +226,11 @@ export {
   toScrollsNetwork,
   toBitcoinNetwork,
   getDeploymentStatus,
+  // Deployment
+  type DeploymentConfig,
+  getDeploymentConfig,
+  isDeploymentReady,
+  validateDeployment,
 } from "./config";
 
 // Re-export bitcoinjs-lib Psbt for PSBT handling
