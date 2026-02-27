@@ -74,7 +74,6 @@ export function WithdrawSection() {
   const {
     pools,
     requests,
-    isLoading: poolsLoading,
     isSubmitting,
     error: poolsError,
     createWithdrawRequest,

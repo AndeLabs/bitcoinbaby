@@ -166,14 +166,12 @@ export function WalletSection() {
     refreshInterval: 30000,
   });
 
-  const { balance: _babyBalance } = useTokenBalance({
-    address: wallet?.address,
-  });
+  // Use token balance hook to keep connection alive
+  useTokenBalance({ address: wallet?.address });
 
   // Virtual balance from Workers API
   const {
     virtualBalance,
-    availableToWithdraw,
     totalMined,
     isLoading: virtualBalanceLoading,
   } = useVirtualBalance({

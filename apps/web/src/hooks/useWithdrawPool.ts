@@ -13,7 +13,6 @@ import type {
   PoolType,
   PoolStatusResponse,
   WithdrawRequest,
-  WithdrawResponse,
 } from "@bitcoinbaby/core";
 
 /**

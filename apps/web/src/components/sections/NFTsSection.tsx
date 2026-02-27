@@ -11,59 +11,9 @@
  */
 
 import { useState, useCallback } from "react";
-import {
-  NFTGrid,
-  NFTStats,
-  NFTCard,
-  type BabyNFTState,
-  type RarityTier,
-  type Bloodline,
-  type BaseType,
-} from "@bitcoinbaby/ui";
+import { NFTGrid, NFTStats, NFTCard, type BabyNFTState } from "@bitcoinbaby/ui";
 import { useNFTStore, useWalletStore } from "@bitcoinbaby/core";
 import { useMintNFT } from "@/hooks/useMintNFT";
-
-// Demo NFT generator (kept for future demo mode)
-function _generateDemoNFT(tokenId: number): BabyNFTState {
-  const bloodlines: Bloodline[] = ["royal", "warrior", "rogue", "mystic"];
-  const baseTypes: BaseType[] = ["human", "animal", "robot", "mystic", "alien"];
-  const rarities: RarityTier[] = [
-    "common",
-    "common",
-    "common",
-    "uncommon",
-    "uncommon",
-    "rare",
-    "rare",
-    "epic",
-    "legendary",
-    "mythic",
-  ];
-
-  const seed = tokenId * 7919;
-  const pick = <T,>(arr: T[], offset = 0) =>
-    arr[(seed + offset) % arr.length] as T;
-
-  const level = (seed % 10) + 1;
-  const xp = (seed % 500) + 100;
-  const workCount = (seed % 1000) + 50;
-
-  return {
-    tokenId,
-    dna: seed.toString(16).padStart(32, "0").slice(0, 32),
-    bloodline: pick(bloodlines, 1),
-    baseType: pick(baseTypes, 2),
-    rarityTier: pick(rarities, 3),
-    genesisBlock: 800000 + (seed % 10000),
-    level,
-    xp,
-    totalXp: xp + level * 500,
-    workCount,
-    lastWorkBlock: 850000 - (seed % 1000),
-    evolutionCount: Math.max(0, level - 1),
-    tokensEarned: BigInt(workCount * 1000),
-  };
-}
 
 export function NFTsSection() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

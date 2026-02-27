@@ -10,10 +10,7 @@
 import { useState } from "react";
 import { PixelCard, PixelButton } from "@bitcoinbaby/ui";
 import type { PoolType, PoolStatusResponse } from "@bitcoinbaby/core";
-import {
-  formatPoolType,
-  getPoolDescription,
-} from "../../hooks/useWithdrawPool";
+import { formatPoolType } from "../../hooks/useWithdrawPool";
 
 interface WithdrawPoolCardProps {
   poolType: PoolType;
