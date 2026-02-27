@@ -1,0 +1,68 @@
+# BitcoinBaby Workers - Production Configuration
+# https://developers.cloudflare.com/workers/wrangler/configuration/
+
+name = "bitcoinbaby-api"
+main = "src/index.ts"
+compatibility_date = "2025-02-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = "58f90adc571d31c4b7a860b6edef3406"
+
+# Development
+[dev]
+port = 8787
+local_protocol = "http"
+
+# Durable Objects - Virtual Balance & Game State
+[[durable_objects.bindings]]
+name = "VIRTUAL_BALANCE"
+class_name = "VirtualBalanceDO"
+
+[[durable_objects.bindings]]
+name = "WITHDRAW_POOL"
+class_name = "WithdrawPoolDO"
+
+[[durable_objects.bindings]]
+name = "GAME_ROOM"
+class_name = "GameRoomDO"
+
+# Migrations for Durable Objects
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["VirtualBalanceDO", "WithdrawPoolDO", "GameRoomDO"]
+
+# KV Namespace will be created on first deploy
+# Run: wrangler kv:namespace create CACHE
+# Then update the IDs below
+# [[kv_namespaces]]
+# binding = "CACHE"
+# id = "REPLACE_WITH_KV_ID"
+# preview_id = "REPLACE_WITH_PREVIEW_KV_ID"
+
+# Scheduled tasks (Cron)
+[triggers]
+crons = [
+  # Process weekly withdraw pool every Sunday at 00:00 UTC
+  "0 0 * * 0",
+  # Check for low-fee opportunities every 6 hours
+  "0 */6 * * *"
+]
+
+# Environment variables
+[vars]
+ENVIRONMENT = "development"
+MIN_WITHDRAW_AMOUNT = "100"
+POOL_PERIOD_DAYS = "7"
+MAX_FEE_RATE_SAT_VB = "10"
+
+# Production environment
+[env.production]
+name = "bitcoinbaby-api-prod"
+[env.production.vars]
+ENVIRONMENT = "production"
+MIN_WITHDRAW_AMOUNT = "100"
+POOL_PERIOD_DAYS = "7"
+MAX_FEE_RATE_SAT_VB = "5"
+
+# Secrets (set via wrangler secret put)
+# SCROLLS_API_KEY - API key for Charms Scrolls
+# BATCH_WALLET_SEED - Seed for batch transaction signing (NEVER commit!)
