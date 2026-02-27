@@ -48,14 +48,12 @@ jobs:
         run: pnpm add -g vercel@latest
 
       - name: Deploy to Vercel (Preview)
-        working-directory: apps/web
         if: github.event.inputs.environment != 'production' && !startsWith(github.ref, 'refs/tags/')
         run: vercel deploy --token=${{ secrets.VERCEL_TOKEN }}
         env:
           NEXT_PUBLIC_NETWORK: ${{ vars.NEXT_PUBLIC_NETWORK || 'testnet4' }}
 
       - name: Deploy to Vercel (Production)
-        working-directory: apps/web
         if: github.event.inputs.environment == 'production' || startsWith(github.ref, 'refs/tags/')
         run: vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
