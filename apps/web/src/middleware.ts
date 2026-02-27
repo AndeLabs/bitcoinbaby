@@ -1,8 +1,10 @@
 /**
  * Security Middleware - PRODUCTION
  *
- * Strict CSP with nonces for all environments.
- * No development exceptions - this is production-ready code.
+ * Balanced CSP for Web3 applications:
+ * - 'unsafe-inline' for Next.js hydration compatibility
+ * - 'wasm-unsafe-eval' for crypto libraries (secp256k1)
+ * - Allows wallet extensions to function
  */
 
 import { NextResponse } from "next/server";
@@ -32,21 +34,21 @@ export function middleware(request: NextRequest) {
     },
   });
 
-  // PRODUCTION: Strict CSP - no unsafe-inline, no unsafe-eval
+  // PRODUCTION CSP - Balanced security for Web3 apps
   // 'wasm-unsafe-eval' required for WebAssembly (bitcoinjs-lib/secp256k1)
-  // 'strict-dynamic' allows nonce-authorized scripts to load other scripts
+  // 'unsafe-inline' needed for Next.js hydration and wallet extensions
   const cspDirectives = [
     "default-src 'self'",
-    // Scripts: nonce-based, wasm for crypto libs, strict-dynamic for Next.js
-    `script-src 'self' 'nonce-${nonce}' 'wasm-unsafe-eval' 'strict-dynamic'`,
-    // Styles: nonce-based + Google Fonts
-    `style-src 'self' 'nonce-${nonce}' https://fonts.googleapis.com`,
+    // Scripts: self + unsafe-inline for Next.js hydration + wasm for crypto
+    `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'`,
+    // Styles: self + unsafe-inline for dynamic styles + Google Fonts
+    `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
     // Fonts
     "font-src 'self' https://fonts.gstatic.com",
     // Images
     "img-src 'self' data: blob:",
-    // API connections - Bitcoin network APIs
-    "connect-src 'self' https://mempool.space https://scrolls.charms.dev wss://mempool.space",
+    // API connections - Bitcoin network APIs + Workers API
+    "connect-src 'self' https://mempool.space https://scrolls.charms.dev https://*.workers.dev wss://mempool.space",
     // Web Workers for mining
     "worker-src 'self' blob:",
     // Prevent framing (clickjacking protection)
