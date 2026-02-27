@@ -82,13 +82,21 @@ function MiningStats({
 }
 
 // Baby Creation Form
-function CreateBabyForm({ onCreate }: { onCreate: (name: string) => void }) {
+function CreateBabyForm({
+  onCreate,
+  currentMiningShares,
+}: {
+  onCreate: (name: string, miningSharesBaseline?: number) => void;
+  currentMiningShares: number;
+}) {
   const [name, setName] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim()) {
-      onCreate(name.trim());
+      // Pass current mining shares as baseline to prevent instant-legend bug
+      // This ensures XP is only awarded for NEW shares after baby creation
+      onCreate(name.trim(), currentMiningShares);
     }
   };
 
@@ -381,7 +389,10 @@ export function BabySection() {
       {/* Main Content */}
       {!game.baby ? (
         <div className="max-w-4xl mx-auto">
-          <CreateBabyForm onCreate={game.createBaby} />
+          <CreateBabyForm
+            onCreate={game.createBaby}
+            currentMiningShares={mining.shares}
+          />
         </div>
       ) : (
         <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">

@@ -268,8 +268,15 @@ export function determineVisualState(baby: GameBaby): GameBaby["visualState"] {
 
 /**
  * Create a new baby with default stats
+ *
+ * @param name - Baby name
+ * @param miningSharesBaseline - Current mining shares count to use as baseline
+ *   (prevents XP from pre-existing mining progress)
  */
-export function createNewBaby(name: string): GameBaby {
+export function createNewBaby(
+  name: string,
+  miningSharesBaseline = 0,
+): GameBaby {
   const now = Date.now();
 
   return {
@@ -295,6 +302,7 @@ export function createNewBaby(name: string): GameBaby {
     lastFed: now,
     lastPlayed: now,
     lastMined: now, // Initialize to creation time
+    miningSharesBaseline, // Baseline for XP calculation
     evolutionHistory: [],
     unlockedAchievements: [],
   };

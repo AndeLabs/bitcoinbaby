@@ -40,7 +40,7 @@ export interface UseGameLoopReturn {
   daysUntilDecay: number | null;
 
   // Actions
-  createBaby: (name: string) => void;
+  createBaby: (name: string, miningSharesBaseline?: number) => void;
   performAction: (action: GameAction) => void;
   setMining: (isMining: boolean) => void;
   recordMiningProgress: (hashes: number, shares: number) => void;
@@ -132,8 +132,8 @@ export function useGameLoop(
 
   // Actions
   const createBaby = useCallback(
-    (name: string) => {
-      engine.createBaby(name);
+    (name: string, miningSharesBaseline = 0) => {
+      engine.createBaby(name, miningSharesBaseline);
       setBaby(engine.getBaby());
       setState(engine.getState());
       setIsDead(false);

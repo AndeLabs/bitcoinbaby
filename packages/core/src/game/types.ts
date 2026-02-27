@@ -52,6 +52,10 @@ export interface GameBaby {
   lastPlayed: number;
   lastMined: number; // For level decay tracking
 
+  // Mining baseline - shares count when baby was created
+  // Used to prevent XP from pre-existing mining progress
+  miningSharesBaseline: number;
+
   // Evolution history
   evolutionHistory: EvolutionRecord[];
 

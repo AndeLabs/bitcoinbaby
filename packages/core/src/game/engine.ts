@@ -163,9 +163,13 @@ export class GameEngine {
 
   /**
    * Create a new baby
+   *
+   * @param name - Baby name
+   * @param miningSharesBaseline - Current mining shares to use as baseline
+   *   (prevents XP from pre-existing mining progress)
    */
-  createBaby(name: string): GameBaby {
-    const baby = createNewBaby(name);
+  createBaby(name: string, miningSharesBaseline = 0): GameBaby {
+    const baby = createNewBaby(name, miningSharesBaseline);
     this.state.baby = baby;
     this.save();
     return baby;
