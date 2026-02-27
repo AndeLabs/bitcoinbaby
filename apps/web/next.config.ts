@@ -29,6 +29,9 @@ const nextConfig: NextConfig = {
     unoptimized: isNativeBuild,
   },
 
+  // PRODUCTION: Disable all development indicators
+  devIndicators: false,
+
   // Trailing slash required for Capacitor file:// routing
   ...(isNativeBuild ? { trailingSlash: true } : {}),
 
@@ -49,51 +52,15 @@ const nextConfig: NextConfig = {
     return config;
   },
 
-  // Security headers (only for SSR, not static export)
+  // Security headers handled by middleware.ts for dynamic nonce CSP
+  // Only static headers for service worker here
   ...(isNativeBuild
     ? {}
     : {
         async headers() {
           return [
             {
-              source: "/(.*)",
-              headers: [
-                {
-                  key: "X-Content-Type-Options",
-                  value: "nosniff",
-                },
-                {
-                  key: "X-Frame-Options",
-                  value: "DENY",
-                },
-                {
-                  key: "Referrer-Policy",
-                  value: "strict-origin-when-cross-origin",
-                },
-                {
-                  key: "Strict-Transport-Security",
-                  value: "max-age=63072000; includeSubDomains; preload",
-                },
-                {
-                  key: "Content-Security-Policy",
-                  value: [
-                    "default-src 'self'",
-                    "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-                    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-                    "font-src 'self' https://fonts.gstatic.com",
-                    "img-src 'self' data: blob:",
-                    "connect-src 'self' https://mempool.space https://scrolls.charms.dev wss://mempool.space",
-                    "worker-src 'self' blob:",
-                    "frame-ancestors 'none'",
-                  ].join("; "),
-                },
-                {
-                  key: "Permissions-Policy",
-                  value: "camera=(), microphone=(), geolocation=()",
-                },
-              ],
-            },
-            {
+              // Service worker needs specific headers
               source: "/sw.js",
               headers: [
                 {
