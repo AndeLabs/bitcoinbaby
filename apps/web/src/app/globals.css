@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-/* Scan packages/ui for Tailwind classes */
-@source "../../../../packages/ui/src/**/*.{ts,tsx}";
+/* Scan external packages for Tailwind classes */
+@source "../../node_modules/@bitcoinbaby/ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@bitcoinbaby/core/src/**/*.{ts,tsx}";
 
 /**
  * BitcoinBaby - Pixel Art 8-bit Theme
@@ -189,8 +190,16 @@ canvas,
 /* ========================================
    UTILITY CLASSES
    ======================================== */
-/* Note: font-pixel, font-pixel-body, font-pixel-mono are auto-generated
-   by Tailwind v4 from --font-family-* variables in @theme */
+/* Font utilities - explicitly defined to ensure they're available */
+.font-pixel {
+  font-family: 'Press Start 2P', cursive;
+}
+.font-pixel-body {
+  font-family: 'Pixelify Sans', sans-serif;
+}
+.font-pixel-mono {
+  font-family: 'VT323', monospace;
+}
 
 .animate-pixel-blink { animation: pixel-blink 1s steps(1) infinite; }
 .animate-pixel-float { animation: pixel-float 2s ease-in-out infinite; }
