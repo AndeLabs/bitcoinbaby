@@ -235,6 +235,10 @@ export function WalletOnboarding({
     try {
       await onWalletCreated(mnemonic, password);
       setStep("complete");
+      // SECURITY: Clear sensitive data from memory after success
+      setMnemonic("");
+      setPassword("");
+      setConfirmPassword("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create wallet");
     } finally {
@@ -266,6 +270,10 @@ export function WalletOnboarding({
     try {
       await onWalletImported(cleanPhrase, password);
       setStep("complete");
+      // SECURITY: Clear sensitive data from memory after success
+      setImportPhrase("");
+      setPassword("");
+      setConfirmPassword("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to import wallet");
     } finally {

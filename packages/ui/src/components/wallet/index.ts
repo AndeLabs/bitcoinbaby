@@ -8,3 +8,10 @@ export {
   TransactionListCompact,
   type TransactionDisplay,
 } from "./TransactionList";
+export {
+  TransactionPreview,
+  type TransactionPreviewData,
+  type TransactionPreviewProps,
+  type TransactionInput,
+  type TransactionOutput,
+} from "./TransactionPreview";

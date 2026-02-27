@@ -402,8 +402,8 @@ export default function SettingsPage() {
     setShowResetConfirm(false);
   }, [resetAllSettings]);
 
-  // Handle reset ALL data (full localStorage clear)
-  const handleResetAllData = useCallback(() => {
+  // Handle reset ALL data (full localStorage + IndexedDB clear)
+  const handleResetAllData = useCallback(async () => {
     // Clear all BitcoinBaby localStorage keys
     const keysToRemove = [
       "bitcoinbaby-nft-store",
@@ -415,8 +415,28 @@ export default function SettingsPage() {
       "bitcoinbaby-leaderboard",
       "bitcoinbaby-tutorial",
       "bitcoinbaby-game",
+      "bitcoinbaby_game_state", // Game storage fallback
     ];
     keysToRemove.forEach((key) => localStorage.removeItem(key));
+
+    // Clear IndexedDB databases
+    const dbsToDelete = ["bitcoinbaby", "bitcoinbaby-secure"];
+    for (const dbName of dbsToDelete) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const request = indexedDB.deleteDatabase(dbName);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+          request.onblocked = () => {
+            console.warn(`IndexedDB ${dbName} blocked, forcing close`);
+            resolve();
+          };
+        });
+      } catch (err) {
+        console.warn(`Failed to delete IndexedDB ${dbName}:`, err);
+      }
+    }
+
     setShowResetDataConfirm(false);
     // Reload to apply changes
     window.location.reload();

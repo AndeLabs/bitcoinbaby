@@ -222,27 +222,29 @@ export default function SendPage() {
         });
       }
 
-      // Sign PSBT
-      builder.signPSBT(psbt, privateKey);
+      // Sign PSBT - wrap in try/finally to guarantee key cleanup
+      try {
+        builder.signPSBT(psbt, privateKey);
 
-      // Clear private key from memory
-      privateKey.fill(0);
+        // Finalize and extract transaction
+        const signedTx = builder.finalizePSBT(psbt);
 
-      // Finalize and extract transaction
-      const signedTx = builder.finalizePSBT(psbt);
+        // Broadcast transaction
+        const mempoolClient = createMempoolClient({ network });
+        const txid = await mempoolClient.broadcastTransaction(signedTx.hex);
 
-      // Broadcast transaction
-      const mempoolClient = createMempoolClient({ network });
-      const txid = await mempoolClient.broadcastTransaction(signedTx.hex);
+        // Success
+        setTxResult({
+          success: true,
+          txid: txid,
+        });
 
-      // Success
-      setTxResult({
-        success: true,
-        txid: txid,
-      });
-
-      // Refresh balance after broadcast
-      setTimeout(() => refreshBalance(), 3000);
+        // Refresh balance after broadcast
+        setTimeout(() => refreshBalance(), 3000);
+      } finally {
+        // CRITICAL: Always clear private key from memory
+        privateKey.fill(0);
+      }
     } catch (error) {
       console.error("Transaction failed:", error);
       setTxResult({
