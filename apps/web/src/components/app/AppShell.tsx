@@ -9,7 +9,13 @@
  * - Content area that switches without unmounting mining
  */
 
-import { useState, useCallback, useEffect, Suspense } from "react";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  Suspense,
+  startTransition,
+} from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
 /**
@@ -110,9 +116,9 @@ function AppShellInner() {
   // Sync tab from URL changes (back/forward navigation)
   useEffect(() => {
     if (urlTab && urlTab !== activeTab) {
-      setActiveTab(urlTab);
+      startTransition(() => setActiveTab(urlTab));
     } else if (!urlTab && activeTab !== "baby") {
-      setActiveTab("baby");
+      startTransition(() => setActiveTab("baby"));
     }
   }, [urlTab, activeTab]);
 

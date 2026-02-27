@@ -396,7 +396,8 @@ export function useWithdrawPool(
 
   // Initial fetch and auto-refresh
   useEffect(() => {
-    refresh();
+    // Defer to avoid React compiler warning about setState in effect
+    queueMicrotask(() => refresh());
 
     if (refreshInterval > 0) {
       const interval = setInterval(refresh, refreshInterval);

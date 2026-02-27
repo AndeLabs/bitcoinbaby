@@ -151,7 +151,8 @@ export function MiningSection() {
   // Submit share when found
   useEffect(() => {
     if (lastShare && lastShare.hash !== lastSubmittedShare) {
-      handleShareFound(lastShare);
+      // Defer to avoid React compiler warning about setState in effect
+      queueMicrotask(() => handleShareFound(lastShare));
     }
   }, [lastShare, lastSubmittedShare, handleShareFound]);
 
