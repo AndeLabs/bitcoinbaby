@@ -62,6 +62,27 @@ export {
   type UseTransactionHistoryOptions,
 } from "./useTransactionHistory";
 
+// =============================================================================
+// WORKERS API HOOKS (Virtual Balance & Withdrawal Pools)
+// =============================================================================
+export {
+  useVirtualBalance,
+  type VirtualBalanceState,
+  type VirtualBalanceActions,
+  type UseVirtualBalanceReturn,
+  type UseVirtualBalanceOptions,
+} from "./useVirtualBalance";
+export {
+  useWithdrawPool,
+  formatPoolType,
+  getPoolDescription,
+  type WithdrawPoolState,
+  type WithdrawPoolActions,
+  type UseWithdrawPoolReturn,
+  type UseWithdrawPoolOptions,
+  type PoolInfo,
+} from "./useWithdrawPool";
+
 // Game hooks - re-exported from @bitcoinbaby/core
 // Local versions deprecated, use from core
 export { useBabyState } from "./useBabyState";

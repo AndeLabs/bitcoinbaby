@@ -6,3 +6,21 @@ export * from "./storage";
 export * from "./hooks";
 export * from "./utils";
 export * from "./cosmic";
+
+// API exports (with prefixed names to avoid conflicts)
+export { BitcoinBabyClient, getApiClient, resetApiClient } from "./api";
+export type {
+  ApiResponse,
+  BalanceResponse,
+  CreditResponse,
+  MiningProof as ApiMiningProof,
+  PoolType,
+  PoolStatusResponse,
+  WithdrawRequest,
+  WithdrawResponse,
+  WithdrawStatus,
+  GameState as ApiGameState,
+  GameStats as ApiGameStats,
+  WsMessage,
+  WsMessageType,
+} from "./api";

@@ -101,3 +101,19 @@ export {
   CATEGORY_INFO,
   PERIOD_INFO,
 } from "./useLeaderboard";
+
+// =============================================================================
+// API HOOKS (Cloudflare Workers)
+// =============================================================================
+
+// Balance hook (virtual balance from Workers)
+export { useBalance } from "./use-api";
+
+// Pool status hook (withdrawal pools)
+export { usePoolStatus } from "./use-api";
+
+// Withdraw hook (manage withdrawal requests)
+export { useWithdraw } from "./use-api";
+
+// Game state hook (real-time sync via WebSocket)
+export { useGameState } from "./use-api";

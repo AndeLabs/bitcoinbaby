@@ -1,0 +1,376 @@
+"use client";
+
+/**
+ * useVirtualBalance Hook
+ *
+ * Integrates Workers API virtual balance with on-chain balance.
+ * Provides unified view of all token balances:
+ * - Virtual balance (accumulated in Workers, not yet withdrawn to Bitcoin)
+ * - On-chain balance (confirmed on Bitcoin via Charms)
+ * - Pending balance (local mining rewards not yet credited)
+ *
+ * This is the primary balance hook for production use.
+ */
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { getApiClient, useNetworkStore } from "@bitcoinbaby/core";
+import type { BalanceResponse, ApiMiningProof } from "@bitcoinbaby/core";
+import {
+  createScrollsClient,
+  type ScrollsClient,
+  type ScrollsNetwork,
+} from "@bitcoinbaby/bitcoin";
+
+/**
+ * Unified balance state
+ */
+interface VirtualBalanceState {
+  /** Total balance (virtual + on-chain) */
+  totalBalance: bigint;
+  /** Virtual balance stored in Workers */
+  virtualBalance: bigint;
+  /** Amount pending withdrawal */
+  pendingWithdraw: bigint;
+  /** Available to withdraw (virtual - pending) */
+  availableToWithdraw: bigint;
+  /** On-chain confirmed balance (from Scrolls) */
+  onChainBalance: bigint;
+  /** Total mined all-time (from Workers) */
+  totalMined: bigint;
+  /** Total withdrawn to Bitcoin */
+  totalWithdrawn: bigint;
+  /** Loading state */
+  isLoading: boolean;
+  /** Error message */
+  error: string | null;
+  /** Last update timestamp */
+  lastUpdated: number | null;
+  /** Workers API connectivity */
+  workersApiAvailable: boolean;
+  /** Scrolls API connectivity */
+  scrollsApiAvailable: boolean;
+}
+
+/**
+ * Virtual balance actions
+ */
+interface VirtualBalanceActions {
+  /** Credit mining reward to virtual balance */
+  creditMining: (proof: {
+    hash: string;
+    nonce: number;
+    difficulty: number;
+    blockData: string;
+    reward: bigint;
+  }) => Promise<{ success: boolean; credited?: string; error?: string }>;
+  /** Refresh all balances */
+  refresh: () => Promise<void>;
+  /** Force refresh ignoring cache */
+  forceRefresh: () => Promise<void>;
+}
+
+type UseVirtualBalanceReturn = VirtualBalanceState & VirtualBalanceActions;
+
+/**
+ * Options for useVirtualBalance
+ */
+interface UseVirtualBalanceOptions {
+  /** Wallet address */
+  address?: string;
+  /** Token ticker (default: 'BABY') */
+  tokenTicker?: string;
+  /** Auto-refresh interval in ms (default: 60000) */
+  refreshInterval?: number;
+  /** Use production API (default: auto-detect) */
+  useProductionApi?: boolean;
+}
+
+// API client singleton
+let apiClient: ReturnType<typeof getApiClient> | null = null;
+
+function getClient(useProduction?: boolean) {
+  if (!apiClient) {
+    const env =
+      useProduction !== undefined
+        ? useProduction
+          ? "production"
+          : "development"
+        : typeof window !== "undefined" &&
+            window.location.hostname !== "localhost"
+          ? "production"
+          : "development";
+    apiClient = getApiClient(env);
+  }
+  return apiClient;
+}
+
+/**
+ * useVirtualBalance Hook
+ *
+ * @example
+ * ```tsx
+ * const {
+ *   totalBalance,
+ *   virtualBalance,
+ *   onChainBalance,
+ *   availableToWithdraw,
+ *   creditMining,
+ *   refresh,
+ * } = useVirtualBalance({ address: walletAddress });
+ *
+ * // Credit mining reward
+ * const result = await creditMining({
+ *   hash: '0000abc...',
+ *   nonce: 12345,
+ *   difficulty: 18,
+ *   blockData: '...',
+ *   reward: 1000n,
+ * });
+ * ```
+ */
+export function useVirtualBalance(
+  options: UseVirtualBalanceOptions = {},
+): UseVirtualBalanceReturn {
+  const {
+    address,
+    tokenTicker = "BABY",
+    refreshInterval = 60000,
+    useProductionApi,
+  } = options;
+
+  // Network config for Scrolls
+  const { config } = useNetworkStore();
+  const scrollsNetwork: ScrollsNetwork = config.scrolls;
+
+  // Scrolls client ref
+  const scrollsClientRef = useRef<ScrollsClient | null>(null);
+
+  // Initialize Scrolls client
+  useEffect(() => {
+    scrollsClientRef.current = createScrollsClient({
+      baseUrl: config.scrollsApi.replace("/api/v1", ""),
+      network: scrollsNetwork,
+    });
+  }, [config.scrollsApi, scrollsNetwork]);
+
+  // State
+  const [state, setState] = useState<VirtualBalanceState>({
+    totalBalance: 0n,
+    virtualBalance: 0n,
+    pendingWithdraw: 0n,
+    availableToWithdraw: 0n,
+    onChainBalance: 0n,
+    totalMined: 0n,
+    totalWithdrawn: 0n,
+    isLoading: false,
+    error: null,
+    lastUpdated: null,
+    workersApiAvailable: true,
+    scrollsApiAvailable: true,
+  });
+
+  /**
+   * Fetch virtual balance from Workers API
+   */
+  const fetchVirtualBalance =
+    useCallback(async (): Promise<BalanceResponse | null> => {
+      if (!address) return null;
+
+      try {
+        const client = getClient(useProductionApi);
+        const response = await client.getBalance(address);
+
+        if (response.success && response.data) {
+          return response.data;
+        }
+        return null;
+      } catch (error) {
+        console.error("[VirtualBalance] Workers API error:", error);
+        return null;
+      }
+    }, [address, useProductionApi]);
+
+  /**
+   * Fetch on-chain balance from Scrolls API
+   */
+  const fetchOnChainBalance = useCallback(async (): Promise<bigint> => {
+    if (!address || !scrollsClientRef.current) return 0n;
+
+    try {
+      const balance = await scrollsClientRef.current.getTokenBalance(
+        address,
+        tokenTicker,
+      );
+      return balance?.amount ?? 0n;
+    } catch (error) {
+      console.error("[VirtualBalance] Scrolls API error:", error);
+      return 0n;
+    }
+  }, [address, tokenTicker]);
+
+  /**
+   * Refresh all balances
+   */
+  const refresh = useCallback(async (): Promise<void> => {
+    if (!address) return;
+
+    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+
+    try {
+      // Fetch both in parallel
+      const [virtualData, onChainBalance] = await Promise.all([
+        fetchVirtualBalance(),
+        fetchOnChainBalance(),
+      ]);
+
+      const virtualBalance = virtualData
+        ? BigInt(virtualData.virtualBalance)
+        : 0n;
+      const pendingWithdraw = virtualData
+        ? BigInt(virtualData.pendingWithdraw)
+        : 0n;
+      const totalMined = virtualData ? BigInt(virtualData.totalMined) : 0n;
+      const totalWithdrawn = virtualData
+        ? BigInt(virtualData.totalWithdrawn)
+        : 0n;
+      const availableToWithdraw = virtualData
+        ? BigInt(virtualData.availableToWithdraw)
+        : 0n;
+
+      // Total = virtual (not yet on-chain) + on-chain confirmed
+      const totalBalance = virtualBalance + onChainBalance;
+
+      setState({
+        totalBalance,
+        virtualBalance,
+        pendingWithdraw,
+        availableToWithdraw,
+        onChainBalance,
+        totalMined,
+        totalWithdrawn,
+        isLoading: false,
+        error: null,
+        lastUpdated: Date.now(),
+        workersApiAvailable: virtualData !== null,
+        scrollsApiAvailable: true,
+      });
+    } catch (error) {
+      setState((prev) => ({
+        ...prev,
+        isLoading: false,
+        error:
+          error instanceof Error ? error.message : "Failed to fetch balance",
+        lastUpdated: Date.now(),
+      }));
+    }
+  }, [address, fetchVirtualBalance, fetchOnChainBalance]);
+
+  /**
+   * Force refresh
+   */
+  const forceRefresh = useCallback(async (): Promise<void> => {
+    await refresh();
+  }, [refresh]);
+
+  /**
+   * Credit mining reward to virtual balance
+   */
+  const creditMining = useCallback(
+    async (proof: {
+      hash: string;
+      nonce: number;
+      difficulty: number;
+      blockData: string;
+      reward: bigint;
+    }): Promise<{ success: boolean; credited?: string; error?: string }> => {
+      if (!address) {
+        return { success: false, error: "No address" };
+      }
+
+      try {
+        const client = getClient(useProductionApi);
+        const apiProof: ApiMiningProof = {
+          hash: proof.hash,
+          nonce: proof.nonce,
+          difficulty: proof.difficulty,
+          blockData: proof.blockData,
+          reward: proof.reward.toString(),
+        };
+
+        const response = await client.creditMining(address, apiProof);
+
+        if (response.success && response.data) {
+          // Update local state optimistically
+          setState((prev) => ({
+            ...prev,
+            virtualBalance: BigInt(response.data!.newBalance),
+            totalBalance:
+              BigInt(response.data!.newBalance) + prev.onChainBalance,
+            totalMined: prev.totalMined + BigInt(response.data!.credited),
+            availableToWithdraw:
+              BigInt(response.data!.newBalance) - prev.pendingWithdraw,
+            lastUpdated: Date.now(),
+          }));
+
+          return {
+            success: true,
+            credited: response.data.credited,
+          };
+        }
+
+        return {
+          success: false,
+          error: response.error ?? "Failed to credit",
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Credit failed",
+        };
+      }
+    },
+    [address, useProductionApi],
+  );
+
+  // Initial fetch and auto-refresh
+  useEffect(() => {
+    if (!address) {
+      setState({
+        totalBalance: 0n,
+        virtualBalance: 0n,
+        pendingWithdraw: 0n,
+        availableToWithdraw: 0n,
+        onChainBalance: 0n,
+        totalMined: 0n,
+        totalWithdrawn: 0n,
+        isLoading: false,
+        error: null,
+        lastUpdated: null,
+        workersApiAvailable: true,
+        scrollsApiAvailable: true,
+      });
+      return;
+    }
+
+    refresh();
+
+    if (refreshInterval > 0) {
+      const interval = setInterval(refresh, refreshInterval);
+      return () => clearInterval(interval);
+    }
+  }, [address, refresh, refreshInterval]);
+
+  return {
+    ...state,
+    creditMining,
+    refresh,
+    forceRefresh,
+  };
+}
+
+export type {
+  VirtualBalanceState,
+  VirtualBalanceActions,
+  UseVirtualBalanceReturn,
+  UseVirtualBalanceOptions,
+};
