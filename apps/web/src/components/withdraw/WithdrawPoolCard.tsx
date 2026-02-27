@@ -1,0 +1,225 @@
+"use client";
+
+/**
+ * WithdrawPoolCard Component
+ *
+ * Displays a withdrawal pool option and allows creating withdrawal requests.
+ * Part of the batched withdrawal system for minimizing Bitcoin fees.
+ */
+
+import { useState } from "react";
+import { PixelCard, PixelButton } from "@bitcoinbaby/ui";
+import type { PoolType, PoolStatusResponse } from "@bitcoinbaby/core";
+import {
+  formatPoolType,
+  getPoolDescription,
+} from "../../hooks/useWithdrawPool";
+
+interface WithdrawPoolCardProps {
+  poolType: PoolType;
+  poolInfo: (PoolStatusResponse & { name: string; description: string }) | null;
+  availableBalance: bigint;
+  onWithdraw: (
+    poolType: PoolType,
+    amount: bigint,
+  ) => Promise<{ success: boolean; error?: string }>;
+  isSubmitting?: boolean;
+  minAmount?: bigint;
+}
+
+export function WithdrawPoolCard({
+  poolType,
+  poolInfo,
+  availableBalance,
+  onWithdraw,
+  isSubmitting = false,
+  minAmount = 100n,
+}: WithdrawPoolCardProps) {
+  const [amount, setAmount] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
+
+  const handleWithdraw = async () => {
+    setError(null);
+
+    const withdrawAmount = BigInt(amount || "0");
+
+    if (withdrawAmount < minAmount) {
+      setError(`Minimum withdrawal: ${minAmount} tokens`);
+      return;
+    }
+
+    if (withdrawAmount > availableBalance) {
+      setError("Insufficient balance");
+      return;
+    }
+
+    const result = await onWithdraw(poolType, withdrawAmount);
+
+    if (!result.success) {
+      setError(result.error ?? "Withdrawal failed");
+    } else {
+      setAmount("");
+    }
+  };
+
+  const handleMaxClick = () => {
+    setAmount(availableBalance.toString());
+  };
+
+  // Pool icons
+  const poolIcons: Record<PoolType, string> = {
+    weekly: "W",
+    monthly: "M",
+    low_fee: "$",
+    immediate: "!",
+  };
+
+  // Pool colors
+  const poolColors: Record<PoolType, string> = {
+    weekly: "border-green-500",
+    monthly: "border-blue-500",
+    low_fee: "border-yellow-500",
+    immediate: "border-red-500",
+  };
+
+  if (!poolInfo) {
+    return (
+      <PixelCard className={`opacity-50 ${poolColors[poolType]}`}>
+        <div className="p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-2xl font-pixel">{poolIcons[poolType]}</span>
+            <span className="font-pixel text-sm">
+              {formatPoolType(poolType)}
+            </span>
+          </div>
+          <p className="text-xs text-gray-500">Loading...</p>
+        </div>
+      </PixelCard>
+    );
+  }
+
+  const estimatedFee = poolInfo.estimatedFeePerUser;
+  const nextProcessing = new Date(
+    poolInfo.nextProcessingTime,
+  ).toLocaleDateString();
+  const usersInPool = poolInfo.pendingRequests;
+
+  return (
+    <PixelCard className={`${poolColors[poolType]} hover:border-opacity-100`}>
+      <div className="p-4">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl font-pixel">{poolIcons[poolType]}</span>
+            <div>
+              <h3 className="font-pixel text-sm">{poolInfo.name}</h3>
+              <p className="text-xs text-gray-400">{poolInfo.description}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowDetails(!showDetails)}
+            className="text-xs text-pixel-secondary hover:underline"
+          >
+            {showDetails ? "Hide" : "Details"}
+          </button>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+          <div className="bg-pixel-bg-dark/50 rounded p-2">
+            <p className="text-xs text-gray-400">Fee Est.</p>
+            <p className="font-pixel text-sm text-pixel-primary">
+              {estimatedFee} sat
+            </p>
+          </div>
+          <div className="bg-pixel-bg-dark/50 rounded p-2">
+            <p className="text-xs text-gray-400">In Pool</p>
+            <p className="font-pixel text-sm">{usersInPool}</p>
+          </div>
+          <div className="bg-pixel-bg-dark/50 rounded p-2">
+            <p className="text-xs text-gray-400">Next</p>
+            <p className="font-pixel text-xs">{nextProcessing}</p>
+          </div>
+        </div>
+
+        {/* Details Panel */}
+        {showDetails && (
+          <div className="mb-3 p-2 bg-pixel-bg-dark/30 rounded text-xs">
+            <p className="text-gray-400 mb-1">How it works:</p>
+            <ul className="list-disc list-inside text-gray-300 space-y-1">
+              {poolType === "weekly" && (
+                <>
+                  <li>Withdrawals batched every Sunday</li>
+                  <li>Share fees with other users</li>
+                  <li>Lowest fees when pool is full</li>
+                </>
+              )}
+              {poolType === "monthly" && (
+                <>
+                  <li>Withdrawals batched on 1st of month</li>
+                  <li>Maximum fee savings</li>
+                  <li>Best for large amounts</li>
+                </>
+              )}
+              {poolType === "low_fee" && (
+                <>
+                  <li>Triggered when Bitcoin fees drop</li>
+                  <li>Opportunistic processing</li>
+                  <li>May process anytime</li>
+                </>
+              )}
+              {poolType === "immediate" && (
+                <>
+                  <li>Processed within 1 hour</li>
+                  <li>Higher individual fees</li>
+                  <li>Best for urgent needs</li>
+                </>
+              )}
+            </ul>
+            <p className="mt-2 text-gray-400">
+              Total in pool: {BigInt(poolInfo.totalAmount).toLocaleString()}{" "}
+              tokens
+            </p>
+          </div>
+        )}
+
+        {/* Withdraw Form */}
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="Amount"
+              className="flex-1 px-3 py-2 bg-pixel-bg-dark border border-pixel-primary/30 rounded font-pixel text-sm focus:border-pixel-primary outline-none"
+              disabled={isSubmitting}
+            />
+            <button
+              onClick={handleMaxClick}
+              className="px-2 py-1 text-xs text-pixel-secondary hover:bg-pixel-secondary/10 rounded"
+              disabled={isSubmitting}
+            >
+              MAX
+            </button>
+          </div>
+
+          {error && <p className="text-xs text-red-400">{error}</p>}
+
+          <PixelButton
+            onClick={handleWithdraw}
+            disabled={isSubmitting || !amount || BigInt(amount || "0") === 0n}
+            className="w-full"
+            size="sm"
+          >
+            {isSubmitting
+              ? "Processing..."
+              : `Withdraw to ${formatPoolType(poolType)}`}
+          </PixelButton>
+        </div>
+      </div>
+    </PixelCard>
+  );
+}
+
+export default WithdrawPoolCard;
