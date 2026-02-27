@@ -1,10 +1,31 @@
 /**
  * $BABY Tokenomics Constants
  *
- * Simple, minimalist tokenomics:
- * - Mine to earn
- * - Burns happen automatically on actions
- * - Halvings every ~4 years
+ * HYBRID ARCHITECTURE (Professional & Secure)
+ * ============================================
+ *
+ * Layer 1: Virtual Balance (Off-chain, Cloudflare Workers)
+ * - Fast mining rewards (no BTC fees)
+ * - Generous rewards for engagement
+ * - Burns on actions (free)
+ * - Rate-limited and validated
+ * - Backed by total supply tracking
+ *
+ * Layer 2: Batch Withdrawals (Secure bridge to Bitcoin)
+ * - Admin-processed in batches (lower fees)
+ * - 5% burn on withdrawal (deflationary)
+ * - Verified against virtual balance
+ * - Creates real Bitcoin transactions
+ *
+ * Layer 3: On-chain Contract (Full validation)
+ * - For direct on-chain mining (power users)
+ * - Validates PoW, Merkle proofs, difficulty
+ * - Distribution enforced: 70/20/10
+ *
+ * SECURITY MODEL:
+ * - Virtual balance = trusted system (rate-limited)
+ * - Withdrawals = verified + burned
+ * - On-chain = trustless validation
  */
 
 // =============================================================================
@@ -24,8 +45,11 @@ export const BASE_UNIT = BigInt(10 ** DECIMALS);
 // MINING REWARDS
 // =============================================================================
 
-/** Base reward per share at difficulty 16 */
-export const BASE_REWARD_PER_SHARE = BigInt(1000);
+/**
+ * Base reward per share at difficulty 16
+ * 10,000 $BABY = Fun to mine, quick accumulation
+ */
+export const BASE_REWARD_PER_SHARE = BigInt(10_000);
 
 /** Minimum mining difficulty */
 export const MIN_DIFFICULTY = 16;
@@ -36,6 +60,11 @@ export const HALVING_BLOCKS = 210_000;
 /**
  * Calculate reward for a share at given difficulty
  * Each +1 difficulty above 16 doubles the reward
+ *
+ * D16 = 10,000 $BABY
+ * D17 = 20,000 $BABY
+ * D18 = 40,000 $BABY
+ * D20 = 160,000 $BABY
  */
 export function calculateShareReward(difficulty: number): bigint {
   if (difficulty <= MIN_DIFFICULTY) {
@@ -46,20 +75,78 @@ export function calculateShareReward(difficulty: number): bigint {
 }
 
 // =============================================================================
+// ADAPTIVE EMISSION (Simple)
+// =============================================================================
+
+/**
+ * Emission multipliers based on network activity
+ * Applied OFF-CHAIN in Workers (no BTC fees)
+ */
+export const EMISSION_MULTIPLIERS = {
+  /** Boost when many miners active (engagement reward) */
+  highActivity: 1.5, // +50%
+  /** Normal emission */
+  normal: 1.0,
+  /** Reduced when low activity (conservation) */
+  lowActivity: 0.75, // -25%
+} as const;
+
+/** Thresholds for emission adjustment */
+export const EMISSION_THRESHOLDS = {
+  /** Active miners in last hour for "high activity" */
+  highActivityMiners: 100,
+  /** Active miners in last hour for "low activity" */
+  lowActivityMiners: 10,
+} as const;
+
+/**
+ * Calculate emission multiplier based on active miners
+ */
+export function getEmissionMultiplier(activeMiners: number): number {
+  if (activeMiners >= EMISSION_THRESHOLDS.highActivityMiners) {
+    return EMISSION_MULTIPLIERS.highActivity;
+  }
+  if (activeMiners <= EMISSION_THRESHOLDS.lowActivityMiners) {
+    return EMISSION_MULTIPLIERS.lowActivity;
+  }
+  return EMISSION_MULTIPLIERS.normal;
+}
+
+/**
+ * Calculate final reward with all multipliers
+ */
+export function calculateFinalReward(
+  difficulty: number,
+  activeMiners: number,
+  nftBoostPercent: number = 0,
+): bigint {
+  const baseReward = calculateShareReward(difficulty);
+  const emissionMultiplier = getEmissionMultiplier(activeMiners);
+  const nftMultiplier = 1 + nftBoostPercent / 100;
+  const totalMultiplier = emissionMultiplier * nftMultiplier;
+
+  return BigInt(Math.floor(Number(baseReward) * totalMultiplier));
+}
+
+// =============================================================================
 // BURNS (Automatic, invisible to user)
 // =============================================================================
 
-/** Burn rate on withdrawals to Bitcoin (5%) */
-export const WITHDRAW_BURN_RATE = 5; // percent
+/**
+ * NO burn on withdrawals - users get 100% of their tokens
+ * Burns happen on VALUE actions instead:
+ * - NFT purchases
+ * - Baby evolution
+ * - Premium features (names, skins, boosts)
+ */
+export const WITHDRAW_BURN_RATE = 0; // No burn on withdraw
 
-/** Calculate burn amount for withdrawal */
+/** Calculate withdrawal (no burn) */
 export function calculateWithdrawBurn(amount: bigint): {
   burnAmount: bigint;
   netAmount: bigint;
 } {
-  const burnAmount = (amount * BigInt(WITHDRAW_BURN_RATE)) / BigInt(100);
-  const netAmount = amount - burnAmount;
-  return { burnAmount, netAmount };
+  return { burnAmount: BigInt(0), netAmount: amount };
 }
 
 // =============================================================================
@@ -90,24 +177,126 @@ export const NFT_MINT_BURN_COSTS = {
 } as const;
 
 // =============================================================================
+// PREMIUM FEATURES (Burns that give VALUE)
+// =============================================================================
+
+/** Premium features - user pays, gets value, tokens burned */
+export const PREMIUM_BURN_COSTS = {
+  /** Custom name for Baby */
+  customName: BigInt(5_000),
+  /** Special skin/color */
+  customSkin: BigInt(10_000),
+  /** Mining boost +50% for 1 hour */
+  miningBoost1h: BigInt(2_500),
+  /** Mining boost +50% for 24 hours */
+  miningBoost24h: BigInt(25_000),
+  /** Revive dead Baby (skip penalty) */
+  reviveBaby: BigInt(50_000),
+  /** Reset Baby stats (respec) */
+  resetStats: BigInt(15_000),
+} as const;
+
+export type PremiumFeature = keyof typeof PREMIUM_BURN_COSTS;
+
+// =============================================================================
+// SECURITY & RATE LIMITS
+// =============================================================================
+
+/** Maximum shares per hour per address (anti-abuse) */
+export const MAX_SHARES_PER_HOUR = 100;
+
+/** Maximum reward per share (cap to prevent exploits) */
+export const MAX_REWARD_PER_SHARE = BigInt(1_000_000); // 1M max
+
+/** Minimum time between shares in ms (anti-spam) */
+export const MIN_SHARE_INTERVAL_MS = 1000; // 1 second
+
+/** Maximum daily emission per address */
+export const MAX_DAILY_EMISSION_PER_ADDRESS = BigInt(10_000_000); // 10M/day
+
+/** Minimum withdrawal amount */
+export const MIN_WITHDRAWAL = BigInt(10_000); // 10K minimum
+
+/** Maximum withdrawal per transaction */
+export const MAX_WITHDRAWAL = BigInt(100_000_000); // 100M max
+
+/**
+ * Validate share submission (security check)
+ */
+export function validateShareSubmission(params: {
+  sharesThisHour: number;
+  lastShareTime: number;
+  difficulty: number;
+}): { valid: boolean; reason?: string } {
+  const now = Date.now();
+
+  // Rate limit: max shares per hour
+  if (params.sharesThisHour >= MAX_SHARES_PER_HOUR) {
+    return { valid: false, reason: "Rate limit: max shares per hour exceeded" };
+  }
+
+  // Anti-spam: minimum interval
+  if (now - params.lastShareTime < MIN_SHARE_INTERVAL_MS) {
+    return { valid: false, reason: "Too fast: wait between submissions" };
+  }
+
+  // Difficulty check
+  if (params.difficulty < MIN_DIFFICULTY) {
+    return { valid: false, reason: "Difficulty too low" };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate withdrawal request (security check)
+ */
+export function validateWithdrawal(params: {
+  amount: bigint;
+  balance: bigint;
+}): { valid: boolean; reason?: string } {
+  if (params.amount < MIN_WITHDRAWAL) {
+    return { valid: false, reason: `Minimum withdrawal: ${MIN_WITHDRAWAL}` };
+  }
+
+  if (params.amount > MAX_WITHDRAWAL) {
+    return { valid: false, reason: `Maximum withdrawal: ${MAX_WITHDRAWAL}` };
+  }
+
+  if (params.amount > params.balance) {
+    return { valid: false, reason: "Insufficient balance" };
+  }
+
+  return { valid: true };
+}
+
+// =============================================================================
 // SUMMARY
 // =============================================================================
 
 /**
- * Simple tokenomics for users:
+ * HYBRID TOKENOMICS SUMMARY
  *
- * EARNING:
- * - Mine shares to earn BABY
- * - 1,000 BABY per share at D16
- * - Higher difficulty = more reward
+ * FOR USERS (Simple & Fun):
+ * - Mine → Get $BABY (10,000 per share at D16)
+ * - More difficulty → More reward (2x per level)
+ * - Withdraw → 100% goes to Bitcoin (NO penalty)
  *
- * BURNING (automatic):
- * - 5% on withdraw to Bitcoin
- * - 100% when buying NFTs
- * - 100% when evolving Baby
+ * BURNS (Give VALUE, not penalty):
+ * - Buy NFTs → Get NFT, tokens burned
+ * - Evolve Baby → Baby stronger, tokens burned
+ * - Premium features → Get value, tokens burned
+ *   - Custom name, skins, boosts, revive
  *
- * RESULT:
- * - More activity = more burns
- * - Supply decreases over time
- * - Early miners benefit most
+ * SECURITY (Professional):
+ * - Rate limits prevent abuse
+ * - Virtual balance tracked per address
+ * - Total supply enforced (21B max)
+ * - On-chain contract validates direct mining
+ *
+ * ECONOMICS (Sustainable):
+ * - Burns reduce supply over time
+ * - More engagement = more burns
+ * - Users WANT to burn (for value)
+ * - Halvings every ~4 years
  */

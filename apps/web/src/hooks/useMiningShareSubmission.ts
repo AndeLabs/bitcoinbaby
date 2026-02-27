@@ -14,7 +14,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useGlobalMining } from "@bitcoinbaby/core";
+import { useGlobalMining, calculateShareReward } from "@bitcoinbaby/core";
 import { useWallet } from "./useWallet";
 import { useVirtualBalance } from "./useVirtualBalance";
 import { useMiningSubmitter } from "./useMiningSubmitter";
@@ -81,22 +81,8 @@ export interface UseMiningShareSubmissionReturn {
 const MAX_NOTIFICATIONS = 10;
 const SHARE_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
-/**
- * Calculate reward for difficulty
- * Base: 1000 tokens at difficulty 16
- * Each +1 difficulty doubles reward
- */
-function calculateReward(difficulty: number): bigint {
-  const baseDifficulty = 16;
-  const baseReward = BigInt(1000);
-
-  if (difficulty <= baseDifficulty) {
-    return baseReward;
-  }
-
-  const extraDifficulty = BigInt(difficulty - baseDifficulty);
-  return baseReward * BigInt(2) ** extraDifficulty;
-}
+// Reward calculation now uses centralized tokenomics constants
+// Base: 10,000 $BABY at D16, doubles each difficulty level
 
 // =============================================================================
 // HOOK
@@ -353,7 +339,7 @@ export function useMiningShareSubmission(
       // Skip if already processed
       if (processedSharesRef.current.has(shareHash)) continue;
 
-      const reward = calculateReward(mining.difficulty);
+      const reward = calculateShareReward(mining.difficulty);
 
       pendingQueueRef.current.push({
         hash: shareHash,
