@@ -327,12 +327,21 @@ function validateBaby(baby: GameBaby): GameBaby {
       ? baby.lastMined
       : createdAt;
 
+  // Ensure miningSharesBaseline exists (migration for old babies)
+  // Default to 0 for existing babies - they've already earned their XP legitimately
+  const miningSharesBaseline =
+    typeof baby.miningSharesBaseline === "number" &&
+    baby.miningSharesBaseline >= 0
+      ? baby.miningSharesBaseline
+      : 0;
+
   return {
     ...baby,
     progression: validatedProgression,
     createdAt,
     lastUpdated,
     lastMined,
+    miningSharesBaseline,
     // Ensure arrays exist
     evolutionHistory: Array.isArray(baby.evolutionHistory)
       ? baby.evolutionHistory

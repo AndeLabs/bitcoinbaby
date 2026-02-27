@@ -209,11 +209,19 @@ export function BabySection() {
 
     // If baby changed (new baby or different baby), reset refs to current mining state
     if (currentBabyId !== babyIdRef.current) {
-      lastProcessedSharesRef.current = mining.shares;
+      // Use the baby's miningSharesBaseline as a floor to prevent XP from pre-existing shares
+      // This protects against race conditions where mining state loads after baby state
+      const baseline = game.baby?.miningSharesBaseline ?? 0;
+      lastProcessedSharesRef.current = Math.max(baseline, mining.shares);
       lastProcessedHashesRef.current = mining.totalHashes;
       babyIdRef.current = currentBabyId;
     }
-  }, [game.baby?.id, mining.shares, mining.totalHashes]);
+  }, [
+    game.baby?.id,
+    game.baby?.miningSharesBaseline,
+    mining.shares,
+    mining.totalHashes,
+  ]);
 
   // Submission notification state
   const [submissionNotification, setSubmissionNotification] = useState<{
