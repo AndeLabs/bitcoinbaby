@@ -17,6 +17,7 @@ import {
   useBalance,
   useTokenBalance,
   formatTokenBalance,
+  useVirtualBalance,
 } from "@/hooks";
 import {
   NetworkSwitcher,
@@ -84,7 +85,8 @@ function UnlockModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length >= 8) {
+    // Use MIN_PASSWORD_LENGTH (12) for consistent security
+    if (password.length >= 12) {
       onSubmit(password);
     }
   };
@@ -166,6 +168,16 @@ export function WalletSection() {
   });
 
   const { balance: babyBalance } = useTokenBalance({
+    address: wallet?.address,
+  });
+
+  // Virtual balance from Workers API
+  const {
+    virtualBalance,
+    availableToWithdraw,
+    totalMined,
+    isLoading: virtualBalanceLoading,
+  } = useVirtualBalance({
     address: wallet?.address,
   });
 
@@ -363,14 +375,26 @@ export function WalletSection() {
                   )}
                 </div>
 
-                {/* $BABY Tokens */}
-                <div className="bg-pixel-bg-dark p-4 border-2 border-pixel-border">
-                  <label className="font-pixel text-[8px] text-pixel-text-muted block mb-1">
-                    $BABY TOKENS
-                  </label>
-                  <span className="font-pixel text-xl text-pixel-primary">
-                    {formatTokenBalance(babyBalance)}
+                {/* $BABY Virtual Balance (Primary) */}
+                <div className="bg-pixel-bg-dark p-4 border-2 border-pixel-success">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-pixel text-[8px] text-pixel-text-muted">
+                      $BABY BALANCE
+                    </label>
+                    {virtualBalanceLoading && (
+                      <span className="font-pixel text-[6px] text-pixel-text-muted animate-pulse">
+                        ...
+                      </span>
+                    )}
+                  </div>
+                  <span className="font-pixel text-xl text-pixel-success">
+                    {virtualBalanceLoading
+                      ? "---"
+                      : virtualBalance.toLocaleString()}
                   </span>
+                  <p className="font-pixel text-[6px] text-pixel-text-muted mt-1">
+                    Total mined: {totalMined.toLocaleString()}
+                  </p>
                 </div>
 
                 {/* BABTC Token Balance */}
@@ -445,6 +469,12 @@ export function WalletSection() {
                   className="flex-1 py-3 font-pixel text-[10px] text-center bg-pixel-primary text-black border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
                 >
                   SEND
+                </a>
+                <a
+                  href="/wallet/withdraw"
+                  className="flex-1 py-3 font-pixel text-[10px] text-center bg-pixel-success text-black border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
+                >
+                  WITHDRAW
                 </a>
                 <a
                   href="/wallet/history"

@@ -13,7 +13,11 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { useMiningWithNFTs, useMiningSubmitter } from "@/hooks";
+import {
+  useMiningWithNFTs,
+  useMiningSubmitter,
+  useVirtualBalance,
+} from "@/hooks";
 import {
   useWalletStore,
   useNFTStore,
@@ -30,7 +34,16 @@ export function MiningSection() {
     null,
   );
 
-  // Mining submitter for blockchain submission
+  // Virtual balance from Workers API (primary balance tracking)
+  const {
+    virtualBalance,
+    totalMined,
+    availableToWithdraw,
+    isLoading: virtualBalanceLoading,
+    creditMining,
+  } = useVirtualBalance({ address: wallet?.address });
+
+  // Mining submitter for blockchain submission (optional, requires BTC for fees)
   const {
     canMine,
     balance,
@@ -66,35 +79,79 @@ export function MiningSection() {
     autoStart: false,
   });
 
-  // Auto-submit shares to blockchain when found
+  // Auto-submit shares when found
   const handleShareFound = useCallback(
     async (share: MiningResult) => {
-      if (!canMine || isSubmitting) return;
       if (lastSubmittedShare === share.hash) return; // Prevent double submission
 
       setLastSubmittedShare(share.hash);
 
+      // Calculate reward for this share
+      const reward = calculateReward(share.difficulty);
+
+      // Always credit to virtual balance (free, no BTC needed)
       try {
         console.log(
-          "[Mining] Submitting share to blockchain:",
+          "[Mining] Crediting share to virtual balance:",
           share.hash.slice(0, 16),
         );
-        const result = await submitProof({
+        const creditResult = await creditMining({
           hash: share.hash,
           nonce: share.nonce,
           difficulty: share.difficulty,
-          timestamp: share.timestamp,
           blockData: share.blockData || "",
+          reward,
         });
 
-        if (result.success && result.txid) {
-          console.log("[Mining] Share submitted! TX:", result.txid);
+        if (creditResult.success) {
+          console.log(
+            "[Mining] Credited to virtual balance:",
+            creditResult.credited,
+          );
+        } else {
+          console.warn(
+            "[Mining] Virtual balance credit failed:",
+            creditResult.error,
+          );
         }
       } catch (err) {
-        console.error("[Mining] Share submission failed:", err);
+        console.error("[Mining] Virtual balance credit error:", err);
+      }
+
+      // Optionally submit to blockchain (requires BTC for fees)
+      if (canMine && !isSubmitting) {
+        try {
+          console.log(
+            "[Mining] Submitting share to blockchain:",
+            share.hash.slice(0, 16),
+          );
+          const result = await submitProof({
+            hash: share.hash,
+            nonce: share.nonce,
+            difficulty: share.difficulty,
+            timestamp: share.timestamp,
+            blockData: share.blockData || "",
+          });
+
+          if (result.success && result.txid) {
+            console.log(
+              "[Mining] Share submitted to blockchain! TX:",
+              result.txid,
+            );
+          }
+        } catch (err) {
+          console.error("[Mining] Blockchain submission failed:", err);
+        }
       }
     },
-    [canMine, isSubmitting, lastSubmittedShare, submitProof],
+    [
+      canMine,
+      isSubmitting,
+      lastSubmittedShare,
+      submitProof,
+      creditMining,
+      calculateReward,
+    ],
   );
 
   // Submit share when found
@@ -162,8 +219,34 @@ export function MiningSection() {
 
         {/* Rewards Panel */}
         {wallet && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            {/* Balance */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            {/* Virtual Balance (Primary) */}
+            <div className="bg-pixel-bg-medium border-4 border-pixel-success p-4">
+              <div className="font-pixel text-[7px] text-pixel-text-muted uppercase mb-2">
+                $BABY Balance
+              </div>
+              <div className="font-pixel text-lg text-pixel-success">
+                {virtualBalance.toLocaleString()}
+              </div>
+              <div className="font-pixel text-[8px] text-pixel-text-muted">
+                Available to withdraw
+              </div>
+            </div>
+
+            {/* Total Mined */}
+            <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4">
+              <div className="font-pixel text-[7px] text-pixel-text-muted uppercase mb-2">
+                Total Mined
+              </div>
+              <div className="font-pixel text-lg text-pixel-primary">
+                {totalMined.toLocaleString()}
+              </div>
+              <div className="font-pixel text-[8px] text-pixel-text-muted">
+                All-time earnings
+              </div>
+            </div>
+
+            {/* tBTC Balance */}
             <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4">
               <div className="font-pixel text-[7px] text-pixel-text-muted uppercase mb-2">
                 tBTC Balance
@@ -176,31 +259,16 @@ export function MiningSection() {
               </div>
             </div>
 
-            {/* Pending Rewards */}
+            {/* On-Chain Rewards */}
             <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4">
               <div className="font-pixel text-[7px] text-pixel-text-muted uppercase mb-2">
-                Pending $BABY
+                On-Chain $BABY
               </div>
               <div className="font-pixel text-lg text-pixel-warning">
-                {pendingRewards.toString()}
-              </div>
-              {isSubmitting && (
-                <div className="font-pixel text-[8px] text-pixel-secondary animate-pulse">
-                  Submitting...
-                </div>
-              )}
-            </div>
-
-            {/* Confirmed Rewards */}
-            <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4">
-              <div className="font-pixel text-[7px] text-pixel-text-muted uppercase mb-2">
-                Confirmed $BABY
-              </div>
-              <div className="font-pixel text-lg text-pixel-success">
                 {confirmedRewards.toString()}
               </div>
               <div className="font-pixel text-[8px] text-pixel-text-muted">
-                Mined tokens
+                {isSubmitting ? "Submitting..." : "Withdrawn to Bitcoin"}
               </div>
             </div>
           </div>
