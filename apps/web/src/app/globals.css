@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Scan packages/ui for Tailwind classes */
+@source "../../../../packages/ui/src/**/*.{ts,tsx}";
+
 /**
  * BitcoinBaby - Pixel Art 8-bit Theme
  * Estilo visual inspirado en NES/SNES
