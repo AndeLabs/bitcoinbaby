@@ -1,14 +1,15 @@
 "use client";
 
 /**
- * BabySection - Main baby display and interaction
+ * BabySection - Baby Care & Onboarding
  *
- * Contains the core game loop:
- * - Baby sprite with status
- * - Stats HUD (energy, happiness, hunger, health)
- * - Action buttons (feed, play, sleep, mine)
- * - Mining stats and controls
- * - Achievements
+ * Focused on:
+ * - Baby sprite and care actions
+ * - Game progression (XP, evolution)
+ * - Tutorial/onboarding for new users
+ * - Simple mining status badge
+ *
+ * For full mining controls, see MiningSection.
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -16,12 +17,8 @@ import {
   useGlobalMining,
   useGameLoop,
   useAchievements,
-  useNetworkStore,
 } from "@bitcoinbaby/core";
 import { useBabyState } from "@/hooks/useBabyState";
-import { useMiningSubmitter } from "@/hooks/useMiningSubmitter";
-import { useWallet } from "@/hooks/useWallet";
-import { useTokenBalance, formatTokenBalance } from "@/hooks/useTokenBalance";
 import {
   LevelSprite,
   GameHUD,
@@ -29,112 +26,157 @@ import {
   AchievementPopup,
   EvolutionModal,
   DeathModal,
-  MiningRewardPanel,
+  MiningStatusBadge,
   type GameAction,
 } from "@bitcoinbaby/ui";
 import { Button, Input, Card, CardHeader, CardContent } from "@bitcoinbaby/ui";
-import type { GameEvent, MiningResult } from "@bitcoinbaby/core";
+import type { GameEvent } from "@bitcoinbaby/core";
+import type { TabType } from "@/components/app/TabNavigation";
 
-// Mining Stats Component
-function MiningStats({
-  hashrate,
-  effectiveHashrate,
-  nftBoost,
-  isActive,
-}: {
-  hashrate: number;
-  effectiveHashrate?: number;
-  nftBoost?: number;
-  isActive: boolean;
-}) {
-  const hasBoost = nftBoost && nftBoost > 0;
-  const displayRate =
-    hasBoost && effectiveHashrate ? effectiveHashrate : hashrate;
+// =============================================================================
+// PROPS
+// =============================================================================
 
-  return (
-    <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4 shadow-[8px_8px_0_0_#000]">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <div
-            className={`w-4 h-4 ${isActive ? "bg-pixel-success animate-pulse" : "bg-pixel-border"}`}
-          />
-          <span className="font-pixel text-xs text-pixel-text-muted">
-            {isActive ? "MINING" : "IDLE"}
-          </span>
-        </div>
-        {hasBoost && (
-          <span className="font-pixel text-[8px] text-[#fbbf24] bg-[#78350f] px-2 py-1 border-2 border-black">
-            +{nftBoost}% NFT BOOST
-          </span>
-        )}
-      </div>
-      <div className="font-pixel-mono text-4xl text-pixel-success">
-        {displayRate.toLocaleString()}{" "}
-        <span className="text-lg text-pixel-text-muted">H/s</span>
-      </div>
-      {hasBoost && (
-        <div className="mt-2 font-pixel text-[8px] text-pixel-text-muted">
-          Base: {hashrate.toLocaleString()} H/s
-        </div>
-      )}
-    </div>
-  );
+interface BabySectionProps {
+  /** Navigate to another tab */
+  setActiveTab: (tab: TabType) => void;
 }
 
-// Baby Creation Form
+// =============================================================================
+// BABY CREATION FORM
+// =============================================================================
+
 function CreateBabyForm({
   onCreate,
   currentMiningShares,
+  onGoToMining,
 }: {
   onCreate: (name: string, miningSharesBaseline?: number) => void;
   currentMiningShares: number;
+  onGoToMining: () => void;
 }) {
   const [name, setName] = useState("");
+  const [showTutorial, setShowTutorial] = useState(true);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim()) {
-      // Pass current mining shares as baseline to prevent instant-legend bug
-      // This ensures XP is only awarded for NEW shares after baby creation
       onCreate(name.trim(), currentMiningShares);
     }
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[400px]">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <h2 className="font-pixel text-lg text-pixel-primary text-center">
-            CREAR TU BABY
-          </h2>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block font-pixel text-xs text-pixel-text-muted mb-2">
-                NOMBRE
-              </label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Mi BitcoinBaby"
-                maxLength={20}
-              />
+    <div className="flex flex-col items-center justify-center min-h-[500px] p-4">
+      {showTutorial ? (
+        // Tutorial/Welcome Screen
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <h2 className="font-pixel text-lg text-pixel-primary text-center">
+              WELCOME TO BITCOINBABY!
+            </h2>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="text-center">
+              <div className="text-6xl mb-4">👶</div>
+              <p className="font-pixel-body text-sm text-pixel-text">
+                Raise your own Baby and earn $BABY tokens!
+              </p>
             </div>
-            <Button type="submit" className="w-full" disabled={!name.trim()}>
-              CREAR BABY
+
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 p-3 bg-pixel-bg-light border-2 border-pixel-border">
+                <span className="text-2xl">⛏️</span>
+                <div>
+                  <p className="font-pixel text-[10px] text-pixel-primary">
+                    MINE
+                  </p>
+                  <p className="font-pixel-body text-xs text-pixel-text-muted">
+                    Earn XP and $BABY tokens by mining
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 bg-pixel-bg-light border-2 border-pixel-border">
+                <span className="text-2xl">🍼</span>
+                <div>
+                  <p className="font-pixel text-[10px] text-pixel-primary">
+                    CARE
+                  </p>
+                  <p className="font-pixel-body text-xs text-pixel-text-muted">
+                    Feed, play, and keep your baby happy
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 bg-pixel-bg-light border-2 border-pixel-border">
+                <span className="text-2xl">⭐</span>
+                <div>
+                  <p className="font-pixel text-[10px] text-pixel-primary">
+                    EVOLVE
+                  </p>
+                  <p className="font-pixel-body text-xs text-pixel-text-muted">
+                    Level up and unlock new abilities
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <Button onClick={() => setShowTutorial(false)} className="w-full">
+              CREATE MY BABY
             </Button>
-          </form>
-          <p className="font-pixel text-[10px] text-pixel-text-muted text-center mt-4">
-            Tu Baby minara $BABY tokens contigo!
-          </p>
-        </CardContent>
-      </Card>
+
+            <button
+              onClick={onGoToMining}
+              className="w-full font-pixel text-[10px] text-pixel-secondary hover:text-pixel-secondary-light"
+            >
+              Skip to Mining →
+            </button>
+          </CardContent>
+        </Card>
+      ) : (
+        // Name Input Form
+        <Card className="w-full max-w-sm">
+          <CardHeader>
+            <h2 className="font-pixel text-lg text-pixel-primary text-center">
+              NAME YOUR BABY
+            </h2>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block font-pixel text-xs text-pixel-text-muted mb-2">
+                  NAME
+                </label>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="My BitcoinBaby"
+                  maxLength={20}
+                  autoFocus
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={!name.trim()}>
+                CREATE BABY
+              </Button>
+            </form>
+            <button
+              onClick={() => setShowTutorial(true)}
+              className="w-full mt-4 font-pixel text-[10px] text-pixel-text-muted hover:text-pixel-text"
+            >
+              ← Back to tutorial
+            </button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
 
-export function BabySection() {
+// =============================================================================
+// MAIN COMPONENT
+// =============================================================================
+
+export function BabySection({ setActiveTab }: BabySectionProps) {
   // Game state
   const [evolutionData, setEvolutionData] = useState<{
     isOpen: boolean;
@@ -174,43 +216,22 @@ export function BabySection() {
   });
 
   // Mining hook - uses global singleton (persistent across navigation)
+  // CRITICAL: Keep this for XP tracking even though we don't show full mining UI
   const mining = useGlobalMining({
     difficulty: 16,
     minerAddress: "baby-miner-001",
   });
 
-  // Wallet hook
-  const wallet = useWallet();
-
-  // Network store
-  const { network, config } = useNetworkStore();
-
-  // Token balance hook
-  const tokenBalance = useTokenBalance({ address: wallet.wallet?.address });
-
-  // Mining submitter hook - connects mining to blockchain
-  const submitter = useMiningSubmitter({
-    tokenTicker: "BABY",
-    refreshInterval: 30000,
-  });
-
-  // Track last submitted share to avoid duplicates
-  const lastSubmittedRef = useRef<string | null>(null);
-
   // Track last processed shares/hashes to only award XP for NEW mining progress
-  // This prevents the instant-legend bug when creating a new baby with old mining stats
   const lastProcessedSharesRef = useRef<number>(mining.shares);
   const lastProcessedHashesRef = useRef<number>(mining.totalHashes);
   const babyIdRef = useRef<string | null>(null);
 
-  // Reset mining progress refs when baby changes (new baby created or loaded)
+  // Reset mining progress refs when baby changes
   useEffect(() => {
     const currentBabyId = game.baby?.id ?? null;
 
-    // If baby changed (new baby or different baby), reset refs to current mining state
     if (currentBabyId !== babyIdRef.current) {
-      // Use the baby's miningSharesBaseline as a floor to prevent XP from pre-existing shares
-      // This protects against race conditions where mining state loads after baby state
       const baseline = game.baby?.miningSharesBaseline ?? 0;
       lastProcessedSharesRef.current = Math.max(baseline, mining.shares);
       lastProcessedHashesRef.current = mining.totalHashes;
@@ -223,146 +244,31 @@ export function BabySection() {
     mining.totalHashes,
   ]);
 
-  // Submission notification state
-  const [submissionNotification, setSubmissionNotification] = useState<{
-    type: "success" | "error" | "pending";
-    message: string;
-    txid?: string;
-    reward?: bigint;
-  } | null>(null);
-
-  // Auto-dismiss submission notification
-  useEffect(() => {
-    if (submissionNotification) {
-      const timer = setTimeout(() => {
-        setSubmissionNotification(null);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [submissionNotification]);
-
-  // Submit mining proofs to blockchain when shares are found
-  useEffect(() => {
-    const lastShare = mining.lastShare as MiningResult | null;
-
-    if (!lastShare || wallet.isLocked || !submitter.isReady) {
-      return;
-    }
-
-    const shareKey = `${lastShare.hash}-${lastShare.nonce}`;
-    if (lastSubmittedRef.current === shareKey) {
-      return;
-    }
-
-    if (!submitter.canMine) {
-      console.warn("[Mining] Insufficient balance for mining fees");
-      setTimeout(() => {
-        setSubmissionNotification({
-          type: "error",
-          message: "Fondos insuficientes para fees de mineria",
-        });
-      }, 0);
-      return;
-    }
-
-    const submitToBlockchain = async () => {
-      try {
-        lastSubmittedRef.current = shareKey;
-        const reward = submitter.calculateReward(lastShare.difficulty);
-
-        setSubmissionNotification({
-          type: "pending",
-          message: "Enviando prueba al blockchain...",
-          reward,
-        });
-
-        const result = await submitter.submitProof({
-          hash: lastShare.hash,
-          nonce: lastShare.nonce,
-          difficulty: lastShare.difficulty,
-          blockData: lastShare.blockData || "",
-          timestamp: lastShare.timestamp,
-        });
-
-        if (result.success && result.txid) {
-          console.log("[Mining] Proof submitted and broadcast:", result.txid);
-          tokenBalance.addPendingTokens(reward);
-
-          setSubmissionNotification({
-            type: "success",
-            message: "Transaccion enviada!",
-            txid: result.txid,
-            reward,
-          });
-        } else if (result.success && !result.txid) {
-          console.log("[Mining] PSBT created, awaiting signature");
-          setSubmissionNotification({
-            type: "pending",
-            message: "PSBT creado, desbloquea wallet para firmar",
-            reward,
-          });
-        } else {
-          console.error("[Mining] Submission failed:", result.error);
-          lastSubmittedRef.current = null;
-          setSubmissionNotification({
-            type: "error",
-            message: result.error || "Error al enviar prueba",
-          });
-        }
-      } catch (error) {
-        console.error("[Mining] Submission error:", error);
-        lastSubmittedRef.current = null;
-        setSubmissionNotification({
-          type: "error",
-          message: error instanceof Error ? error.message : "Error desconocido",
-        });
-      }
-    };
-
-    submitToBlockchain();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    mining.lastShare,
-    wallet.isLocked,
-    submitter.isReady,
-    submitter.canMine,
-    submitter.submitProof,
-    submitter.calculateReward,
-    tokenBalance.addPendingTokens,
-  ]);
-
   // Sync mining state with game
   useEffect(() => {
     if (game.baby && !game.isDead) {
       game.setMining(mining.isRunning);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mining.isRunning, game.baby, game.isDead, game.setMining]);
 
   // Record mining progress - ONLY for NEW shares/hashes
-  // This prevents the instant-legend bug when creating a new baby with old mining stats
   useEffect(() => {
     if (!game.baby || game.isDead) {
       return;
     }
 
-    // Calculate the delta (new progress since last update)
     const newShares = mining.shares - lastProcessedSharesRef.current;
     const newHashes = mining.totalHashes - lastProcessedHashesRef.current;
 
-    // Only record if there's new progress
     if (newShares > 0 || newHashes > 0) {
-      // Pass only the NEW shares and hashes for XP calculation
       game.recordMiningProgress(
         newHashes > 0 ? newHashes : 0,
         newShares > 0 ? newShares : 0,
       );
 
-      // Update refs to current values
       lastProcessedSharesRef.current = mining.shares;
       lastProcessedHashesRef.current = mining.totalHashes;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     mining.shares,
     mining.totalHashes,
@@ -374,225 +280,181 @@ export function BabySection() {
   // Handle actions
   const handleAction = (action: GameAction) => {
     if (action === "mine") {
-      mining.toggle();
+      // Navigate to mining tab for full controls
+      setActiveTab("mining");
     } else {
       game.performAction(action);
     }
   };
+
+  // Navigation helpers
+  const goToMining = useCallback(() => setActiveTab("mining"), [setActiveTab]);
 
   // Loading state
   if (game.isLoading) {
     return (
       <div className="min-h-[400px] flex items-center justify-center">
         <div className="text-center">
-          <div className="text-4xl animate-bounce mb-4">⛏️</div>
-          <p className="font-pixel text-pixel-text-muted">Cargando...</p>
+          <div className="text-4xl animate-bounce mb-4">👶</div>
+          <p className="font-pixel text-pixel-text-muted">Loading...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-4 md:p-8">
+    <div className="p-4 md:p-8 bg-pixel-bg-dark">
       {/* Main Content */}
       {!game.baby ? (
         <div className="max-w-4xl mx-auto">
           <CreateBabyForm
             onCreate={game.createBaby}
             currentMiningShares={mining.shares}
+            onGoToMining={goToMining}
           />
         </div>
       ) : (
-        <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
-          {/* Left: Baby Display */}
-          <div className="flex flex-col items-center">
-            {/* Baby Card */}
-            <div className="bg-pixel-bg-medium border-4 border-pixel-border p-8 shadow-[8px_8px_0_0_#000] w-full max-w-sm">
-              {/* Name & Stage */}
-              <div className="flex justify-between items-center mb-4">
-                <span className="font-pixel text-sm text-pixel-primary">
-                  {game.baby.name}
-                </span>
-                <span className="font-pixel text-[10px] text-pixel-text-muted">
-                  {babyState?.visualState.toUpperCase() || "IDLE"}
-                </span>
-              </div>
-
-              {/* Baby Sprite */}
-              <div className="flex justify-center mb-6">
-                <LevelSprite
-                  level={babyState?.level || 1}
-                  state={babyState?.visualState || "idle"}
-                  size={192}
-                />
-              </div>
-
-              {/* Stats HUD */}
-              {babyState && (
-                <GameHUD
-                  stats={{
-                    energy: babyState.energy,
-                    happiness: babyState.happiness,
-                    hunger: babyState.hunger,
-                    health: babyState.health,
-                  }}
-                  progression={{
-                    level: babyState.level,
-                    xp: babyState.xp,
-                    xpToNextLevel: babyState.xpToNextLevel,
-                    stageName: babyState.stageName,
-                  }}
-                  isMining={babyState.isMining}
-                  miningBonus={babyState.miningBonus}
-                  daysUntilDecay={game.daysUntilDecay ?? undefined}
-                />
-              )}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="mt-4 w-full max-w-sm">
-              <ActionButtons
-                onAction={handleAction}
-                isSleeping={babyState?.isSleeping}
-                isMining={mining.isRunning}
-                disabled={game.isDead}
-                energy={babyState?.energy}
-              />
-            </div>
+        <div className="max-w-4xl mx-auto">
+          {/* Section Header */}
+          <div className="mb-6">
+            <h2 className="font-pixel text-xl text-pixel-primary">MY BABY</h2>
+            <p className="font-pixel-body text-sm text-pixel-text-muted mt-1">
+              Take care of your BitcoinBaby
+            </p>
           </div>
 
-          {/* Right: Mining Panel */}
-          <div className="space-y-6">
-            {/* Mining Stats */}
-            <MiningStats
-              hashrate={mining.hashrate}
-              effectiveHashrate={mining.effectiveHashrate}
-              nftBoost={mining.nftBoost}
-              isActive={mining.isRunning}
-            />
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* Left: Baby Display */}
+            <div className="flex flex-col items-center">
+              {/* Baby Card */}
+              <div className="bg-pixel-bg-medium border-4 border-pixel-border p-8 shadow-[8px_8px_0_0_#000] w-full max-w-sm">
+                {/* Name & Stage */}
+                <div className="flex justify-between items-center mb-4">
+                  <span className="font-pixel text-sm text-pixel-primary">
+                    {game.baby.name}
+                  </span>
+                  <span className="font-pixel text-[10px] text-pixel-text-muted">
+                    {babyState?.visualState.toUpperCase() || "IDLE"}
+                  </span>
+                </div>
 
-            {/* Mining Control */}
-            <button
-              onClick={() => mining.toggle()}
-              disabled={game.isDead || babyState?.isSleeping}
-              className={`w-full py-4 font-pixel text-sm border-4 border-black shadow-[4px_4px_0_0_#000] transition-all
-                ${
-                  mining.isRunning
-                    ? "bg-pixel-error text-white hover:bg-pixel-error-dark"
-                    : "bg-pixel-success text-pixel-text-dark hover:bg-pixel-success-dark"
-                }
-                active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_0_#000]
-                disabled:opacity-50 disabled:cursor-not-allowed
-              `}
-            >
-              {mining.isRunning ? "STOP MINING" : "START MINING"}
-            </button>
+                {/* Baby Sprite */}
+                <div className="flex justify-center mb-6">
+                  <LevelSprite
+                    level={babyState?.level || 1}
+                    state={babyState?.visualState || "idle"}
+                    size={192}
+                  />
+                </div>
 
-            {/* Mining Info Card */}
-            <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4 shadow-[8px_8px_0_0_#000]">
-              <h3 className="font-pixel text-xs text-pixel-primary mb-4">
-                MINING INFO
-              </h3>
-
-              <div className="space-y-3 font-pixel-body text-sm">
-                <div className="flex justify-between">
-                  <span className="text-pixel-text-muted">Worker</span>
-                  <span className="text-pixel-text font-pixel-mono">
-                    {mining.minerType?.toUpperCase() || "CPU"}-1
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-pixel-text-muted">Difficulty</span>
-                  <span className="text-pixel-text font-pixel-mono">
-                    {mining.difficulty}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-pixel-text-muted">Total Hashes</span>
-                  <span className="text-pixel-text font-pixel-mono">
-                    {mining.totalHashes.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-pixel-text-muted">Shares</span>
-                  <span className="text-pixel-success font-pixel-mono">
-                    {mining.shares}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-pixel-text-muted">$BABY Balance</span>
-                  <span className="text-pixel-primary font-pixel-mono">
-                    {formatTokenBalance(tokenBalance.balance)}
-                  </span>
-                </div>
-                {babyState && babyState.miningBonus > 1 && (
-                  <div className="flex justify-between">
-                    <span className="text-pixel-text-muted">Mining Bonus</span>
-                    <span className="text-pixel-success font-pixel-mono">
-                      {babyState.miningBonusDisplay}
-                    </span>
-                  </div>
+                {/* Stats HUD */}
+                {babyState && (
+                  <GameHUD
+                    stats={{
+                      energy: babyState.energy,
+                      happiness: babyState.happiness,
+                      hunger: babyState.hunger,
+                      health: babyState.health,
+                    }}
+                    progression={{
+                      level: babyState.level,
+                      xp: babyState.xp,
+                      xpToNextLevel: babyState.xpToNextLevel,
+                      stageName: babyState.stageName,
+                    }}
+                    isMining={babyState.isMining}
+                    miningBonus={babyState.miningBonus}
+                    daysUntilDecay={game.daysUntilDecay ?? undefined}
+                  />
                 )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-4 w-full max-w-sm">
+                <ActionButtons
+                  onAction={handleAction}
+                  isSleeping={babyState?.isSleeping}
+                  isMining={mining.isRunning}
+                  disabled={game.isDead}
+                  energy={babyState?.energy}
+                />
               </div>
             </div>
 
-            {/* Blockchain Submissions Panel */}
-            {wallet.wallet && (
-              <MiningRewardPanel
-                canMine={submitter.canMine}
-                btcBalance={submitter.balance}
-                pendingRewards={submitter.pendingRewards}
-                confirmedRewards={submitter.confirmedRewards}
-                submissions={submitter.pendingSubmissions.map((sub) => ({
-                  id: sub.id,
-                  hash: sub.hash,
-                  reward: submitter.calculateReward(sub.difficulty),
-                  status: sub.status as
-                    | "pending"
-                    | "submitted"
-                    | "confirmed"
-                    | "failed"
-                    | "expired",
-                  txid: sub.txid,
-                }))}
-                feeEstimates={submitter.feeEstimates ?? undefined}
-                isLoading={submitter.isLoading}
-                isSubmitting={submitter.isSubmitting}
-                error={submitter.error}
-                network={network}
-                getTxUrl={(txid) => `${config.explorerUrl}/tx/${txid}`}
+            {/* Right: Mining Status & Achievements */}
+            <div className="space-y-6">
+              {/* Mining Status Badge - Click to go to Mining tab */}
+              <MiningStatusBadge
+                isRunning={mining.isRunning}
+                hashrate={mining.effectiveHashrate}
+                shares={mining.shares}
+                nftBoost={mining.nftBoost > 0 ? 1 + mining.nftBoost / 100 : 1}
+                onClick={goToMining}
               />
-            )}
 
-            {/* Wallet Required Warning */}
-            {!wallet.wallet && (
-              <div className="bg-pixel-bg-medium border-4 border-pixel-warning p-4">
-                <p className="font-pixel text-[10px] text-pixel-warning text-center">
-                  Conecta tu wallet para recibir $BABY en Bitcoin
-                </p>
-                <p className="mt-3 text-center font-pixel text-[10px] text-pixel-primary">
-                  Ve al tab Wallet para conectar
-                </p>
-              </div>
-            )}
-
-            {/* Achievement Progress */}
-            <div className="bg-pixel-bg-light border-4 border-pixel-border p-4">
-              <h3 className="font-pixel text-xs text-pixel-primary mb-2">
-                LOGROS
-              </h3>
-              <div className="flex justify-between items-center">
-                <span className="font-pixel text-[10px] text-pixel-text-muted">
-                  {achievements.unlockedAchievements.length}/
-                  {achievements.totalAchievements}
-                </span>
-                <div className="flex gap-1">
-                  {achievements.unlockedAchievements.slice(-5).map((a) => (
-                    <span key={a.id} className="text-lg" title={a.name}>
-                      {a.icon}
-                    </span>
-                  ))}
+              {/* Quick Tips */}
+              <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4 shadow-[8px_8px_0_0_#000]">
+                <h3 className="font-pixel text-xs text-pixel-primary mb-4">
+                  TIPS
+                </h3>
+                <div className="space-y-3 font-pixel-body text-sm text-pixel-text-muted">
+                  <div className="flex items-start gap-2">
+                    <span>💡</span>
+                    <span>Keep your baby fed and happy to earn bonus XP</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span>⛏️</span>
+                    <span>Mining earns XP and $BABY tokens</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span>🌙</span>
+                    <span>Mine daily to prevent level decay</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span>🎨</span>
+                    <span>Get NFTs in the NFTs tab for mining boosts!</span>
+                  </div>
                 </div>
+              </div>
+
+              {/* Achievement Progress */}
+              <div className="bg-pixel-bg-light border-4 border-pixel-border p-4">
+                <h3 className="font-pixel text-xs text-pixel-primary mb-2">
+                  ACHIEVEMENTS
+                </h3>
+                <div className="flex justify-between items-center">
+                  <span className="font-pixel text-[10px] text-pixel-text-muted">
+                    {achievements.unlockedAchievements.length}/
+                    {achievements.totalAchievements}
+                  </span>
+                  <div className="flex gap-1">
+                    {achievements.unlockedAchievements.slice(-5).map((a) => (
+                      <span key={a.id} className="text-lg" title={a.name}>
+                        {a.icon}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setActiveTab("mining")}
+                  className="p-3 bg-pixel-success border-4 border-black shadow-[4px_4px_0_0_#000] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_0_#000]"
+                >
+                  <span className="font-pixel text-[10px] text-pixel-text-dark">
+                    MINING
+                  </span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("nfts")}
+                  className="p-3 bg-pixel-secondary border-4 border-black shadow-[4px_4px_0_0_#000] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_0_#000]"
+                >
+                  <span className="font-pixel text-[10px] text-pixel-text-dark">
+                    NFTs
+                  </span>
+                </button>
               </div>
             </div>
           </div>
@@ -611,62 +473,6 @@ export function BabySection() {
           }}
           onDismiss={achievements.dismissNotification}
         />
-      )}
-
-      {/* Submission Notification Toast */}
-      {submissionNotification && (
-        <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-right-5">
-          <div
-            className={`
-              p-4 border-4 border-black shadow-[4px_4px_0_0_#000]
-              ${
-                submissionNotification.type === "success"
-                  ? "bg-pixel-success"
-                  : submissionNotification.type === "error"
-                    ? "bg-pixel-error"
-                    : "bg-pixel-secondary"
-              }
-            `}
-          >
-            <div className="flex items-center gap-3">
-              <div className="text-2xl">
-                {submissionNotification.type === "success"
-                  ? "+"
-                  : submissionNotification.type === "error"
-                    ? "!"
-                    : "..."}
-              </div>
-
-              <div>
-                <p className="font-pixel text-[10px] text-pixel-text-dark">
-                  {submissionNotification.message}
-                </p>
-                {submissionNotification.reward && (
-                  <p className="font-pixel text-xs text-pixel-text-dark mt-1">
-                    +{submissionNotification.reward.toString()} $BABY
-                  </p>
-                )}
-                {submissionNotification.txid && (
-                  <a
-                    href={`${config.explorerUrl}/tx/${submissionNotification.txid}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-pixel text-[8px] text-pixel-text-dark underline mt-1 block"
-                  >
-                    Ver TX: {submissionNotification.txid.slice(0, 8)}...
-                  </a>
-                )}
-              </div>
-
-              <button
-                onClick={() => setSubmissionNotification(null)}
-                className="font-pixel text-pixel-text-dark text-lg hover:opacity-70"
-              >
-                X
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Evolution Modal */}

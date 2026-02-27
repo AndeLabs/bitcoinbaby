@@ -33,7 +33,18 @@ export {
 export {
   MiningRewardPanel,
   MiningRewardBadge,
-} from "./mining/MiningRewardPanel";
+  MiningStatusBadge,
+  MiningStatsGrid,
+  MiningControlButton,
+  MiningQuickToggle,
+  NFTBoostPanel,
+  NFTBoostBadge,
+  type MiningStatusBadgeProps,
+  type MiningStatsGridProps,
+  type MiningStats,
+  type MiningControlButtonProps,
+  type NFTBoostPanelProps,
+} from "./mining";
 
 // NFT Components
 export {

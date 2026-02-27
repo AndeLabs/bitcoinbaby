@@ -143,7 +143,9 @@ function AppShellInner() {
       {/* Content Area */}
       <main className="flex-1 overflow-auto">
         <Suspense fallback={<SectionLoader />}>
-          {activeTab === "baby" && <BabySection />}
+          {activeTab === "baby" && (
+            <BabySection setActiveTab={handleTabChange} />
+          )}
           {activeTab === "mining" && <MiningSection />}
           {activeTab === "nfts" && <NFTsSection />}
           {activeTab === "wallet" && <WalletSection />}
