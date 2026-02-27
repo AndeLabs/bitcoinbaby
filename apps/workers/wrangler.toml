@@ -57,6 +57,25 @@ MAX_FEE_RATE_SAT_VB = "10"
 # Production environment
 [env.production]
 name = "bitcoinbaby-api-prod"
+
+# Durable Objects for production
+[[env.production.durable_objects.bindings]]
+name = "VIRTUAL_BALANCE"
+class_name = "VirtualBalanceDO"
+
+[[env.production.durable_objects.bindings]]
+name = "WITHDRAW_POOL"
+class_name = "WithdrawPoolDO"
+
+[[env.production.durable_objects.bindings]]
+name = "GAME_ROOM"
+class_name = "GameRoomDO"
+
+# Migrations for production
+[[env.production.migrations]]
+tag = "v1"
+new_sqlite_classes = ["VirtualBalanceDO", "WithdrawPoolDO", "GameRoomDO"]
+
 [env.production.vars]
 ENVIRONMENT = "production"
 MIN_WITHDRAW_AMOUNT = "100"
