@@ -66,3 +66,4 @@ apps/web/public/sw.js.map
 apps/web/public/swe-worker-*.js
 apps/web/public/workbox-*.js
 apps/web/public/workbox-*.js.map
+.vercel
