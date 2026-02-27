@@ -100,20 +100,64 @@ export function applyAction(stats: BabyStats, action: GameAction): BabyStats {
 
 /**
  * Add XP and calculate level progression
+ *
+ * SECURITY: Validates all values to prevent runaway level-ups from corrupted data.
  */
 export function addXP(
   progression: BabyProgression,
   xpToAdd: number,
 ): BabyProgression {
-  let xp = progression.xp + xpToAdd;
+  // Validate inputs to prevent corruption
   let level = progression.level;
-  let xpToNextLevel = progression.xpToNextLevel;
+  if (typeof level !== "number" || level < 1 || level > GAME_CONFIG.MAX_LEVEL) {
+    console.warn(`[addXP] Invalid level ${level}, resetting to 1`);
+    level = 1;
+  }
 
-  // Level up while we have enough XP
-  while (xp >= xpToNextLevel && level < GAME_CONFIG.MAX_LEVEL) {
+  // Ensure xpToNextLevel is valid (prevents infinite loop)
+  let xpToNextLevel = progression.xpToNextLevel;
+  const expectedXpToNext = getXPForLevel(level + 1);
+  if (
+    typeof xpToNextLevel !== "number" ||
+    xpToNextLevel <= 0 ||
+    xpToNextLevel !== expectedXpToNext
+  ) {
+    console.warn(
+      `[addXP] Invalid xpToNextLevel ${xpToNextLevel}, correcting to ${expectedXpToNext}`,
+    );
+    xpToNextLevel = expectedXpToNext;
+  }
+
+  // Validate xpToAdd
+  if (typeof xpToAdd !== "number" || xpToAdd < 0 || !isFinite(xpToAdd)) {
+    console.warn(`[addXP] Invalid xpToAdd ${xpToAdd}, ignoring`);
+    xpToAdd = 0;
+  }
+
+  // Cap xpToAdd to prevent exploits (max 10k XP per call)
+  const maxXpPerCall = 10000;
+  if (xpToAdd > maxXpPerCall) {
+    console.warn(
+      `[addXP] xpToAdd ${xpToAdd} exceeds max, capping to ${maxXpPerCall}`,
+    );
+    xpToAdd = maxXpPerCall;
+  }
+
+  let xp = (progression.xp || 0) + xpToAdd;
+
+  // Level up while we have enough XP (with safety counter)
+  let safetyCounter = 0;
+  const maxLevelUps = GAME_CONFIG.MAX_LEVEL - level + 1;
+
+  while (
+    xp >= xpToNextLevel &&
+    level < GAME_CONFIG.MAX_LEVEL &&
+    safetyCounter < maxLevelUps
+  ) {
     xp -= xpToNextLevel;
     level++;
     xpToNextLevel = getXPForLevel(level + 1);
+    safetyCounter++;
   }
 
   // Check for stage evolution
@@ -121,7 +165,7 @@ export function addXP(
 
   return {
     level,
-    xp,
+    xp: Math.max(0, xp),
     xpToNextLevel,
     stage,
   };

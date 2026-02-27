@@ -5,23 +5,25 @@
  * Falls back to localStorage if IndexedDB is unavailable.
  */
 
-import type { GameState } from '../game/types';
-import { DEFAULT_GAME_STATE } from '../game/types';
+import type { GameState, GameBaby, BabyProgression } from "../game/types";
+import { DEFAULT_GAME_STATE } from "../game/types";
+import { getXPForLevel } from "../game/constants";
+import { getStageForLevel } from "../game/mechanics";
 
-const DB_NAME = 'bitcoinbaby';
+const DB_NAME = "bitcoinbaby";
 const DB_VERSION = 1;
-const STORE_NAME = 'gameState';
-const STATE_KEY = 'current';
+const STORE_NAME = "gameState";
+const STATE_KEY = "current";
 
 // localStorage fallback key
-const LS_KEY = 'bitcoinbaby_game_state';
+const LS_KEY = "bitcoinbaby_game_state";
 
 /**
  * Check if IndexedDB is available
  */
 function isIndexedDBAvailable(): boolean {
   try {
-    return typeof indexedDB !== 'undefined' && indexedDB !== null;
+    return typeof indexedDB !== "undefined" && indexedDB !== null;
   } catch {
     return false;
   }
@@ -52,7 +54,7 @@ function openDB(): Promise<IDBDatabase> {
  */
 function serializeState(state: GameState): string {
   return JSON.stringify(state, (_, value) =>
-    typeof value === 'bigint' ? { __bigint__: value.toString() } : value
+    typeof value === "bigint" ? { __bigint__: value.toString() } : value,
   );
 }
 
@@ -61,7 +63,7 @@ function serializeState(state: GameState): string {
  */
 function deserializeState(json: string): GameState {
   return JSON.parse(json, (_, value) => {
-    if (value && typeof value === 'object' && '__bigint__' in value) {
+    if (value && typeof value === "object" && "__bigint__" in value) {
       return BigInt(value.__bigint__);
     }
     return value;
@@ -75,7 +77,7 @@ async function saveToIndexedDB(state: GameState): Promise<void> {
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    const transaction = db.transaction(STORE_NAME, "readwrite");
     const store = transaction.objectStore(STORE_NAME);
 
     const serialized = serializeState(state);
@@ -100,7 +102,7 @@ async function loadFromIndexedDB(): Promise<GameState | null> {
     const db = await openDB();
 
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readonly');
+      const transaction = db.transaction(STORE_NAME, "readonly");
       const store = transaction.objectStore(STORE_NAME);
       const request = store.get(STATE_KEY);
 
@@ -128,7 +130,7 @@ function saveToLocalStorage(state: GameState): void {
   try {
     localStorage.setItem(LS_KEY, serializeState(state));
   } catch (error) {
-    console.error('Failed to save to localStorage:', error);
+    console.error("Failed to save to localStorage:", error);
   }
 }
 
@@ -142,7 +144,7 @@ function loadFromLocalStorage(): GameState | null {
       return deserializeState(data);
     }
   } catch (error) {
-    console.error('Failed to load from localStorage:', error);
+    console.error("Failed to load from localStorage:", error);
   }
   return null;
 }
@@ -165,7 +167,10 @@ export const GameStorage = {
         await saveToIndexedDB(stateToSave);
         return;
       } catch (error) {
-        console.warn('IndexedDB save failed, falling back to localStorage:', error);
+        console.warn(
+          "IndexedDB save failed, falling back to localStorage:",
+          error,
+        );
       }
     }
 
@@ -182,7 +187,7 @@ export const GameStorage = {
       try {
         state = await loadFromIndexedDB();
       } catch (error) {
-        console.warn('IndexedDB load failed, trying localStorage:', error);
+        console.warn("IndexedDB load failed, trying localStorage:", error);
       }
     }
 
@@ -205,19 +210,19 @@ export const GameStorage = {
     if (isIndexedDBAvailable()) {
       try {
         const db = await openDB();
-        const transaction = db.transaction(STORE_NAME, 'readwrite');
+        const transaction = db.transaction(STORE_NAME, "readwrite");
         const store = transaction.objectStore(STORE_NAME);
         store.delete(STATE_KEY);
         transaction.oncomplete = () => db.close();
       } catch (error) {
-        console.warn('IndexedDB clear failed:', error);
+        console.warn("IndexedDB clear failed:", error);
       }
     }
 
     try {
       localStorage.removeItem(LS_KEY);
     } catch (error) {
-      console.warn('localStorage clear failed:', error);
+      console.warn("localStorage clear failed:", error);
     }
   },
 
@@ -229,6 +234,114 @@ export const GameStorage = {
     return state.baby !== null;
   },
 };
+
+/**
+ * Validate and repair baby progression
+ *
+ * Ensures:
+ * - Level is within valid range (1-21)
+ * - XP is non-negative and less than xpToNextLevel
+ * - xpToNextLevel matches getXPForLevel(level + 1)
+ * - Stage matches getStageForLevel(level)
+ *
+ * This prevents corrupted data from causing instant legend bug.
+ */
+function validateBabyProgression(
+  progression: BabyProgression,
+): BabyProgression {
+  // Validate level (1-21, default to 1 if invalid)
+  let level = progression.level;
+  if (
+    typeof level !== "number" ||
+    level < 1 ||
+    level > 21 ||
+    !isFinite(level)
+  ) {
+    console.warn(`[GameStorage] Invalid level ${level}, resetting to 1`);
+    level = 1;
+  }
+
+  // Calculate correct values based on level
+  const correctXpToNext = getXPForLevel(level + 1);
+  const correctStage = getStageForLevel(level);
+
+  // Validate XP
+  let xp = progression.xp;
+  if (typeof xp !== "number" || xp < 0 || !isFinite(xp)) {
+    console.warn(`[GameStorage] Invalid XP ${xp}, resetting to 0`);
+    xp = 0;
+  }
+  // Cap XP to prevent overflow
+  if (xp >= correctXpToNext) {
+    console.warn(
+      `[GameStorage] XP ${xp} exceeds xpToNextLevel ${correctXpToNext}, capping`,
+    );
+    xp = correctXpToNext - 1;
+  }
+
+  // Validate xpToNextLevel
+  let xpToNextLevel = progression.xpToNextLevel;
+  if (xpToNextLevel !== correctXpToNext) {
+    console.warn(
+      `[GameStorage] xpToNextLevel mismatch: ${xpToNextLevel} vs ${correctXpToNext}`,
+    );
+    xpToNextLevel = correctXpToNext;
+  }
+
+  // Validate stage
+  let stage = progression.stage;
+  if (stage !== correctStage) {
+    console.warn(
+      `[GameStorage] Stage mismatch for level ${level}: ${stage} vs ${correctStage}`,
+    );
+    stage = correctStage;
+  }
+
+  return {
+    level,
+    xp,
+    xpToNextLevel,
+    stage,
+  };
+}
+
+/**
+ * Validate and repair baby data
+ */
+function validateBaby(baby: GameBaby): GameBaby {
+  // Validate progression
+  const validatedProgression = validateBabyProgression(baby.progression);
+
+  // Validate timestamps (ensure they exist and are valid)
+  const now = Date.now();
+  const createdAt =
+    typeof baby.createdAt === "number" && baby.createdAt > 0
+      ? baby.createdAt
+      : now;
+  const lastUpdated =
+    typeof baby.lastUpdated === "number" && baby.lastUpdated > 0
+      ? baby.lastUpdated
+      : now;
+  const lastMined =
+    typeof baby.lastMined === "number" && baby.lastMined > 0
+      ? baby.lastMined
+      : createdAt;
+
+  return {
+    ...baby,
+    progression: validatedProgression,
+    createdAt,
+    lastUpdated,
+    lastMined,
+    // Ensure arrays exist
+    evolutionHistory: Array.isArray(baby.evolutionHistory)
+      ? baby.evolutionHistory
+      : [],
+    unlockedAchievements: Array.isArray(baby.unlockedAchievements)
+      ? baby.unlockedAchievements
+      : [],
+  };
+}
 
 /**
  * Migrate old state to current version
@@ -249,11 +362,16 @@ function migrateState(state: GameState): GameState {
   }
 
   // Ensure BigInt fields are proper BigInts
-  if (typeof state.miningStats.totalTokensEarned !== 'bigint') {
+  if (typeof state.miningStats.totalTokensEarned !== "bigint") {
     const tokenValue = state.miningStats.totalTokensEarned as unknown;
     state.miningStats.totalTokensEarned = BigInt(
-      tokenValue?.toString?.() || '0'
+      tokenValue?.toString?.() || "0",
     );
+  }
+
+  // CRITICAL: Validate baby progression to prevent instant legend bug
+  if (state.baby) {
+    state.baby = validateBaby(state.baby);
   }
 
   return state;

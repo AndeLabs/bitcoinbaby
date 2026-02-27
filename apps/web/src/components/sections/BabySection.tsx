@@ -190,6 +190,24 @@ export function BabySection() {
   // Track last submitted share to avoid duplicates
   const lastSubmittedRef = useRef<string | null>(null);
 
+  // Track last processed shares/hashes to only award XP for NEW mining progress
+  // This prevents the instant-legend bug when creating a new baby with old mining stats
+  const lastProcessedSharesRef = useRef<number>(mining.shares);
+  const lastProcessedHashesRef = useRef<number>(mining.totalHashes);
+  const babyIdRef = useRef<string | null>(null);
+
+  // Reset mining progress refs when baby changes (new baby created or loaded)
+  useEffect(() => {
+    const currentBabyId = game.baby?.id ?? null;
+
+    // If baby changed (new baby or different baby), reset refs to current mining state
+    if (currentBabyId !== babyIdRef.current) {
+      lastProcessedSharesRef.current = mining.shares;
+      lastProcessedHashesRef.current = mining.totalHashes;
+      babyIdRef.current = currentBabyId;
+    }
+  }, [game.baby?.id, mining.shares, mining.totalHashes]);
+
   // Submission notification state
   const [submissionNotification, setSubmissionNotification] = useState<{
     type: "success" | "error" | "pending";
@@ -306,10 +324,28 @@ export function BabySection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mining.isRunning, game.baby, game.isDead, game.setMining]);
 
-  // Record mining progress
+  // Record mining progress - ONLY for NEW shares/hashes
+  // This prevents the instant-legend bug when creating a new baby with old mining stats
   useEffect(() => {
-    if (mining.shares > 0 && game.baby && !game.isDead) {
-      game.recordMiningProgress(mining.totalHashes, mining.shares);
+    if (!game.baby || game.isDead) {
+      return;
+    }
+
+    // Calculate the delta (new progress since last update)
+    const newShares = mining.shares - lastProcessedSharesRef.current;
+    const newHashes = mining.totalHashes - lastProcessedHashesRef.current;
+
+    // Only record if there's new progress
+    if (newShares > 0 || newHashes > 0) {
+      // Pass only the NEW shares and hashes for XP calculation
+      game.recordMiningProgress(
+        newHashes > 0 ? newHashes : 0,
+        newShares > 0 ? newShares : 0,
+      );
+
+      // Update refs to current values
+      lastProcessedSharesRef.current = mining.shares;
+      lastProcessedHashesRef.current = mining.totalHashes;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
