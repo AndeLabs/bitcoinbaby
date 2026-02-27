@@ -63,10 +63,10 @@
   --color-mining-idle: #6b7280;
   --color-mining-boost: #f59e0b;
 
-  /* Fonts */
-  --font-pixel: 'Press Start 2P', cursive;
-  --font-pixel-body: 'Pixelify Sans', sans-serif;
-  --font-pixel-mono: 'VT323', monospace;
+  /* Fonts - Tailwind v4 uses --font-family-* for font utilities */
+  --font-family-pixel: 'Press Start 2P', cursive;
+  --font-family-pixel-body: 'Pixelify Sans', sans-serif;
+  --font-family-pixel-mono: 'VT323', monospace;
 }
 
 /* ========================================
@@ -186,9 +186,8 @@ canvas,
 /* ========================================
    UTILITY CLASSES
    ======================================== */
-.font-pixel { font-family: 'Press Start 2P', cursive; }
-.font-pixel-body { font-family: 'Pixelify Sans', sans-serif; }
-.font-pixel-mono { font-family: 'VT323', monospace; }
+/* Note: font-pixel, font-pixel-body, font-pixel-mono are auto-generated
+   by Tailwind v4 from --font-family-* variables in @theme */
 
 .animate-pixel-blink { animation: pixel-blink 1s steps(1) infinite; }
 .animate-pixel-float { animation: pixel-float 2s ease-in-out infinite; }
