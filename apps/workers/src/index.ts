@@ -35,6 +35,8 @@ app.use(
       "http://localhost:3001",
       "https://bitcoinbaby.app",
       "https://*.bitcoinbaby.app",
+      "https://bitcoinbaby.vercel.app",
+      "https://*.vercel.app",
     ],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
