@@ -6,6 +6,7 @@ export * from "./storage";
 export * from "./hooks";
 export * from "./utils";
 export * from "./cosmic";
+export * from "./tokenomics";
 
 // API exports (with prefixed names to avoid conflicts)
 export { BitcoinBabyClient, getApiClient, resetApiClient } from "./api";
