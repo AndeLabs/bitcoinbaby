@@ -35,21 +35,15 @@ export function MiningSection() {
   );
 
   // Virtual balance from Workers API (primary balance tracking)
-  const {
-    virtualBalance,
-    totalMined,
-    availableToWithdraw,
-    isLoading: virtualBalanceLoading,
-    creditMining,
-  } = useVirtualBalance({ address: wallet?.address });
+  const { virtualBalance, totalMined, creditMining } = useVirtualBalance({
+    address: wallet?.address,
+  });
 
   // Mining submitter for blockchain submission (optional, requires BTC for fees)
   const {
     canMine,
     balance,
-    pendingRewards,
     confirmedRewards,
-    feeEstimates,
     isSubmitting,
     error: submitterError,
     submitProof,

@@ -16,7 +16,6 @@ import {
   useWallet,
   useBalance,
   useTokenBalance,
-  formatTokenBalance,
   useVirtualBalance,
 } from "@/hooks";
 import {
@@ -167,7 +166,7 @@ export function WalletSection() {
     refreshInterval: 30000,
   });
 
-  const { balance: babyBalance } = useTokenBalance({
+  const { balance: _babyBalance } = useTokenBalance({
     address: wallet?.address,
   });
 

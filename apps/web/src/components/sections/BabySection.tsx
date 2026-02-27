@@ -17,7 +17,6 @@ import {
   useGameLoop,
   useAchievements,
   useNetworkStore,
-  formatHashrate,
 } from "@bitcoinbaby/core";
 import { useBabyState } from "@/hooks/useBabyState";
 import { useMiningSubmitter } from "@/hooks/useMiningSubmitter";

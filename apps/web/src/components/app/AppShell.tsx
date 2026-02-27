@@ -49,7 +49,6 @@ async function resetAllData() {
   // Reload
   window.location.reload();
 }
-import { clsx } from "clsx";
 import { AppHeader } from "./AppHeader";
 import { TabNavigation, type TabType } from "./TabNavigation";
 

@@ -23,8 +23,8 @@ import {
 import { useNFTStore, useWalletStore } from "@bitcoinbaby/core";
 import { useMintNFT } from "@/hooks/useMintNFT";
 
-// Demo NFT generator
-function generateDemoNFT(tokenId: number): BabyNFTState {
+// Demo NFT generator (kept for future demo mode)
+function _generateDemoNFT(tokenId: number): BabyNFTState {
   const bloodlines: Bloodline[] = ["royal", "warrior", "rogue", "mystic"];
   const baseTypes: BaseType[] = ["human", "animal", "robot", "mystic", "alien"];
   const rarities: RarityTier[] = [

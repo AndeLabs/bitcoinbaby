@@ -269,13 +269,13 @@ describe("addXP", () => {
     const progression: BabyProgression = {
       level: 1,
       xp: 40,
-      xpToNextLevel: 50, // XP for level 2
+      xpToNextLevel: 75, // getXPForLevel(2) = 75
       stage: "baby_1",
     };
 
-    const result = addXP(progression, 20);
+    const result = addXP(progression, 40);
     expect(result.level).toBe(2);
-    expect(result.xp).toBe(10); // 40 + 20 - 50 = 10 overflow
+    expect(result.xp).toBe(5); // 40 + 40 - 75 = 5 overflow
     expect(result.stage).toBe("baby_2");
   });
 
@@ -283,12 +283,12 @@ describe("addXP", () => {
     const progression: BabyProgression = {
       level: 1,
       xp: 0,
-      xpToNextLevel: 50, // XP needed for level 2
+      xpToNextLevel: 75, // getXPForLevel(2) = 75
       stage: "baby_1",
     };
 
     // Add enough XP to reach level 3
-    // Level 2 requires 50 XP, Level 3 requires 75 XP = 125 total
+    // Level 2 requires 75 XP, Level 3 requires 100 XP = 175 total
     // Adding 200 XP should get us past level 3
     const result = addXP(progression, 200);
     expect(result.level).toBeGreaterThanOrEqual(3);
@@ -310,11 +310,11 @@ describe("addXP", () => {
     const progression: BabyProgression = {
       level: 3,
       xp: 90,
-      xpToNextLevel: 100,
+      xpToNextLevel: 125, // getXPForLevel(4) = 125
       stage: "baby_3",
     };
 
-    const result = addXP(progression, 20);
+    const result = addXP(progression, 40);
     expect(result.level).toBe(4);
     expect(result.stage).toBe("child_1");
   });

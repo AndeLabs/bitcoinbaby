@@ -14,7 +14,6 @@ import { clsx } from "clsx";
 import { useNetworkStore, useWalletStore } from "@bitcoinbaby/core";
 import { NetworkBadge, WalletStatusCompact } from "@bitcoinbaby/ui";
 import { MiningStatusBar } from "./MiningStatusBar";
-import type { TabType } from "./TabNavigation";
 
 interface AppHeaderProps {
   onMiningClick?: () => void;
