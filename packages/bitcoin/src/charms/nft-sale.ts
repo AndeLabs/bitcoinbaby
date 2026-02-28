@@ -7,6 +7,7 @@
  */
 
 import { GENESIS_BABIES_CONFIG, type RarityTier } from "./nft";
+import { NFT_TREASURY_TESTNET4 } from "../config/treasury";
 
 // =============================================================================
 // SALE CONFIGURATION
@@ -25,22 +26,19 @@ export const NFT_SALE_CONFIG = {
   /** Dust limit for NFT UTXO */
   dustLimit: 546n,
 
-  /** Treasury address - receives ALL payment */
-  treasuryAddress: "", // Set via setTreasuryAddress()
-
   /** Max supply */
   maxSupply: GENESIS_BABIES_CONFIG.maxSupply,
 } as const;
 
-// Mutable treasury (set at runtime)
-let _treasuryAddress = "";
+// Treasury address (can be overridden at runtime)
+let _treasuryOverride = "";
 
 export function setTreasuryAddress(address: string): void {
-  _treasuryAddress = address;
+  _treasuryOverride = address;
 }
 
 export function getTreasuryAddress(): string {
-  return _treasuryAddress || NFT_SALE_CONFIG.treasuryAddress;
+  return _treasuryOverride || NFT_TREASURY_TESTNET4;
 }
 
 // =============================================================================
