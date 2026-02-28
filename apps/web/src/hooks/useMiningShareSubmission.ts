@@ -9,6 +9,8 @@
  * 3. Optionally submits to blockchain if user has BTC
  * 4. Provides unified notification system
  * 5. Deduplicates shares by hash
+ * 6. Persists shares to IndexedDB (offline-first)
+ * 7. Background sync with exponential backoff
  *
  * This is the single source of truth for share submission.
  */
@@ -18,8 +20,10 @@ import {
   useGlobalMining,
   useWalletStore,
   calculateShareReward,
+  getSyncManager,
+  getQueueStats,
+  type SyncEvent,
 } from "@bitcoinbaby/core";
-import { useVirtualBalance } from "./useVirtualBalance";
 import { useMiningSubmitter } from "./useMiningSubmitter";
 
 // =============================================================================
@@ -82,10 +86,8 @@ export interface UseMiningShareSubmissionReturn {
 // =============================================================================
 
 const MAX_NOTIFICATIONS = 10;
-const SHARE_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
-// Reward calculation uses centralized tokenomics constants
-// Base: 100 $BABY at D22, doubles each difficulty level above D22
+// Note: Share expiry and cleanup are now handled by SyncManager
 
 // =============================================================================
 // HOOK
@@ -94,12 +96,7 @@ const SHARE_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 export function useMiningShareSubmission(
   options: UseMiningShareSubmissionOptions = {},
 ): UseMiningShareSubmissionReturn {
-  const {
-    strategy = "virtual-first",
-    onNotification,
-    autoSubmit = true,
-    batchSize = 1,
-  } = options;
+  const { strategy = "virtual-first", onNotification } = options;
 
   // Subscribe to global mining (singleton - no extra overhead)
   const mining = useGlobalMining();
@@ -108,11 +105,8 @@ export function useMiningShareSubmission(
   const wallet = useWalletStore((s) => s.wallet);
   const address = wallet?.address;
 
-  // Virtual balance for crediting
-  const { creditMining } = useVirtualBalance({ address });
-
-  // Blockchain submitter
-  const { submitProof, canMine: canSubmitToBlockchain } = useMiningSubmitter();
+  // Blockchain submitter (for future blockchain-only strategy)
+  const { canMine: canSubmitToBlockchain } = useMiningSubmitter();
 
   // State
   const [pendingShares, setPendingShares] = useState(0);
@@ -124,21 +118,63 @@ export function useMiningShareSubmission(
   const [notifications, setNotifications] = useState<SubmissionNotification[]>(
     [],
   );
+  const [isOnline, setIsOnline] = useState(true);
 
-  // Track processed shares to avoid duplicates
+  // Track processed shares to avoid duplicates (in-memory for instant feedback)
   const processedSharesRef = useRef<Set<string>>(new Set());
 
-  // Pending share queue
-  const pendingQueueRef = useRef<
-    Array<{
-      hash: string;
-      nonce: number;
-      difficulty: number;
-      blockData: string;
-      reward: bigint;
-      timestamp: number;
-    }>
-  >([]);
+  // SyncManager reference
+  const syncManagerRef = useRef(getSyncManager());
+
+  // Initialize SyncManager and load persisted queue stats
+  useEffect(() => {
+    if (!address) return;
+
+    const syncManager = syncManagerRef.current;
+    syncManager.start(address);
+
+    // Load initial stats from IndexedDB
+    getQueueStats(address).then((stats) => {
+      setPendingShares(stats.pending + stats.syncing);
+      setSubmittedShares(stats.synced);
+    });
+
+    // Subscribe to sync events
+    const unsubscribe = syncManager.subscribe((event: SyncEvent) => {
+      switch (event.type) {
+        case "sync_start":
+          setIsSubmitting(true);
+          break;
+        case "sync_complete":
+          setIsSubmitting(false);
+          if (event.data?.synced) {
+            setSubmittedShares((prev) => prev + event.data!.synced!);
+          }
+          setPendingShares(event.data?.pending ?? 0);
+          if (event.data?.synced && event.data.synced > 0) {
+            setLastSubmission({
+              success: true,
+              credited: BigInt(event.data.reward ?? "0"),
+            });
+          }
+          break;
+        case "sync_error":
+          setIsSubmitting(false);
+          break;
+        case "online":
+          setIsOnline(true);
+          break;
+        case "offline":
+          setIsOnline(false);
+          break;
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      syncManager.stop();
+    };
+  }, [address]);
 
   /**
    * Add notification
@@ -169,145 +205,19 @@ export function useMiningShareSubmission(
   }, []);
 
   /**
-   * Submit a single share
-   */
-  const submitShare = useCallback(
-    async (share: {
-      hash: string;
-      nonce: number;
-      difficulty: number;
-      blockData: string;
-      reward: bigint;
-    }): Promise<SubmissionResult> => {
-      // Virtual-first strategy: credit to Workers API
-      if (strategy === "virtual-first" && address) {
-        const result = await creditMining({
-          hash: share.hash,
-          nonce: share.nonce,
-          difficulty: share.difficulty,
-          blockData: share.blockData,
-          reward: share.reward,
-        });
-
-        if (result.success) {
-          return {
-            success: true,
-            credited: share.reward,
-          };
-        } else {
-          return {
-            success: false,
-            error: result.error,
-          };
-        }
-      }
-
-      // Blockchain-only strategy: submit to Bitcoin via Charms
-      if (strategy === "blockchain-only" && canSubmitToBlockchain && address) {
-        try {
-          const result = await submitProof({
-            hash: share.hash,
-            nonce: share.nonce,
-            difficulty: share.difficulty,
-            blockData: share.blockData,
-            timestamp: Date.now(),
-          });
-
-          if (result.success) {
-            return {
-              success: true,
-              credited: share.reward,
-              txid: result.txid,
-            };
-          } else {
-            return {
-              success: false,
-              error: result.error,
-            };
-          }
-        } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : "Submission failed",
-          };
-        }
-      }
-
-      // No submission target available
-      return {
-        success: false,
-        error: address ? "Submission not available" : "No wallet connected",
-      };
-    },
-    [strategy, address, creditMining, canSubmitToBlockchain, submitProof],
-  );
-
-  /**
    * Submit all pending shares
+   * Triggers the SyncManager to sync immediately (bypassing interval)
    */
   const submitPendingShares = useCallback(async () => {
-    if (pendingQueueRef.current.length === 0) return;
     if (isSubmitting) return;
 
-    setIsSubmitting(true);
-
-    const toSubmit = [...pendingQueueRef.current];
-    pendingQueueRef.current = [];
-    setPendingShares(0);
-
-    let successCount = 0;
-    let totalCredited = BigInt(0);
-    let lastTxid: string | undefined;
-    let lastError: string | undefined;
-
-    for (const share of toSubmit) {
-      const result = await submitShare(share);
-
-      if (result.success) {
-        successCount++;
-        totalCredited += result.credited ?? BigInt(0);
-        lastTxid = result.txid;
-        processedSharesRef.current.add(share.hash);
-      } else {
-        lastError = result.error;
-        // Re-queue failed shares
-        pendingQueueRef.current.push(share);
-      }
-    }
-
-    setSubmittedShares((prev) => prev + successCount);
-    setPendingShares(pendingQueueRef.current.length);
-
-    const submissionResult: SubmissionResult = {
-      success: successCount > 0,
-      credited: totalCredited,
-      txid: lastTxid,
-      error: successCount === 0 ? lastError : undefined,
-    };
-
-    setLastSubmission(submissionResult);
-    setIsSubmitting(false);
-
-    // Add notification
-    if (successCount > 0) {
-      addNotification({
-        type: "success",
-        title: "Shares Submitted",
-        message: `${successCount} share${successCount > 1 ? "s" : ""} credited (+${totalCredited.toString()} $BABY)`,
-        reward: totalCredited,
-        txid: lastTxid,
-      });
-    } else if (lastError) {
-      addNotification({
-        type: "error",
-        title: "Submission Failed",
-        message: lastError,
-      });
-    }
-  }, [isSubmitting, submitShare, addNotification]);
+    // Force sync via SyncManager (handles all submission logic)
+    syncManagerRef.current.forceSync();
+  }, [isSubmitting]);
 
   /**
    * Watch for new shares from mining (uses real mining results)
+   * Persists to IndexedDB via SyncManager for offline-first support
    */
   useEffect(() => {
     // Skip if no new share or not running
@@ -330,41 +240,47 @@ export function useMiningShareSubmission(
       return;
     }
 
-    // Add real share data to queue
-    pendingQueueRef.current.push({
-      hash: share.hash,
-      nonce: share.nonce,
-      difficulty: share.difficulty,
-      blockData: share.blockData,
-      reward,
-      timestamp: share.timestamp,
-    });
+    // Mark as processed immediately (in-memory dedup)
+    processedSharesRef.current.add(share.hash);
 
-    setPendingShares(pendingQueueRef.current.length);
-
-    // Auto-submit if enabled and batch size reached
-    if (autoSubmit && pendingQueueRef.current.length >= batchSize) {
-      submitPendingShares();
-    }
-  }, [
-    mining.lastShare,
-    mining.isRunning,
-    autoSubmit,
-    batchSize,
-    submitPendingShares,
-  ]);
+    // Add to SyncManager (persists to IndexedDB + auto-syncs when online)
+    syncManagerRef.current
+      .addShare({
+        hash: share.hash,
+        nonce: share.nonce,
+        difficulty: share.difficulty,
+        blockData: share.blockData,
+        reward,
+        timestamp: share.timestamp,
+      })
+      .then(({ queued, duplicate }) => {
+        if (queued) {
+          setPendingShares((prev) => prev + 1);
+          // Notification for new share queued
+          addNotification({
+            type: "info",
+            title: "Share Found",
+            message: `D${share.difficulty} share queued (+${reward.toString()} $BABY)`,
+            reward,
+          });
+        } else if (duplicate) {
+          console.log(
+            "[ShareSubmission] Duplicate share:",
+            share.hash.slice(0, 16),
+          );
+        }
+      })
+      .catch((error) => {
+        console.error("[ShareSubmission] Failed to queue share:", error);
+      });
+  }, [mining.lastShare, mining.isRunning, addNotification]);
 
   /**
-   * Clean up expired shares
+   * Clean up old processed hashes (in-memory dedup set)
+   * Note: IndexedDB cleanup is handled by SyncManager
    */
   useEffect(() => {
     const cleanup = setInterval(() => {
-      const now = Date.now();
-      pendingQueueRef.current = pendingQueueRef.current.filter(
-        (share) => now - share.timestamp < SHARE_EXPIRY_MS,
-      );
-      setPendingShares(pendingQueueRef.current.length);
-
       // Clean up old processed hashes (keep last 1000)
       if (processedSharesRef.current.size > 1000) {
         const entries = Array.from(processedSharesRef.current);

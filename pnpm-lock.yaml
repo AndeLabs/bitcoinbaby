@@ -200,6 +200,9 @@ importers:
       astronomy-engine:
         specifier: ^2.1.19
         version: 2.1.19
+      dexie:
+        specifier: ^4.3.0
+        version: 4.3.0
       zustand:
         specifier: ^5.0.0
         version: 5.0.11(@types/react@19.2.14)(react@19.2.3)
@@ -1900,6 +1903,9 @@ packages:
 
   detect-node@2.1.0:
     resolution: {integrity: sha512-T0NIuQpnTvFDATNuHN5roPwSBG83rFsuO+MXXH9/3N1eFbn4wcPjttvjMLEPWJ0RGUYgQE7cGgS3tNxbqCGM7g==}
+
+  dexie@4.3.0:
+    resolution: {integrity: sha512-5EeoQpJvMKHe6zWt/FSIIuRa3CWlZeIl6zKXt+Lz7BU6RoRRLgX9dZEynRfXrkLcldKYCBiz7xekTEylnie1Ug==}
 
   doctrine@2.1.0:
     resolution: {integrity: sha512-35mSku4ZXK0vfCuHEDAwt55dg2jNajHZ1odvF+8SSr82EsZY4QmXfuWso8oEd8zRhVObSN18aM0CjSdoBX7zIw==}
@@ -5311,6 +5317,8 @@ snapshots:
   detect-libc@2.1.2: {}
 
   detect-node@2.1.0: {}
+
+  dexie@4.3.0: {}
 
   doctrine@2.1.0:
     dependencies:

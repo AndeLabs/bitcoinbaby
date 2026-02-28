@@ -15,6 +15,7 @@
   "dependencies": {
     "@bitcoinbaby/bitcoin": "workspace:*",
     "astronomy-engine": "^2.1.19",
+    "dexie": "^4.3.0",
     "zustand": "^5.0.0"
   },
   "peerDependencies": {
