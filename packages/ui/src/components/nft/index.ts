@@ -37,6 +37,7 @@ export {
 } from "./NFTGrid";
 export { NFTStats, type NFTStatsProps } from "./NFTStats";
 export { NFTSprite } from "./NFTSprite";
+export { NFTInfoPanel } from "./NFTInfoPanel";
 
 // Trait Configuration
 export {

@@ -53,6 +53,7 @@ export {
   NFTCard,
   NFTGrid,
   NFTStats,
+  NFTInfoPanel,
   getMiningBoost,
   canLevelUp,
   getXpForNextLevel,
@@ -70,6 +71,9 @@ export {
   type RarityTier,
   type BaseType,
 } from "./nft";
+
+// Help & Tooltips
+export { HelpTooltip, InfoLabel, StatWithHelp } from "./common/HelpTooltip";
 
 // Error Components
 export {

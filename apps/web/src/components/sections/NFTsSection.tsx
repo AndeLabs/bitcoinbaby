@@ -6,23 +6,28 @@
  * NFT management with:
  * - Sub-tabs: Collection | Mint New
  * - Collection grid with stats
- * - Mint UI with fixed BTC pricing (50,000 sats)
- * - Evolution system
+ * - Random mint (no preview - surprise!)
+ * - Info panel showing what you could get
  */
 
 import { useState, useCallback } from "react";
-import { NFTGrid, NFTStats, NFTCard, type BabyNFTState } from "@bitcoinbaby/ui";
+import {
+  NFTGrid,
+  NFTStats,
+  NFTCard,
+  NFTInfoPanel,
+  type BabyNFTState,
+} from "@bitcoinbaby/ui";
 import { useNFTStore, useWalletStore, useNFTSale } from "@bitcoinbaby/core";
 import { useMintNFT } from "@/hooks/useMintNFT";
 
 type SubTab = "collection" | "mint";
+type MintState = "info" | "minting" | "revealing" | "success";
 
 export function NFTsSection() {
   const [activeTab, setActiveTab] = useState<SubTab>("collection");
-  const [demoNFTs, setDemoNFTs] = useState<BabyNFTState[]>([]);
+  const [mintState, setMintState] = useState<MintState>("info");
   const [evolvingIds, setEvolvingIds] = useState<Set<number>>(new Set());
-  const [mintPreview, setMintPreview] = useState<BabyNFTState | null>(null);
-  const [showMintSuccess, setShowMintSuccess] = useState(false);
 
   const { ownedNFTs, isLoading, setOwnedNFTs } = useNFTStore();
   const wallet = useWalletStore((s) => s.wallet);
@@ -33,38 +38,45 @@ export function NFTsSection() {
     lastMinted,
     txid,
     mint,
-    preview,
     reset: resetMint,
     canMint,
+    isDemo,
   } = useMintNFT();
 
-  // NFT Sale hook for pricing (simple: 50,000 sats fixed)
-  const { formattedPrice, validation } = useNFTSale({
+  // NFT Sale hook for pricing
+  const { formattedPrice } = useNFTSale({
     buyerAddress: wallet?.address,
-    buyerBalance: 0n, // TODO: Get real balance
+    buyerBalance: 0n,
   });
 
-  const handlePreview = useCallback(() => {
-    const previewNFT = preview();
-    setMintPreview(previewNFT);
-  }, [preview]);
-
-  const handleReroll = useCallback(() => {
-    const previewNFT = preview();
-    setMintPreview(previewNFT);
-  }, [preview]);
-
+  // Handle mint - truly random, no preview
   const handleMint = useCallback(async () => {
+    setMintState("minting");
+
     const result = await mint();
+
     if (result.success && result.nft) {
+      // Show reveal animation
+      setMintState("revealing");
+
+      // Wait for reveal animation
+      await new Promise((r) => setTimeout(r, 2000));
+
+      // Add to collection
       setOwnedNFTs([result.nft, ...ownedNFTs]);
-      setShowMintSuccess(true);
+      setMintState("success");
+    } else {
+      setMintState("info");
     }
   }, [mint, setOwnedNFTs, ownedNFTs]);
 
-  const handleCloseMintSuccess = useCallback(() => {
-    setShowMintSuccess(false);
-    setMintPreview(null);
+  const handleMintAnother = useCallback(() => {
+    setMintState("info");
+    resetMint();
+  }, [resetMint]);
+
+  const handleViewCollection = useCallback(() => {
+    setMintState("info");
     resetMint();
     setActiveTab("collection");
   }, [resetMint]);
@@ -74,7 +86,6 @@ export function NFTsSection() {
   const handleEvolve = async (nft: BabyNFTState) => {
     setEvolvingIds((prev) => new Set(prev).add(nft.tokenId));
     await new Promise((r) => setTimeout(r, 2000));
-    // TODO: Real evolution
     setEvolvingIds((prev) => {
       const next = new Set(prev);
       next.delete(nft.tokenId);
@@ -91,7 +102,7 @@ export function NFTsSection() {
             GENESIS BABIES
           </h2>
           <p className="font-pixel-body text-sm text-pixel-text-muted">
-            Mint and collect NFTs with mining boosts
+            Mint NFTs to boost your mining rewards
           </p>
         </div>
 
@@ -110,7 +121,7 @@ export function NFTsSection() {
           <button
             onClick={() => {
               setActiveTab("mint");
-              if (!mintPreview) handlePreview();
+              setMintState("info");
             }}
             className={`font-pixel text-[9px] uppercase px-4 py-2 border-4 transition-all ${
               activeTab === "mint"
@@ -121,21 +132,6 @@ export function NFTsSection() {
             Mint New
           </button>
         </div>
-
-        {/* Connection Warning */}
-        {!wallet && (
-          <div className="mb-6 p-4 bg-pixel-bg-medium border-4 border-pixel-warning text-center">
-            <p className="font-pixel text-[9px] text-pixel-warning uppercase mb-2">
-              Wallet Not Connected
-            </p>
-            <p className="font-pixel-body text-sm text-pixel-text-muted mb-2">
-              Connect your wallet to mint and manage Genesis Babies.
-            </p>
-            <p className="font-pixel text-[8px] text-pixel-primary">
-              Go to Wallet tab to connect
-            </p>
-          </div>
-        )}
 
         {/* Tab Content */}
         {activeTab === "collection" ? (
@@ -158,7 +154,7 @@ export function NFTsSection() {
                 <button
                   onClick={() => {
                     setActiveTab("mint");
-                    if (!mintPreview) handlePreview();
+                    setMintState("info");
                   }}
                   className="w-full font-pixel text-[8px] uppercase px-3 py-3 bg-pixel-success text-pixel-text-dark border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-transform"
                 >
@@ -184,7 +180,7 @@ export function NFTsSection() {
                   <button
                     onClick={() => {
                       setActiveTab("mint");
-                      if (!mintPreview) handlePreview();
+                      setMintState("info");
                     }}
                     className="font-pixel text-[9px] uppercase px-6 py-3 bg-pixel-success text-pixel-text-dark border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-transform"
                   >
@@ -207,174 +203,177 @@ export function NFTsSection() {
         ) : (
           /* Mint View */
           <div className="max-w-2xl mx-auto">
-            {/* Price Banner */}
-            <div className="bg-pixel-bg-medium border-4 border-pixel-success p-4 mb-6 text-center shadow-[4px_4px_0_0_#000]">
-              <p className="font-pixel text-[8px] text-pixel-text-muted uppercase mb-1">
-                Fixed Price
-              </p>
-              <p className="font-pixel text-2xl text-pixel-success">
-                {formattedPrice}
-              </p>
-              <p className="font-pixel text-[7px] text-pixel-text-muted mt-1">
-                ≈ €50 • Price stable in BTC
-              </p>
-            </div>
+            {/* Connection Warning */}
+            {!wallet && (
+              <div className="mb-6 p-4 bg-pixel-bg-medium border-4 border-pixel-warning text-center">
+                <p className="font-pixel text-[9px] text-pixel-warning uppercase mb-2">
+                  Demo Mode
+                </p>
+                <p className="font-pixel-body text-sm text-pixel-text-muted">
+                  Connect your wallet for real minting on testnet4
+                </p>
+              </div>
+            )}
 
-            {/* Mint Card */}
-            <div className="bg-pixel-bg-medium border-4 border-pixel-border p-6 shadow-[8px_8px_0_0_#000]">
-              {/* Error Display */}
-              {mintError && (
-                <div className="mb-4 p-3 bg-pixel-error/20 border-2 border-pixel-error">
-                  <p className="font-pixel text-[7px] text-pixel-error uppercase">
-                    {mintError}
+            {/* Error Display */}
+            {mintError && (
+              <div className="mb-4 p-3 bg-pixel-error/20 border-4 border-pixel-error">
+                <p className="font-pixel text-[8px] text-pixel-error uppercase">
+                  {mintError}
+                </p>
+              </div>
+            )}
+
+            {/* Mint States */}
+            {mintState === "info" && (
+              <>
+                {/* Price Banner */}
+                <div className="bg-pixel-bg-medium border-4 border-pixel-success p-4 mb-6 text-center shadow-[4px_4px_0_0_#000]">
+                  <p className="font-pixel text-[8px] text-pixel-text-muted uppercase mb-1">
+                    Mint Price
+                  </p>
+                  <p className="font-pixel text-2xl text-pixel-success">
+                    {formattedPrice}
+                  </p>
+                  <p className="font-pixel text-[7px] text-pixel-text-muted mt-1">
+                    Random traits - it&apos;s a surprise!
                   </p>
                 </div>
-              )}
 
-              {/* Success State */}
-              {showMintSuccess && lastMinted ? (
+                {/* Info Panel */}
+                <NFTInfoPanel className="mb-6" />
+
+                {/* Mint Button */}
                 <div className="text-center">
-                  <div className="mb-4">
-                    <NFTCard nft={lastMinted} showTokenId />
-                  </div>
-                  <div className="bg-pixel-success/20 border-2 border-pixel-success p-3 mb-4">
-                    <p className="font-pixel text-[9px] text-pixel-success uppercase">
-                      Successfully Minted!
-                    </p>
-                  </div>
-                  {txid && (
-                    <p className="font-pixel-body text-xs text-pixel-text-muted break-all mb-4">
-                      TX: {txid.slice(0, 20)}...
-                    </p>
-                  )}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleCloseMintSuccess}
-                      className="flex-1 font-pixel text-[8px] uppercase px-4 py-2 bg-pixel-bg-dark text-pixel-text border-2 border-pixel-border hover:border-pixel-primary transition-colors"
-                    >
-                      View Collection
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowMintSuccess(false);
-                        resetMint();
-                        handlePreview();
-                      }}
-                      className="flex-1 font-pixel text-[8px] uppercase px-4 py-2 bg-pixel-success text-pixel-text-dark border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-transform"
-                    >
-                      Mint Another
-                    </button>
-                  </div>
-                </div>
-              ) : mintPreview ? (
-                /* Preview State */
-                <div>
-                  <h3 className="font-pixel text-[10px] text-pixel-primary uppercase text-center mb-4">
-                    Preview Your Baby
-                  </h3>
-
-                  <div className="mb-4">
-                    <NFTCard nft={mintPreview} showTokenId />
-                  </div>
-
-                  {/* Traits Display */}
-                  <div className="grid grid-cols-2 gap-2 mb-4 p-3 bg-pixel-bg-dark border-2 border-pixel-border">
-                    <div>
-                      <span className="font-pixel text-[6px] text-pixel-text-muted uppercase">
-                        Rarity
-                      </span>
-                      <p className="font-pixel text-[8px] text-pixel-secondary capitalize">
-                        {mintPreview.rarityTier}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="font-pixel text-[6px] text-pixel-text-muted uppercase">
-                        Bloodline
-                      </span>
-                      <p className="font-pixel text-[8px] text-pixel-secondary capitalize">
-                        {mintPreview.bloodline}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="font-pixel text-[6px] text-pixel-text-muted uppercase">
-                        Type
-                      </span>
-                      <p className="font-pixel text-[8px] text-pixel-secondary capitalize">
-                        {mintPreview.baseType}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="font-pixel text-[6px] text-pixel-text-muted uppercase">
-                        Mining Boost
-                      </span>
-                      <p className="font-pixel text-[8px] text-pixel-success">
-                        +{mintPreview.level * 10}%
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleReroll}
-                      disabled={isMinting}
-                      className="flex-1 font-pixel text-[8px] uppercase px-3 py-3 bg-pixel-bg-dark text-pixel-text border-2 border-pixel-border hover:border-pixel-secondary transition-colors disabled:opacity-50"
-                    >
-                      🎲 Reroll
-                    </button>
-                    <button
-                      onClick={handleMint}
-                      disabled={isMinting || !canMint}
-                      className="flex-1 font-pixel text-[8px] uppercase px-3 py-3 bg-pixel-success text-pixel-text-dark border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isMinting ? "Minting..." : `Mint for ${formattedPrice}`}
-                    </button>
-                  </div>
-
-                  {/* Validation Warnings */}
-                  {validation.warnings.length > 0 && (
-                    <div className="mt-3 p-2 bg-pixel-warning/10 border border-pixel-warning">
-                      {validation.warnings.map((w, i) => (
-                        <p
-                          key={i}
-                          className="font-pixel text-[6px] text-pixel-warning"
-                        >
-                          ⚠ {w}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-
-                  {!wallet && (
-                    <p className="mt-3 font-pixel text-[7px] text-pixel-warning text-center">
-                      Connect wallet to mint
-                    </p>
-                  )}
-                </div>
-              ) : (
-                /* Loading State */
-                <div className="text-center py-8">
-                  <div className="text-4xl animate-bounce mb-4">👶</div>
-                  <p className="font-pixel text-[8px] text-pixel-text-muted animate-pulse">
-                    Generating preview...
+                  <button
+                    onClick={handleMint}
+                    disabled={!canMint}
+                    className="font-pixel text-sm uppercase px-8 py-4 bg-pixel-success text-pixel-text-dark border-4 border-black shadow-[6px_6px_0_0_#000] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0_0_#000] transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isDemo ? "🎮 Mint (Demo)" : "💰 Mint Genesis Baby"}
+                  </button>
+                  <p className="mt-3 font-pixel text-[7px] text-pixel-text-muted">
+                    {isDemo
+                      ? "Demo mode - no real transaction"
+                      : "Will open wallet to sign transaction"}
                   </p>
                 </div>
-              )}
-            </div>
+              </>
+            )}
 
-            {/* Info Box */}
-            <div className="mt-6 p-4 bg-pixel-bg-medium border-4 border-pixel-border">
-              <h4 className="font-pixel text-[8px] text-pixel-secondary uppercase mb-2">
-                About Genesis Babies
-              </h4>
-              <ul className="space-y-1 font-pixel-body text-xs text-pixel-text-muted">
-                <li>• Max supply: 10,000 NFTs</li>
-                <li>• Each NFT provides mining boost (10-120%)</li>
-                <li>• Level up by burning $BABY tokens</li>
-                <li>• Rarer NFTs = higher base boost</li>
-                <li>• Price is fixed in BTC (no USD fluctuation)</li>
-              </ul>
-            </div>
+            {mintState === "minting" && (
+              <div className="bg-pixel-bg-medium border-4 border-pixel-border p-8 text-center">
+                <div className="text-6xl animate-bounce mb-4">⛏️</div>
+                <p className="font-pixel text-sm text-pixel-primary animate-pulse mb-2">
+                  MINTING...
+                </p>
+                <p className="font-pixel-body text-sm text-pixel-text-muted">
+                  {isDemo
+                    ? "Creating your Baby..."
+                    : "Please confirm in your wallet..."}
+                </p>
+              </div>
+            )}
+
+            {mintState === "revealing" && (
+              <div className="bg-pixel-bg-medium border-4 border-pixel-primary p-8 text-center">
+                <div className="relative">
+                  {/* Egg animation */}
+                  <div className="text-8xl animate-pulse mb-4">🥚</div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-20 h-20 border-4 border-pixel-primary rounded-full animate-ping opacity-50" />
+                  </div>
+                </div>
+                <p className="font-pixel text-sm text-pixel-primary animate-pulse">
+                  HATCHING...
+                </p>
+                <p className="font-pixel text-[8px] text-pixel-text-muted mt-2">
+                  Your Genesis Baby is being born!
+                </p>
+              </div>
+            )}
+
+            {mintState === "success" && lastMinted && (
+              <div className="bg-pixel-bg-medium border-4 border-pixel-success p-6 shadow-[8px_8px_0_0_#000]">
+                <div className="text-center mb-4">
+                  <p className="font-pixel text-sm text-pixel-success uppercase mb-2">
+                    🎉 Congratulations! 🎉
+                  </p>
+                  <p className="font-pixel text-[8px] text-pixel-text-muted">
+                    You got a new Genesis Baby!
+                  </p>
+                </div>
+
+                {/* NFT Card */}
+                <div className="mb-4">
+                  <NFTCard nft={lastMinted} showTokenId />
+                </div>
+
+                {/* Traits Display */}
+                <div className="grid grid-cols-2 gap-2 mb-4 p-3 bg-pixel-bg-dark border-2 border-pixel-border">
+                  <div>
+                    <span className="font-pixel text-[6px] text-pixel-text-muted uppercase">
+                      Rarity
+                    </span>
+                    <p className="font-pixel text-[10px] text-pixel-secondary capitalize">
+                      {lastMinted.rarityTier}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="font-pixel text-[6px] text-pixel-text-muted uppercase">
+                      Bloodline
+                    </span>
+                    <p className="font-pixel text-[10px] text-pixel-secondary capitalize">
+                      {lastMinted.bloodline}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="font-pixel text-[6px] text-pixel-text-muted uppercase">
+                      Type
+                    </span>
+                    <p className="font-pixel text-[10px] text-pixel-secondary capitalize">
+                      {lastMinted.baseType}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="font-pixel text-[6px] text-pixel-text-muted uppercase">
+                      Mining Boost
+                    </span>
+                    <p className="font-pixel text-[10px] text-pixel-success">
+                      +{lastMinted.level * 10}%
+                    </p>
+                  </div>
+                </div>
+
+                {/* Transaction ID */}
+                {txid && (
+                  <div className="mb-4 p-2 bg-pixel-bg-dark border-2 border-pixel-border">
+                    <p className="font-pixel text-[6px] text-pixel-text-muted uppercase mb-1">
+                      Transaction
+                    </p>
+                    <p className="font-pixel-body text-[10px] text-pixel-text break-all">
+                      {txid}
+                    </p>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleViewCollection}
+                    className="flex-1 font-pixel text-[8px] uppercase px-4 py-3 bg-pixel-bg-dark text-pixel-text border-2 border-pixel-border hover:border-pixel-primary transition-colors"
+                  >
+                    View Collection
+                  </button>
+                  <button
+                    onClick={handleMintAnother}
+                    className="flex-1 font-pixel text-[8px] uppercase px-4 py-3 bg-pixel-success text-pixel-text-dark border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-transform"
+                  >
+                    Mint Another
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
