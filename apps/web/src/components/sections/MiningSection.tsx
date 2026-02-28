@@ -19,6 +19,7 @@ import {
   MiningControlButton,
   NFTBoostPanel,
   AnimatedTokenCounter,
+  HelpTooltip,
 } from "@bitcoinbaby/ui";
 import { useWalletStore, useNFTStore, formatHashrate } from "@bitcoinbaby/core";
 
@@ -154,8 +155,15 @@ export function MiningSection() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             {/* Virtual Balance (Primary) - Animated Counter */}
             <div className="bg-pixel-bg-medium border-4 border-pixel-success p-4">
-              <div className="font-pixel text-[7px] text-pixel-text-muted uppercase mb-2">
-                $BABY Balance
+              <div className="flex items-center gap-1 mb-2">
+                <span className="font-pixel text-[7px] text-pixel-text-muted uppercase">
+                  $BABY Balance
+                </span>
+                <HelpTooltip
+                  content="Tokens earned from mining, stored in your virtual account. You can withdraw these to your Bitcoin wallet anytime."
+                  title="Virtual Balance"
+                  size="sm"
+                />
               </div>
               <AnimatedTokenCounter
                 value={virtualBalance}
@@ -172,8 +180,15 @@ export function MiningSection() {
 
             {/* Total Mined */}
             <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4">
-              <div className="font-pixel text-[7px] text-pixel-text-muted uppercase mb-2">
-                Total Mined
+              <div className="flex items-center gap-1 mb-2">
+                <span className="font-pixel text-[7px] text-pixel-text-muted uppercase">
+                  Total Mined
+                </span>
+                <HelpTooltip
+                  content="All $BABY tokens you've ever earned from mining. This includes both withdrawn and available balance."
+                  title="Lifetime Earnings"
+                  size="sm"
+                />
               </div>
               <div className="font-pixel text-lg text-pixel-primary">
                 {totalMined.toLocaleString()}
@@ -185,8 +200,15 @@ export function MiningSection() {
 
             {/* Session Shares */}
             <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4">
-              <div className="font-pixel text-[7px] text-pixel-text-muted uppercase mb-2">
-                Session Shares
+              <div className="flex items-center gap-1 mb-2">
+                <span className="font-pixel text-[7px] text-pixel-text-muted uppercase">
+                  Session Shares
+                </span>
+                <HelpTooltip
+                  content="Valid mining proofs submitted this session. Each share earns you $BABY tokens based on difficulty."
+                  title="Mining Shares"
+                  size="sm"
+                />
               </div>
               <div className="font-pixel text-lg text-pixel-secondary">
                 {submittedShares}
@@ -198,8 +220,15 @@ export function MiningSection() {
 
             {/* On-Chain Balance */}
             <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4">
-              <div className="font-pixel text-[7px] text-pixel-text-muted uppercase mb-2">
-                On-Chain $BABY
+              <div className="flex items-center gap-1 mb-2">
+                <span className="font-pixel text-[7px] text-pixel-text-muted uppercase">
+                  On-Chain $BABY
+                </span>
+                <HelpTooltip
+                  content="Tokens you've withdrawn to your Bitcoin wallet. These are stored on the blockchain as Charms tokens."
+                  title="On-Chain Balance"
+                  size="sm"
+                />
               </div>
               <div className="font-pixel text-lg text-pixel-warning">
                 {onChainBalance.toLocaleString()}
@@ -270,8 +299,16 @@ export function MiningSection() {
 
             {/* Hashrate Display */}
             <div className="text-center mb-6">
-              <div className="font-pixel text-3xl text-pixel-primary mb-1">
-                {formatHashrate(displayEffectiveHashrate)}
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <span className="font-pixel text-3xl text-pixel-primary">
+                  {formatHashrate(displayEffectiveHashrate)}
+                </span>
+                <HelpTooltip
+                  content="Hashes per second your device is calculating. Higher hashrate = more chances to find valid shares and earn $BABY."
+                  title="Hashrate"
+                  description="With NFT boost applied. Base hashrate depends on your device capabilities."
+                  size="md"
+                />
               </div>
               {nftBoost > 0 && (
                 <div className="flex items-center justify-center gap-2">
@@ -341,9 +378,17 @@ export function MiningSection() {
         {/* Device Capabilities */}
         {capabilities && (
           <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4">
-            <h3 className="font-pixel text-[8px] text-pixel-text-muted uppercase mb-3">
-              Device Capabilities
-            </h3>
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="font-pixel text-[8px] text-pixel-text-muted uppercase">
+                Device Capabilities
+              </h3>
+              <HelpTooltip
+                content="Your device's mining capabilities. WebGPU provides fastest mining, Web Workers enable parallel processing."
+                title="Mining Hardware"
+                description="Green checkmarks indicate available features. More features = better mining performance."
+                size="sm"
+              />
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
               <div className="p-2">
                 <div
@@ -388,6 +433,15 @@ export function MiningSection() {
                     ? "Blockchain submission ready (has BTC for fees)"
                     : "Virtual-only mode (no BTC for fees)"}
                 </span>
+                <HelpTooltip
+                  content={
+                    canSubmitToBlockchain
+                      ? "Your mining proofs can be submitted directly to Bitcoin. You have enough BTC to pay for transaction fees."
+                      : "Mining rewards are stored in your virtual balance. To submit proofs on-chain, you need tBTC for transaction fees."
+                  }
+                  title="Submission Mode"
+                  size="sm"
+                />
               </div>
             </div>
           </div>

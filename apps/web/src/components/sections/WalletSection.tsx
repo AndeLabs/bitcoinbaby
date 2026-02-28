@@ -23,6 +23,7 @@ import {
   NetworkBadge,
   WalletOnboarding,
   QRCode,
+  HelpTooltip,
 } from "@bitcoinbaby/ui";
 import {
   useNetworkStore,
@@ -255,7 +256,15 @@ export function WalletSection() {
         {/* Section Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
-            <h2 className="font-pixel text-xl text-pixel-primary">WALLET</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="font-pixel text-xl text-pixel-primary">WALLET</h2>
+              <HelpTooltip
+                content="Your Bitcoin wallet for managing BTC and $BABY tokens. All funds are stored locally and encrypted."
+                title="Bitcoin Wallet"
+                description="We never have access to your private keys. Make sure to save your recovery phrase!"
+                size="md"
+              />
+            </div>
             <NetworkSwitcher
               network={network}
               mainnetAllowed={mainnetAllowed}
@@ -350,9 +359,16 @@ export function WalletSection() {
                 {/* BTC Balance */}
                 <div className="bg-pixel-bg-dark p-4 border-2 border-pixel-border">
                   <div className="flex items-center justify-between mb-1">
-                    <label className="font-pixel text-[8px] text-pixel-text-muted">
-                      BTC BALANCE
-                    </label>
+                    <div className="flex items-center gap-1">
+                      <label className="font-pixel text-[8px] text-pixel-text-muted">
+                        BTC BALANCE
+                      </label>
+                      <HelpTooltip
+                        content="Your Bitcoin balance on the blockchain. Used for transaction fees and sending."
+                        title="Bitcoin"
+                        size="sm"
+                      />
+                    </div>
                     <button
                       onClick={refreshBalance}
                       disabled={balanceLoading}
@@ -375,9 +391,16 @@ export function WalletSection() {
                 {/* $BABY Virtual Balance (Primary) */}
                 <div className="bg-pixel-bg-dark p-4 border-2 border-pixel-success">
                   <div className="flex items-center justify-between mb-1">
-                    <label className="font-pixel text-[8px] text-pixel-text-muted">
-                      $BABY BALANCE
-                    </label>
+                    <div className="flex items-center gap-1">
+                      <label className="font-pixel text-[8px] text-pixel-text-muted">
+                        $BABY BALANCE
+                      </label>
+                      <HelpTooltip
+                        content="Tokens earned from mining. You can withdraw these to your Bitcoin wallet as Charms tokens."
+                        title="Mining Rewards"
+                        size="sm"
+                      />
+                    </div>
                     {virtualBalanceLoading && (
                       <span className="font-pixel text-[6px] text-pixel-text-muted animate-pulse">
                         ...
@@ -397,9 +420,16 @@ export function WalletSection() {
                 {/* BABTC Token Balance */}
                 <div className="bg-pixel-bg-dark p-4 border-2 border-pixel-border">
                   <div className="flex items-center justify-between mb-1">
-                    <label className="font-pixel text-[8px] text-pixel-text-muted">
-                      BABTC (CHARMS)
-                    </label>
+                    <div className="flex items-center gap-1">
+                      <label className="font-pixel text-[8px] text-pixel-text-muted">
+                        BABTC (CHARMS)
+                      </label>
+                      <HelpTooltip
+                        content="BABTC tokens stored on Bitcoin as Charms. These are $BABY tokens that have been withdrawn to the blockchain."
+                        title="On-Chain Tokens"
+                        size="sm"
+                      />
+                    </div>
                     {babtcLoading && (
                       <span className="font-pixel text-[6px] text-pixel-text-muted animate-pulse">
                         ...
@@ -420,9 +450,16 @@ export function WalletSection() {
                 {/* Mining Boost */}
                 <div className="bg-pixel-bg-dark p-4 border-2 border-pixel-border">
                   <div className="flex items-center justify-between mb-1">
-                    <label className="font-pixel text-[8px] text-pixel-text-muted">
-                      MINING BOOST
-                    </label>
+                    <div className="flex items-center gap-1">
+                      <label className="font-pixel text-[8px] text-pixel-text-muted">
+                        MINING BOOST
+                      </label>
+                      <HelpTooltip
+                        content="Extra mining rewards from your Genesis Babies NFTs. Higher rarity NFTs provide bigger boosts."
+                        title="NFT Boost"
+                        size="sm"
+                      />
+                    </div>
                     {boostLoading && (
                       <span className="font-pixel text-[6px] text-pixel-text-muted animate-pulse">
                         ...
@@ -523,9 +560,17 @@ export function WalletSection() {
 
         {/* Info Section */}
         <div className="mt-8 p-4 bg-pixel-bg-light border-4 border-dashed border-pixel-border">
-          <h3 className="font-pixel text-xs text-pixel-secondary mb-3">
-            SECURITY INFO
-          </h3>
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="font-pixel text-xs text-pixel-secondary">
+              SECURITY INFO
+            </h3>
+            <HelpTooltip
+              content="Your wallet uses industry-standard encryption. Private keys never leave your device and are protected with a password."
+              title="Security Details"
+              description="We follow OWASP 2024 security guidelines for key derivation and encryption."
+              size="sm"
+            />
+          </div>
           <ul className="space-y-2 font-pixel-body text-sm text-pixel-text-muted">
             <li>
               <span className="text-pixel-success">●</span> Wallet encrypted

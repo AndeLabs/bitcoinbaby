@@ -12,8 +12,6 @@ import {
   createNFTMintService,
   createMempoolClient,
   type BabyNFTState,
-  type MintResult as ServiceMintResult,
-  type PreviewResult,
 } from "@bitcoinbaby/bitcoin";
 import { useWalletStore } from "@bitcoinbaby/core";
 
@@ -58,19 +56,33 @@ const RARITIES = [
   "legendary",
 ] as const;
 
+/**
+ * Generate secure random bytes using WebCrypto API
+ * This prevents manipulation of demo NFT traits
+ */
+function secureRandom(max: number): number {
+  const randomBytes = new Uint32Array(1);
+  crypto.getRandomValues(randomBytes);
+  return randomBytes[0] % max;
+}
+
+function generateSecureDNA(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function generateDemoNFT(tokenId: number): BabyNFTState {
-  const pick = <T>(arr: readonly T[]) =>
-    arr[Math.floor(Math.random() * arr.length)] as T;
+  // Use cryptographically secure random to prevent manipulation
+  const pick = <T>(arr: readonly T[]) => arr[secureRandom(arr.length)] as T;
 
   return {
     tokenId,
-    dna: Array.from({ length: 64 }, () =>
-      Math.floor(Math.random() * 16).toString(16),
-    ).join(""),
+    dna: generateSecureDNA(),
     bloodline: pick(BLOODLINES),
     baseType: pick(BASE_TYPES),
     rarityTier: pick(RARITIES),
-    genesisBlock: 850000 + Math.floor(Math.random() * 1000),
+    genesisBlock: 850000 + secureRandom(1000),
     level: 1,
     xp: 0,
     totalXp: 0,

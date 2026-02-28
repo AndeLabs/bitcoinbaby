@@ -14,6 +14,7 @@
 
 import Link from "next/link";
 import { clsx } from "clsx";
+import { HelpTooltip } from "@bitcoinbaby/ui";
 
 interface MenuItem {
   id: string;
@@ -146,7 +147,14 @@ export function MoreSection() {
       <div className="max-w-2xl mx-auto">
         {/* Section Header */}
         <div className="mb-8">
-          <h2 className="font-pixel text-xl text-pixel-primary">MORE</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-pixel text-xl text-pixel-primary">MORE</h2>
+            <HelpTooltip
+              content="Access app settings, view leaderboards, explore cosmic events, and connect with the community."
+              title="Menu"
+              size="md"
+            />
+          </div>
           <p className="font-pixel-body text-sm text-pixel-text-muted mt-1">
             Settings, help, and community
           </p>
@@ -197,9 +205,17 @@ export function MoreSection() {
         {/* Version Info */}
         <div className="mt-12 text-center">
           <div className="inline-block bg-pixel-bg-medium border-4 border-pixel-border p-4">
-            <p className="font-pixel text-[8px] text-pixel-text-muted uppercase mb-2">
-              BitcoinBaby
-            </p>
+            <div className="flex items-center justify-center gap-1 mb-2">
+              <p className="font-pixel text-[8px] text-pixel-text-muted uppercase">
+                BitcoinBaby
+              </p>
+              <HelpTooltip
+                content="A gamified mining experience built on Bitcoin. Mine $BABY tokens, raise your baby, and collect NFTs."
+                title="About"
+                description="Powered by Charms Protocol for NFTs and tokens on Bitcoin."
+                size="sm"
+              />
+            </div>
             <p className="font-pixel-mono text-sm text-pixel-text">
               v0.1.0-alpha
             </p>

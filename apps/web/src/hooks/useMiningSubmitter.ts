@@ -284,7 +284,6 @@ export function useMiningSubmitter(
           const privateKey = getPrivateKeyForSigning();
           if (privateKey) {
             try {
-              console.log("[MiningSubmitter] Auto-signing PSBT...");
               const broadcastResult =
                 await submitterRef.current.signAndBroadcast(
                   result.psbt,
@@ -292,11 +291,6 @@ export function useMiningSubmitter(
                 );
 
               if (broadcastResult.success && broadcastResult.txid) {
-                console.log(
-                  "[MiningSubmitter] Transaction broadcast:",
-                  broadcastResult.txid,
-                );
-
                 // Update the submission with txid
                 if (result.submission) {
                   result.submission.txid = broadcastResult.txid;

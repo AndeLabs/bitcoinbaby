@@ -16,6 +16,7 @@ import {
   NFTStats,
   NFTCard,
   NFTInfoPanel,
+  HelpTooltip,
   type BabyNFTState,
 } from "@bitcoinbaby/ui";
 import { useNFTStore, useWalletStore, useNFTSale } from "@bitcoinbaby/core";
@@ -98,9 +99,17 @@ export function NFTsSection() {
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
         <div className="mb-6">
-          <h2 className="font-pixel text-xl md:text-2xl text-pixel-primary mb-2">
-            GENESIS BABIES
-          </h2>
+          <div className="flex items-center gap-2 mb-2">
+            <h2 className="font-pixel text-xl md:text-2xl text-pixel-primary">
+              GENESIS BABIES
+            </h2>
+            <HelpTooltip
+              content="Genesis Babies are NFTs that boost your mining rewards. Each NFT has unique traits and rarity levels."
+              title="NFT Collection"
+              description="Higher rarity = Higher mining boost. Level up your NFTs by burning $BABY tokens."
+              size="md"
+            />
+          </div>
           <p className="font-pixel-body text-sm text-pixel-text-muted">
             Mint NFTs to boost your mining rewards
           </p>

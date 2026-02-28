@@ -27,6 +27,7 @@ import {
   EvolutionModal,
   DeathModal,
   MiningStatusBadge,
+  HelpTooltip,
   type GameAction,
 } from "@bitcoinbaby/ui";
 import { Button, Input, Card, CardHeader, CardContent } from "@bitcoinbaby/ui";
@@ -317,7 +318,15 @@ export function BabySection({ setActiveTab }: BabySectionProps) {
         <div className="max-w-4xl mx-auto">
           {/* Section Header */}
           <div className="mb-6">
-            <h2 className="font-pixel text-xl text-pixel-primary">MY BABY</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="font-pixel text-xl text-pixel-primary">MY BABY</h2>
+              <HelpTooltip
+                content="Your BitcoinBaby grows stronger as you mine and care for it. Higher levels unlock better mining bonuses."
+                title="Baby Care"
+                description="Feed, play, and mine regularly to keep your baby happy and earn XP faster."
+                size="md"
+              />
+            </div>
             <p className="font-pixel-body text-sm text-pixel-text-muted mt-1">
               Take care of your BitcoinBaby
             </p>
@@ -394,9 +403,15 @@ export function BabySection({ setActiveTab }: BabySectionProps) {
 
               {/* Quick Tips */}
               <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4 shadow-[8px_8px_0_0_#000]">
-                <h3 className="font-pixel text-xs text-pixel-primary mb-4">
-                  TIPS
-                </h3>
+                <div className="flex items-center gap-2 mb-4">
+                  <h3 className="font-pixel text-xs text-pixel-primary">
+                    TIPS
+                  </h3>
+                  <HelpTooltip
+                    content="Quick tips to help your baby grow faster and earn more rewards."
+                    size="sm"
+                  />
+                </div>
                 <div className="space-y-3 font-pixel-body text-sm text-pixel-text-muted">
                   <div className="flex items-start gap-2">
                     <span>💡</span>
@@ -419,9 +434,16 @@ export function BabySection({ setActiveTab }: BabySectionProps) {
 
               {/* Achievement Progress */}
               <div className="bg-pixel-bg-light border-4 border-pixel-border p-4">
-                <h3 className="font-pixel text-xs text-pixel-primary mb-2">
-                  ACHIEVEMENTS
-                </h3>
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="font-pixel text-xs text-pixel-primary">
+                    ACHIEVEMENTS
+                  </h3>
+                  <HelpTooltip
+                    content="Complete goals to earn achievements and XP bonuses. Unlock all achievements to maximize your baby's potential."
+                    title="Achievements"
+                    size="sm"
+                  />
+                </div>
                 <div className="flex justify-between items-center">
                   <span className="font-pixel text-[10px] text-pixel-text-muted">
                     {achievements.unlockedAchievements.length}/
