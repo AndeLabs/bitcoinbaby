@@ -1,10 +1,32 @@
 import type { Metadata, Viewport } from "next";
+import { Press_Start_2P, Pixelify_Sans, VT323 } from "next/font/google";
 import "./globals.css";
 import { RootProvider } from "@/providers";
 
-// Pixel Art Fonts
-const fontUrl =
-  "https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;500;600;700&family=VT323&display=swap";
+// Pixel Art Fonts - optimized loading via next/font
+const pressStart2P = Press_Start_2P({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-pixel",
+  preload: true,
+});
+
+const pixelifySans = Pixelify_Sans({
+  weight: ["400", "500", "600", "700"],
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-pixel-body",
+  preload: true,
+});
+
+const vt323 = VT323({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-vt323",
+  preload: true,
+});
 
 export const metadata: Metadata = {
   title: "BitcoinBaby | Mine Bitcoin While Your Baby Evolves",
@@ -58,15 +80,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html
+      lang="en"
+      className={`${pressStart2P.variable} ${pixelifySans.variable} ${vt323.variable}`}
+    >
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link href={fontUrl} rel="stylesheet" />
         {/* PWA Icons */}
         <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.svg" />

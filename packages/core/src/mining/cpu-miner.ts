@@ -40,7 +40,7 @@ export class CPUMiner implements Miner {
       onError?: (error: Error) => void;
     } = {},
   ) {
-    this.difficulty = options.difficulty ?? 16;
+    this.difficulty = options.difficulty ?? 22; // D22 for natural emission control
     this.minerAddress = options.address ?? "";
     // Use specified count, or auto-detect CPU cores, or fallback to 1
     this.workerCount =
@@ -204,7 +204,7 @@ export class CPUMiner implements Miner {
       // Worker state
       let isRunning = false;
       let isPaused = false;
-      let difficulty = 16;
+      let difficulty = 22; // D22 for natural emission control
       let throttle = 100;
       let nonce = 0;
       let totalHashes = 0;

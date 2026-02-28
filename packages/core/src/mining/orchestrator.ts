@@ -12,13 +12,14 @@ import {
   isPageVisible,
   getNavigator,
 } from "./capabilities";
+import { MIN_DIFFICULTY } from "../tokenomics/constants";
 
 const defaultConfig: OrchestratorConfig = {
   preferWebGPU: true,
   fallbackToCPU: true,
   throttleOnBattery: true,
   throttleWhenHidden: true,
-  initialDifficulty: 16, // 16 leading zero bits (reasonable for CPU)
+  initialDifficulty: MIN_DIFFICULTY, // D22 - sustainable emission rate
 };
 
 /**

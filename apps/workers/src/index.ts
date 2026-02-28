@@ -98,14 +98,37 @@ app.get("/api/balance/:address", async (c) => {
     );
   }
 
-  const id = c.env.VIRTUAL_BALANCE.idFromName(address);
-  const stub = c.env.VIRTUAL_BALANCE.get(id);
+  try {
+    const id = c.env.VIRTUAL_BALANCE.idFromName(address);
+    const stub = c.env.VIRTUAL_BALANCE.get(id);
 
-  const response = await stub.fetch(
-    new Request(`http://internal/balance/${address}/get`),
-  );
+    const response = await stub.fetch(
+      new Request(`http://internal/balance/${address}/get`),
+    );
 
-  return response;
+    if (!response.ok && response.status >= 500) {
+      return c.json<ApiResponse>(
+        {
+          success: false,
+          error: "Service temporarily unavailable. Please try again later.",
+          timestamp: Date.now(),
+        },
+        503,
+      );
+    }
+
+    return response;
+  } catch (error) {
+    console.error("[Balance] Error:", error);
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Service temporarily unavailable. Please try again later.",
+        timestamp: Date.now(),
+      },
+      503,
+    );
+  }
 });
 
 /**
@@ -125,19 +148,48 @@ app.post("/api/balance/:address/credit", async (c) => {
     );
   }
 
-  const body = await c.req.json();
-  const id = c.env.VIRTUAL_BALANCE.idFromName(address);
-  const stub = c.env.VIRTUAL_BALANCE.get(id);
+  try {
+    const body = await c.req.json();
+    const id = c.env.VIRTUAL_BALANCE.idFromName(address);
+    const stub = c.env.VIRTUAL_BALANCE.get(id);
 
-  const response = await stub.fetch(
-    new Request(`http://internal/balance/${address}/credit`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }),
-  );
+    const response = await stub.fetch(
+      new Request(`http://internal/balance/${address}/credit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    );
 
-  return response;
+    // Check if Durable Object returned an error
+    if (!response.ok && response.status >= 500) {
+      const text = await response.text();
+      // Return JSON error instead of plain text
+      return c.json<ApiResponse>(
+        {
+          success: false,
+          error: text.includes("limit")
+            ? "Service temporarily unavailable (rate limit). Try again later."
+            : "Service temporarily unavailable. Please try again.",
+          timestamp: Date.now(),
+        },
+        503,
+      );
+    }
+
+    return response;
+  } catch (error) {
+    // Cloudflare Durable Objects limit or other error
+    console.error("[Credit] Error:", error);
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Service temporarily unavailable. Please try again later.",
+        timestamp: Date.now(),
+      },
+      503,
+    );
+  }
 });
 
 // =============================================================================

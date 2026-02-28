@@ -46,6 +46,8 @@ export interface VirtualBalance {
   totalWithdrawn: bigint;
   /** Amount currently pending withdrawal */
   pendingWithdraw: bigint;
+  /** Current mining streak count (for bonus) */
+  streakCount: number;
   /** Last mining activity timestamp */
   lastMiningAt: number;
   /** Account creation timestamp */

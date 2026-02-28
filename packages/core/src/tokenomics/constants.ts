@@ -42,29 +42,49 @@ export const DECIMALS = 8;
 export const BASE_UNIT = BigInt(10 ** DECIMALS);
 
 // =============================================================================
-// MINING REWARDS
+// MINING REWARDS (BALANCED FOR SUSTAINABILITY)
 // =============================================================================
 
 /**
- * Base reward per share at difficulty 16
- * 10,000 $BABY = Fun to mine, quick accumulation
+ * Base reward per share at minimum difficulty
+ *
+ * BALANCING PHILOSOPHY:
+ * - Target: MILES por dia, no cientos de miles
+ * - If successful: Many miners sharing emission
+ * - If few miners: Prevent instant whales
+ *
+ * 100 $BABY base = Very sustainable long-term
  */
-export const BASE_REWARD_PER_SHARE = BigInt(10_000);
+export const BASE_REWARD_PER_SHARE = BigInt(100);
 
-/** Minimum mining difficulty */
-export const MIN_DIFFICULTY = 16;
+/**
+ * Minimum mining difficulty
+ * Increased to D22 for very sustainable emission rate
+ *
+ * D22 = ~10 shares/hour for GPU (vs 700 at D16)
+ * Shares are hard to find = very valuable
+ */
+export const MIN_DIFFICULTY = 22;
 
 /** Halving interval in Bitcoin blocks (~4 years) */
 export const HALVING_BLOCKS = 210_000;
 
 /**
- * Calculate reward for a share at given difficulty
- * Each +1 difficulty above 16 doubles the reward
+ * Global daily emission cap (SOFT - just for monitoring)
+ * The difficulty naturally limits emission, no hard cap needed
  *
- * D16 = 10,000 $BABY
- * D17 = 20,000 $BABY
- * D18 = 40,000 $BABY
- * D20 = 160,000 $BABY
+ * This is just a reference number, not enforced
+ */
+export const GLOBAL_DAILY_EMISSION_CAP = BigInt(100_000_000); // 100M soft reference
+
+/**
+ * Calculate reward for a share at given difficulty
+ * Each +1 difficulty above MIN doubles the reward
+ *
+ * D22 = 100 $BABY (base)
+ * D23 = 200 $BABY
+ * D24 = 400 $BABY
+ * D26 = 1,600 $BABY
  */
 export function calculateShareReward(difficulty: number): bigint {
   if (difficulty <= MIN_DIFFICULTY) {
@@ -72,6 +92,58 @@ export function calculateShareReward(difficulty: number): bigint {
   }
   const extraDifficulty = BigInt(difficulty - MIN_DIFFICULTY);
   return BASE_REWARD_PER_SHARE * BigInt(2) ** extraDifficulty;
+}
+
+// =============================================================================
+// STREAK BONUS SYSTEM
+// =============================================================================
+
+/**
+ * Streak bonus: The longer you mine continuously, the more you earn
+ * Resets if you stop mining for 30 minutes
+ *
+ * This REWARDS dedication instead of punishing it
+ */
+export const STREAK_BONUSES = {
+  /** Shares needed to reach each tier */
+  tiers: [10, 50, 100, 250, 500] as const,
+  /** Multiplier for each tier (1.0 = 100% = base reward) */
+  multipliers: [1.0, 1.2, 1.5, 1.75, 1.9, 2.0] as const,
+  /** Time in ms before streak resets (30 minutes) */
+  resetTimeMs: 30 * 60 * 1000,
+} as const;
+
+/**
+ * Calculate streak multiplier based on consecutive shares
+ *
+ * 0-9 shares:    1.0x (base)
+ * 10-49 shares:  1.2x (+20%)
+ * 50-99 shares:  1.5x (+50%)
+ * 100-249:       1.75x (+75%)
+ * 250-499:       1.9x (+90%)
+ * 500+:          2.0x (+100%) MAX
+ */
+export function getStreakMultiplier(consecutiveShares: number): number {
+  const { tiers, multipliers } = STREAK_BONUSES;
+
+  for (let i = tiers.length - 1; i >= 0; i--) {
+    if (consecutiveShares >= tiers[i]) {
+      return multipliers[i + 1];
+    }
+  }
+  return multipliers[0]; // Base multiplier
+}
+
+/**
+ * Calculate reward with streak bonus
+ */
+export function calculateRewardWithStreak(
+  difficulty: number,
+  consecutiveShares: number,
+): bigint {
+  const baseReward = calculateShareReward(difficulty);
+  const streakMultiplier = getStreakMultiplier(consecutiveShares);
+  return BigInt(Math.floor(Number(baseReward) * streakMultiplier));
 }
 
 // =============================================================================
@@ -199,26 +271,36 @@ export const PREMIUM_BURN_COSTS = {
 export type PremiumFeature = keyof typeof PREMIUM_BURN_COSTS;
 
 // =============================================================================
-// SECURITY & RATE LIMITS
+// SECURITY & RATE LIMITS (BALANCED)
 // =============================================================================
 
-/** Maximum shares per hour per address (anti-abuse) */
-export const MAX_SHARES_PER_HOUR = 100;
+/**
+ * Maximum shares per hour per address
+ * At D20, GPU finds ~40 shares/hour max anyway
+ * This is a safety cap, not the limiter
+ */
+export const MAX_SHARES_PER_HOUR = 50;
 
 /** Maximum reward per share (cap to prevent exploits) */
-export const MAX_REWARD_PER_SHARE = BigInt(1_000_000); // 1M max
+export const MAX_REWARD_PER_SHARE = BigInt(10_000); // 10K max (with all bonuses)
 
 /** Minimum time between shares in ms (anti-spam) */
 export const MIN_SHARE_INTERVAL_MS = 1000; // 1 second
 
-/** Maximum daily emission per address */
-export const MAX_DAILY_EMISSION_PER_ADDRESS = BigInt(10_000_000); // 10M/day
+/**
+ * Maximum daily emission per address (NO HARD LIMIT)
+ * La dificultad controla la emision naturalmente
+ * Si quieren minar todo el dia, que sigan minando!
+ *
+ * Este valor es solo referencia, no se fuerza
+ */
+export const MAX_DAILY_EMISSION_PER_ADDRESS = BigInt(1_000_000_000); // No real limit
 
 /** Minimum withdrawal amount */
 export const MIN_WITHDRAWAL = BigInt(10_000); // 10K minimum
 
 /** Maximum withdrawal per transaction */
-export const MAX_WITHDRAWAL = BigInt(100_000_000); // 100M max
+export const MAX_WITHDRAWAL = BigInt(10_000_000); // 10M max
 
 /**
  * Validate share submission (security check)
@@ -275,28 +357,46 @@ export function validateWithdrawal(params: {
 // =============================================================================
 
 /**
- * HYBRID TOKENOMICS SUMMARY
+ * SUSTAINABLE TOKENOMICS SUMMARY (NO HARD LIMITS)
  *
- * FOR USERS (Simple & Fun):
- * - Mine → Get $BABY (10,000 per share at D16)
- * - More difficulty → More reward (2x per level)
+ * FILOSOFIA:
+ * - Ganancias naturales: MILES por dia (no cientos de miles)
+ * - SIN LIMITES: Si quieren minar 24/7, que sigan!
+ * - La DIFICULTAD controla la emision, no caps artificiales
+ *
+ * FOR USERS:
+ * - Mine → Get $BABY (100 per share at D22)
+ * - Higher difficulty → 2x reward per level
+ * - Streak bonus → Up to 2x for continuous mining
+ * - NO LIMITS → Mina todo lo que quieras
  * - Withdraw → 100% goes to Bitcoin (NO penalty)
  *
+ * STREAK SYSTEM (Rewards dedication):
+ * - 0-9 shares:    100 $BABY (base)
+ * - 10-49 shares:  120 $BABY (+20%)
+ * - 50-99 shares:  150 $BABY (+50%)
+ * - 100-249:       175 $BABY (+75%)
+ * - 250-499:       190 $BABY (+90%)
+ * - 500+:          200 $BABY (+100%) MAX
+ *
+ * EXPECTED EARNINGS (D22, natural - no limits):
+ * - Phone:   ~10-100 $BABY/day
+ * - Laptop:  ~100-1,000 $BABY/day
+ * - Desktop: ~500-3,000 $BABY/day
+ * - GPU:     ~2,000-15,000 $BABY/day (with streak)
+ *
+ * CONTROL NATURAL:
+ * - D22 = shares muy dificiles de encontrar
+ * - GPU: ~10 shares/hora (no 700 como en D16)
+ * - Esto NATURALMENTE limita ganancias a miles
+ * - Sin necesidad de caps artificiales
+ *
  * BURNS (Give VALUE, not penalty):
- * - Buy NFTs → Get NFT, tokens burned
- * - Evolve Baby → Baby stronger, tokens burned
- * - Premium features → Get value, tokens burned
- *   - Custom name, skins, boosts, revive
+ * - NFTs, Evolution, Premium features
  *
- * SECURITY (Professional):
- * - Rate limits prevent abuse
- * - Virtual balance tracked per address
- * - Total supply enforced (21B max)
- * - On-chain contract validates direct mining
- *
- * ECONOMICS (Sustainable):
- * - Burns reduce supply over time
- * - More engagement = more burns
- * - Users WANT to burn (for value)
- * - Halvings every ~4 years
+ * RESULT:
+ * - Mineria libre sin restricciones
+ * - Ganancias naturalmente en miles
+ * - Streak recompensa dedicacion
+ * - Muy sostenible a largo plazo
  */

@@ -84,8 +84,8 @@ export interface UseMiningShareSubmissionReturn {
 const MAX_NOTIFICATIONS = 10;
 const SHARE_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
-// Reward calculation now uses centralized tokenomics constants
-// Base: 10,000 $BABY at D16, doubles each difficulty level
+// Reward calculation uses centralized tokenomics constants
+// Base: 100 $BABY at D22, doubles each difficulty level above D22
 
 // =============================================================================
 // HOOK
@@ -127,7 +127,6 @@ export function useMiningShareSubmission(
 
   // Track processed shares to avoid duplicates
   const processedSharesRef = useRef<Set<string>>(new Set());
-  const lastShareCountRef = useRef(0);
 
   // Pending share queue
   const pendingQueueRef = useRef<
@@ -308,40 +307,29 @@ export function useMiningShareSubmission(
   }, [isSubmitting, submitShare, addNotification]);
 
   /**
-   * Watch for new shares from mining
+   * Watch for new shares from mining (uses real mining results)
    */
   useEffect(() => {
-    // Check if shares increased
-    if (mining.shares <= lastShareCountRef.current) {
-      lastShareCountRef.current = mining.shares;
-      return;
-    }
+    // Skip if no new share or not running
+    if (!mining.lastShare || !mining.isRunning) return;
 
-    const newSharesCount = mining.shares - lastShareCountRef.current;
-    lastShareCountRef.current = mining.shares;
+    const share = mining.lastShare;
 
-    // Skip if not running
-    if (!mining.isRunning) return;
+    // Skip if already processed (deduplicate by hash)
+    if (processedSharesRef.current.has(share.hash)) return;
 
-    // Generate fake share data for each new share
-    // In production, the mining worker would provide actual share data
-    for (let i = 0; i < newSharesCount; i++) {
-      const shareHash = `${Date.now()}-${mining.shares - newSharesCount + i}-${Math.random().toString(36).slice(2)}`;
+    // Calculate reward based on actual difficulty from the share
+    const reward = calculateShareReward(share.difficulty);
 
-      // Skip if already processed
-      if (processedSharesRef.current.has(shareHash)) continue;
-
-      const reward = calculateShareReward(mining.difficulty);
-
-      pendingQueueRef.current.push({
-        hash: shareHash,
-        nonce: mining.shares - newSharesCount + i,
-        difficulty: mining.difficulty,
-        blockData: `block-${Date.now()}`,
-        reward,
-        timestamp: Date.now(),
-      });
-    }
+    // Add real share data to queue
+    pendingQueueRef.current.push({
+      hash: share.hash,
+      nonce: share.nonce,
+      difficulty: share.difficulty,
+      blockData: share.blockData || `block-${share.timestamp}`,
+      reward,
+      timestamp: share.timestamp,
+    });
 
     setPendingShares(pendingQueueRef.current.length);
 
@@ -350,9 +338,8 @@ export function useMiningShareSubmission(
       submitPendingShares();
     }
   }, [
-    mining.shares,
+    mining.lastShare,
     mining.isRunning,
-    mining.difficulty,
     autoSubmit,
     batchSize,
     submitPendingShares,

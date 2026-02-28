@@ -25,6 +25,7 @@ import type {
   MiningResult,
   DeviceCapabilities,
 } from "./types";
+import { MIN_DIFFICULTY } from "../tokenomics/constants";
 
 // =============================================================================
 // TYPES
@@ -86,7 +87,7 @@ class MiningManager {
     hashrate: 0,
     totalHashes: 0,
     shares: 0,
-    difficulty: 16,
+    difficulty: MIN_DIFFICULTY,
     minerType: null,
     capabilities: null,
     lastShare: null,
@@ -121,7 +122,7 @@ class MiningManager {
     };
 
     this.orchestrator = new MiningOrchestrator({
-      initialDifficulty: config.initialDifficulty ?? 16,
+      initialDifficulty: config.initialDifficulty ?? MIN_DIFFICULTY,
       minerAddress: config.minerAddress,
       preferWebGPU: config.preferWebGPU ?? true,
       fallbackToCPU: config.fallbackToCPU ?? true,
@@ -443,7 +444,7 @@ class MiningManager {
       hashrate: 0,
       totalHashes: 0,
       shares: 0,
-      difficulty: 16,
+      difficulty: MIN_DIFFICULTY,
       minerType: null,
       capabilities: null,
       lastShare: null,

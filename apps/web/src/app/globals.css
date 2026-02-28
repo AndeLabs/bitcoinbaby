@@ -190,15 +190,15 @@ canvas,
 /* ========================================
    UTILITY CLASSES
    ======================================== */
-/* Font utilities - explicitly defined to ensure they're available */
+/* Font utilities - using CSS variables from next/font for optimized loading */
 .font-pixel {
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-pixel), 'Press Start 2P', cursive;
 }
 .font-pixel-body {
-  font-family: 'Pixelify Sans', sans-serif;
+  font-family: var(--font-pixel-body), 'Pixelify Sans', sans-serif;
 }
 .font-pixel-mono {
-  font-family: 'VT323', monospace;
+  font-family: var(--font-vt323), 'VT323', monospace;
 }
 
 .animate-pixel-blink { animation: pixel-blink 1s steps(1) infinite; }

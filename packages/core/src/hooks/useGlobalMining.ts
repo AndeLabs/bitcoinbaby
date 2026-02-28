@@ -84,7 +84,7 @@ export function useGlobalMining(
   options: UseGlobalMiningOptions = {},
 ): UseGlobalMiningReturn {
   const {
-    difficulty = 16,
+    difficulty = 22, // D22 for very sustainable emission
     minerAddress,
     autoStart = false,
     nftBoost: initialNftBoost = 0,
