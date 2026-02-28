@@ -666,7 +666,15 @@ export class TransactionBuilder {
 
     // Tweak the key for Taproot (BIP86 key path spend)
     const tweakHash = bitcoin.crypto.taggedHash("TapTweak", xOnlyInternalKey);
-    const tweakedPrivateKey = ecc.privateAdd(privateKey, tweakHash);
+
+    // Handle parity: if the public key has odd Y coordinate (0x03 prefix),
+    // we need to negate the private key before tweaking
+    let privKeyToTweak = privateKey;
+    if (publicKey[0] === 0x03) {
+      privKeyToTweak = ecc.privateNegate(privateKey);
+    }
+
+    const tweakedPrivateKey = ecc.privateAdd(privKeyToTweak, tweakHash);
 
     if (!tweakedPrivateKey) {
       throw new Error("Failed to tweak private key");

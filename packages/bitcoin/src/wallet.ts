@@ -279,11 +279,28 @@ export class BitcoinWallet {
       throw new WalletNotFoundError();
     }
 
-    const { signer, cleanup } = this.createTweakedSigner();
+    const { signer, cleanup, internalPubKey } = this.createTweakedSigner();
     const indicesToSign = inputIndices ?? psbt.data.inputs.map((_, i) => i);
 
     try {
       for (const index of indicesToSign) {
+        // For Taproot inputs, ensure tapInternalKey is set
+        const input = psbt.data.inputs[index];
+
+        if (
+          this.wallet.addressType === "taproot" &&
+          !input.tapInternalKey &&
+          input.witnessUtxo
+        ) {
+          // Check if this input is for our address (Taproot P2TR)
+          const script = input.witnessUtxo.script;
+          if (script[0] === 0x51 && script[1] === 0x20) {
+            // OP_1 + 32 bytes = P2TR
+            psbt.updateInput(index, {
+              tapInternalKey: internalPubKey,
+            });
+          }
+        }
         psbt.signInput(index, signer);
       }
       return psbt;
@@ -338,6 +355,7 @@ export class BitcoinWallet {
   private createTweakedSigner(): {
     signer: bitcoin.Signer;
     cleanup: () => void;
+    internalPubKey: Buffer;
   } {
     if (!this.wallet) {
       throw new WalletNotFoundError();
@@ -351,16 +369,39 @@ export class BitcoinWallet {
       throw new Error("Invalid private key");
     }
 
-    // Tweak private key for Taproot (BIP86)
+    // x-only internal public key (32 bytes)
     const xOnlyPubKey = publicKey.slice(1, 33);
-    const tweakHash = bitcoin.crypto.taggedHash(
-      "TapTweak",
-      Buffer.from(xOnlyPubKey),
-    );
-    const tweakedPrivateKey = ecc.privateAdd(privateKey, tweakHash);
+    const internalPubKey = Buffer.from(xOnlyPubKey);
+
+    // BIP86/BIP341 Taproot key path tweak
+    const tweakHash = bitcoin.crypto.taggedHash("TapTweak", internalPubKey);
+
+    // For Taproot, we need to use xOnlyPointAddTweak which handles parity correctly
+    const tweakResult = ecc.xOnlyPointAddTweak(xOnlyPubKey, tweakHash);
+    if (!tweakResult) {
+      throw new Error("Failed to tweak public key");
+    }
+
+    // The tweaked x-only public key (output key)
+    const tweakedPubKey = Buffer.from(tweakResult.xOnlyPubkey);
+
+    // Tweak the private key - need to negate if original pubkey has odd Y
+    let privKeyToTweak = privateKey;
+    if (publicKey[0] === 0x03) {
+      // Odd parity - negate private key before tweaking
+      privKeyToTweak = ecc.privateNegate(privateKey);
+    }
+
+    const tweakedPrivateKey = ecc.privateAdd(privKeyToTweak, tweakHash);
 
     if (!tweakedPrivateKey) {
       throw new Error("Failed to tweak private key");
+    }
+
+    // If the tweaked pubkey has odd parity, we need to negate the tweaked private key
+    if (tweakResult.parity === 1) {
+      // Note: The private key is already correct for the tweaked point
+      // No additional negation needed here - parity is just informational
     }
 
     // SECURITY: Store as Uint8Array so we can zero it later
@@ -368,12 +409,20 @@ export class BitcoinWallet {
 
     return {
       signer: {
-        publicKey: Buffer.from(publicKey),
-        sign: (hash: Buffer): Buffer => {
+        // For Taproot: the publicKey must be the TWEAKED/OUTPUT key (what's in the script)
+        publicKey: tweakedPubKey,
+        // signSchnorr is required for Taproot inputs
+        signSchnorr: (hash: Buffer): Buffer => {
           const signature = ecc.signSchnorr(hash, tweakedKeyArray);
           return Buffer.from(signature);
         },
+        // Also provide sign for non-Taproot compatibility
+        sign: (hash: Buffer): Buffer => {
+          const signature = ecc.sign(hash, tweakedKeyArray);
+          return Buffer.from(signature);
+        },
       },
+      internalPubKey,
       // SECURITY: Cleanup function to zero the tweaked key
       cleanup: () => {
         tweakedKeyArray.fill(0);

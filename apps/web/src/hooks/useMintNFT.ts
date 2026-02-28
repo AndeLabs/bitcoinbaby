@@ -11,6 +11,7 @@ import { useState, useCallback, useMemo } from "react";
 import {
   createNFTMintService,
   createMempoolClient,
+  Psbt,
   type BabyNFTState,
 } from "@bitcoinbaby/bitcoin";
 import { useWalletStore } from "@bitcoinbaby/core";
@@ -105,14 +106,17 @@ export function useMintNFT(): UseMintNFTReturn {
       }
 
       // Sign PSBT with wallet
-      const signedPsbt = await signPsbt(mintResult.psbtHex);
-      if (!signedPsbt) {
+      const signedPsbtHex = await signPsbt(mintResult.psbtHex);
+      if (!signedPsbtHex) {
         throw new Error("Transaction was cancelled or failed to sign");
       }
 
+      // Extract raw transaction from finalized PSBT
+      const signedPsbt = Psbt.fromHex(signedPsbtHex);
+      const rawTxHex = signedPsbt.extractTransaction().toHex();
+
       // Broadcast to network
-      const broadcastTxid =
-        await mempoolClient.broadcastTransaction(signedPsbt);
+      const broadcastTxid = await mempoolClient.broadcastTransaction(rawTxHex);
       if (!broadcastTxid) {
         throw new Error("Failed to broadcast transaction to the network");
       }
