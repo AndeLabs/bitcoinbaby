@@ -17,10 +17,10 @@ const STORE_NAME = "wallet";
 
 /**
  * Minimum password length requirement
- * NIST SP 800-63B recommends at least 8 characters, but 12+ is safer
- * for protecting high-value assets like cryptocurrency
+ * NIST SP 800-63B recommends at least 8 characters
+ * Balance between security and user-friendliness
  */
-export const MIN_PASSWORD_LENGTH = 12;
+export const MIN_PASSWORD_LENGTH = 8;
 
 // =============================================================================
 // BRUTE FORCE PROTECTION

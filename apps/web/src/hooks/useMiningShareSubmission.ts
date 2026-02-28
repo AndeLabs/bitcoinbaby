@@ -14,8 +14,11 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useGlobalMining, calculateShareReward } from "@bitcoinbaby/core";
-import { useWallet } from "./useWallet";
+import {
+  useGlobalMining,
+  useWalletStore,
+  calculateShareReward,
+} from "@bitcoinbaby/core";
 import { useVirtualBalance } from "./useVirtualBalance";
 import { useMiningSubmitter } from "./useMiningSubmitter";
 
@@ -101,8 +104,8 @@ export function useMiningShareSubmission(
   // Subscribe to global mining (singleton - no extra overhead)
   const mining = useGlobalMining();
 
-  // Wallet for blockchain submission
-  const { wallet, isLocked } = useWallet();
+  // Get wallet address from global store (shared across all components)
+  const wallet = useWalletStore((s) => s.wallet);
   const address = wallet?.address;
 
   // Virtual balance for crediting
@@ -201,11 +204,7 @@ export function useMiningShareSubmission(
       }
 
       // Blockchain-only strategy: submit to Bitcoin via Charms
-      if (
-        strategy === "blockchain-only" &&
-        canSubmitToBlockchain &&
-        !isLocked
-      ) {
+      if (strategy === "blockchain-only" && canSubmitToBlockchain && address) {
         try {
           const result = await submitProof({
             hash: share.hash,
@@ -241,14 +240,7 @@ export function useMiningShareSubmission(
         error: address ? "Submission not available" : "No wallet connected",
       };
     },
-    [
-      strategy,
-      address,
-      creditMining,
-      canSubmitToBlockchain,
-      isLocked,
-      submitProof,
-    ],
+    [strategy, address, creditMining, canSubmitToBlockchain, submitProof],
   );
 
   /**

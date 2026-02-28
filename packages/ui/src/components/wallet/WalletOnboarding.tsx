@@ -23,7 +23,7 @@ import { EntropyCollector } from "./EntropyCollector";
  * Minimum password length for security
  * Matches @bitcoinbaby/core MIN_PASSWORD_LENGTH
  */
-const MIN_PASSWORD_LENGTH = 12;
+const MIN_PASSWORD_LENGTH = 8;
 
 type OnboardingStep =
   | "choose"

@@ -84,8 +84,8 @@ function UnlockModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Use MIN_PASSWORD_LENGTH (12) for consistent security
-    if (password.length >= 12) {
+    // Use MIN_PASSWORD_LENGTH for consistent security
+    if (password.length >= MIN_PASSWORD_LENGTH) {
       onSubmit(password);
     }
   };
