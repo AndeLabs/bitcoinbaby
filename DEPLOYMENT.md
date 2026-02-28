@@ -34,6 +34,12 @@ Network:    Bitcoin Testnet4
 | **Staking Pool** | `tb1pjnkc6432y0muu7r0mwrxj0sc8y9kaq7dsh477xfuk5faannhe9psxkkqmc` | 10% |
 | **Miners** | (user wallets) | 70% |
 
+### NFT Sales Treasury
+
+| Proposito | Direccion | Precio |
+|-----------|-----------|--------|
+| **NFT Treasury** | `tb1p7kk2fuf8kv5vjftczlezfded94v9ay9s0h7ggd87k5d5ws744lesw7smmu` | 50,000 sats/NFT |
+
 ---
 
 ## 2. Environment Variables
@@ -88,6 +94,13 @@ Path: m/86'/1'/0'/0/0
 Mnemonic: [GUARDADO EN PASSWORD MANAGER]
 Address: tb1pjnkc6432y0muu7r0mwrxj0sc8y9kaq7dsh477xfuk5faannhe9psxkkqmc
 Path: m/86'/1'/0'/0/0
+
+=== NFT_TREASURY WALLET (Genesis Babies Sales) ===
+Mnemonic: ankle patient double route wreck rally choose lizard spoon analyst below chat
+Address: tb1p7kk2fuf8kv5vjftczlezfded94v9ay9s0h7ggd87k5d5ws744lesw7smmu
+Path: m/86'/1'/0'/0/0
+Purpose: Recibe TODOS los pagos de venta de NFTs (50,000 sats cada uno)
+Note: Wallet SEPARADO de fondos operacionales de BitcoinBaby
 
 === BATCH WALLET (Workers) ===
 Mnemonic: [GUARDADO EN PASSWORD MANAGER]
