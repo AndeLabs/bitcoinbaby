@@ -233,8 +233,13 @@ export class VirtualBalanceDO extends DurableObject<Env> {
 
     const { proof } = body;
 
-    // Validate proof
-    if (!proof || !proof.hash || !proof.nonce || !proof.reward) {
+    // Validate proof (use explicit checks to handle nonce=0 correctly)
+    if (
+      !proof ||
+      !proof.hash ||
+      typeof proof.nonce !== "number" ||
+      !proof.reward
+    ) {
       return this.errorResponse("Invalid proof", 400);
     }
 
