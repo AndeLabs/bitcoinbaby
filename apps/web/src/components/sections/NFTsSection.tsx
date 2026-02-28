@@ -41,7 +41,7 @@ export function NFTsSection() {
     mint,
     reset: resetMint,
     canMint,
-    isDemo,
+    isWalletConnected,
   } = useMintNFT();
 
   // NFT Sale hook for pricing
@@ -212,14 +212,17 @@ export function NFTsSection() {
         ) : (
           /* Mint View */
           <div className="max-w-2xl mx-auto">
-            {/* Connection Warning */}
-            {!wallet && (
+            {/* Connection Required */}
+            {!isWalletConnected && (
               <div className="mb-6 p-4 bg-pixel-bg-medium border-4 border-pixel-warning text-center">
                 <p className="font-pixel text-[9px] text-pixel-warning uppercase mb-2">
-                  Demo Mode
+                  Wallet Required
                 </p>
-                <p className="font-pixel-body text-sm text-pixel-text-muted">
-                  Connect your wallet for real minting on testnet4
+                <p className="font-pixel-body text-sm text-pixel-text-muted mb-3">
+                  Connect your wallet to mint NFTs on testnet4
+                </p>
+                <p className="font-pixel text-[8px] text-pixel-primary">
+                  Go to Wallet tab to connect
                 </p>
               </div>
             )}
@@ -259,12 +262,12 @@ export function NFTsSection() {
                     disabled={!canMint}
                     className="font-pixel text-sm uppercase px-8 py-4 bg-pixel-success text-pixel-text-dark border-4 border-black shadow-[6px_6px_0_0_#000] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0_0_#000] transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isDemo ? "🎮 Mint (Demo)" : "💰 Mint Genesis Baby"}
+                    💰 Mint Genesis Baby
                   </button>
                   <p className="mt-3 font-pixel text-[7px] text-pixel-text-muted">
-                    {isDemo
-                      ? "Demo mode - no real transaction"
-                      : "Will open wallet to sign transaction"}
+                    {isWalletConnected
+                      ? "Will open wallet to sign transaction"
+                      : "Connect wallet first"}
                   </p>
                 </div>
               </>
@@ -277,9 +280,7 @@ export function NFTsSection() {
                   MINTING...
                 </p>
                 <p className="font-pixel-body text-sm text-pixel-text-muted">
-                  {isDemo
-                    ? "Creating your Baby..."
-                    : "Please confirm in your wallet..."}
+                  Please confirm in your wallet...
                 </p>
               </div>
             )}
