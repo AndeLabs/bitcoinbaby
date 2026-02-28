@@ -160,3 +160,34 @@ export {
   formatBABTCBalance,
   hasSufficientBalance,
 } from "./balance";
+
+// =============================================================================
+// NFT SALES
+// =============================================================================
+
+export type {
+  BTCPriceData,
+  NFTPriceBreakdown,
+  PurchaseValidation,
+  NFTPurchaseParams,
+  NFTPurchaseOutputs,
+  NFTSaleRecord,
+  SalesStats,
+} from "./nft-sale";
+
+export {
+  // Config
+  NFT_SALE_CONFIG,
+  // Price Oracle
+  getBTCPrice,
+  usdToSats,
+  satsToUsd,
+  // Price Calculation
+  calculateNFTPrice,
+  // Validation
+  validatePurchase,
+  // Transaction Building
+  calculatePurchaseOutputs,
+  // Statistics
+  calculateSalesStats,
+} from "./nft-sale";

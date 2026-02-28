@@ -74,6 +74,13 @@ export {
   type NFTMintResult,
 } from "./useNFTMinting";
 
+// NFT sale hook (purchase NFTs at $50 USD in BTC)
+export {
+  useNFTSale,
+  type UseNFTSaleOptions,
+  type UseNFTSaleReturn,
+} from "./useNFTSale";
+
 // =============================================================================
 // GAME HOOKS
 // =============================================================================
