@@ -84,6 +84,9 @@ class SyncManager {
   private eventHandlers: Set<SyncEventHandler> = new Set();
   private address: string | null = null;
   private apiHealthy: boolean = true;
+  // Circuit breaker for rate limiting (503 errors)
+  private circuitBreakerUntil: number = 0;
+  private consecutiveFailures: number = 0;
 
   constructor(config: Partial<SyncManagerConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -240,6 +243,11 @@ class SyncManager {
       return;
     }
 
+    // Check circuit breaker (rate limit protection)
+    if (Date.now() < this.circuitBreakerUntil) {
+      return;
+    }
+
     this.isSyncing = true;
 
     try {
@@ -273,6 +281,12 @@ class SyncManager {
         } else {
           failed++;
         }
+      }
+
+      // Reset circuit breaker on successful syncs
+      if (synced > 0) {
+        this.consecutiveFailures = 0;
+        this.circuitBreakerUntil = 0;
       }
 
       this.emit({
@@ -347,6 +361,27 @@ class SyncManager {
           return { success: true, reward: share.reward };
         }
 
+        // Check for rate limiting (trigger circuit breaker)
+        if (
+          response.error?.includes("503") ||
+          response.error?.includes("rate limit") ||
+          response.error?.includes("free tier") ||
+          response.error?.includes("Exceeded")
+        ) {
+          this.consecutiveFailures++;
+          const breakerDelays = [60000, 300000, 900000, 1800000, 3600000];
+          const delayIndex = Math.min(
+            this.consecutiveFailures - 1,
+            breakerDelays.length - 1,
+          );
+          this.circuitBreakerUntil = Date.now() + breakerDelays[delayIndex];
+          console.log(
+            `[SyncManager] Circuit breaker activated for ${breakerDelays[delayIndex] / 1000}s`,
+          );
+          await markFailed(share.id!, "API rate limited - will retry later", 0);
+          return { success: false, reward: "0" };
+        }
+
         // Check if max retries exceeded
         if (share.attempts >= this.config.maxRetries) {
           await markPermanentlyFailed(
@@ -365,6 +400,29 @@ class SyncManager {
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Network error";
+
+      // Check for rate limiting (trigger circuit breaker)
+      if (
+        errorMsg.includes("503") ||
+        errorMsg.includes("rate limit") ||
+        errorMsg.includes("free tier") ||
+        errorMsg.includes("Exceeded")
+      ) {
+        this.consecutiveFailures++;
+        // Exponential circuit breaker: 1min, 5min, 15min, 30min, 1hr
+        const breakerDelays = [60000, 300000, 900000, 1800000, 3600000];
+        const delayIndex = Math.min(
+          this.consecutiveFailures - 1,
+          breakerDelays.length - 1,
+        );
+        this.circuitBreakerUntil = Date.now() + breakerDelays[delayIndex];
+        console.log(
+          `[SyncManager] Circuit breaker activated for ${breakerDelays[delayIndex] / 1000}s`,
+        );
+        // Don't increment share attempts for rate limiting
+        await markFailed(share.id!, "API rate limited - will retry later", 0);
+        return { success: false, reward: "0" };
+      }
 
       // Check for permanent failures (validation errors won't be fixed by retry)
       if (
