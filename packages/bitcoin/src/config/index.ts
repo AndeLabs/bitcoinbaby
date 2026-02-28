@@ -11,6 +11,9 @@ export {
   BABTC_TESTNET4,
   isBABTCConfigured,
   requireBABTCConfigured,
+  // Genesis Babies NFT Config
+  GENESIS_BABIES_TESTNET4,
+  isGenesisBabiesConfigured,
   // Mining Config
   MINING_CONFIG_TESTNET4,
   // Network Helpers

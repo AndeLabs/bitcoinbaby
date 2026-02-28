@@ -22,6 +22,7 @@ import {
   getAvailableProviders,
   getBestProvider,
 } from "@bitcoinbaby/bitcoin";
+import { useWalletStore } from "../stores/wallet-store";
 
 /**
  * Hook state
@@ -98,7 +99,7 @@ export function useWalletProvider(): UseWalletProviderReturn {
   const [account, setAccount] = useState<WalletAccount | null>(null);
   const [network, setNetwork] = useState<BitcoinNetwork>("testnet4");
   const [providerType, setProviderType] = useState<WalletProviderType | null>(
-    null
+    null,
   );
   const [error, setError] = useState<string | null>(null);
   const [availableProviders, setAvailableProviders] = useState<
@@ -107,6 +108,11 @@ export function useWalletProvider(): UseWalletProviderReturn {
 
   // Current provider instance
   const [provider, setProvider] = useState<WalletProvider | null>(null);
+
+  // Wallet store sync (for global access to signing functions)
+  const storeSetWallet = useWalletStore((s) => s.setWallet);
+  const storeDisconnect = useWalletStore((s) => s.disconnect);
+  const storeSetSigningFunctions = useWalletStore((s) => s.setSigningFunctions);
 
   // Detect available providers on mount
   useEffect(() => {
@@ -148,6 +154,30 @@ export function useWalletProvider(): UseWalletProviderReturn {
         setProviderType(type);
         setIsConnected(true);
 
+        // Sync with global wallet store for cross-component access
+        storeSetWallet({
+          address: connectedAccount.address,
+          publicKey: connectedAccount.publicKey,
+          balance: 0n, // Will be updated by balance hook
+          babyTokens: 0n, // Will be updated by token balance hook
+        });
+
+        // Set up signing functions in store for components like useMintNFT
+        storeSetSigningFunctions(
+          // signPsbt wrapper that returns signed hex
+          async (psbtHex: string) => {
+            const result = await walletProvider.signPsbt(psbtHex, {
+              finalize: true,
+            });
+            return result.signedPsbtHex;
+          },
+          // broadcastTx wrapper (optional)
+          async (txHex: string) => {
+            const result = await walletProvider.signAndBroadcast(txHex);
+            return result.success ? result.txid : null;
+          },
+        );
+
         // Set up listeners if available
         if (walletProvider.onAccountChange) {
           walletProvider.onAccountChange((newAccount) => {
@@ -165,14 +195,15 @@ export function useWalletProvider(): UseWalletProviderReturn {
           });
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Connection failed";
+        const message =
+          err instanceof Error ? err.message : "Connection failed";
         setError(message);
         throw err;
       } finally {
         setIsConnecting(false);
       }
     },
-    []
+    [storeSetWallet, storeSetSigningFunctions],
   );
 
   // Connect to the best available provider
@@ -195,7 +226,10 @@ export function useWalletProvider(): UseWalletProviderReturn {
     setIsConnected(false);
     setProviderType(null);
     setError(null);
-  }, [provider]);
+
+    // Clear global wallet store
+    storeDisconnect();
+  }, [provider, storeDisconnect]);
 
   // Sign message
   const signMessage = useCallback(
@@ -205,7 +239,7 @@ export function useWalletProvider(): UseWalletProviderReturn {
       }
       return provider.signMessage(message);
     },
-    [provider, isConnected]
+    [provider, isConnected],
   );
 
   // Sign PSBT
@@ -216,7 +250,7 @@ export function useWalletProvider(): UseWalletProviderReturn {
       }
       return provider.signPsbt(psbt, options);
     },
-    [provider, isConnected]
+    [provider, isConnected],
   );
 
   // Sign and broadcast
@@ -227,7 +261,7 @@ export function useWalletProvider(): UseWalletProviderReturn {
       }
       return provider.signAndBroadcast(psbt);
     },
-    [provider, isConnected]
+    [provider, isConnected],
   );
 
   // Get balance
@@ -253,7 +287,7 @@ export function useWalletProvider(): UseWalletProviderReturn {
       await provider.switchNetwork(newNetwork);
       setNetwork(newNetwork);
     },
-    [provider, isConnected]
+    [provider, isConnected],
   );
 
   return useMemo(
@@ -294,7 +328,7 @@ export function useWalletProvider(): UseWalletProviderReturn {
       getBalance,
       switchNetwork,
       refreshProviders,
-    ]
+    ],
   );
 }
 

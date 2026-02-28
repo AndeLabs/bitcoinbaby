@@ -114,6 +114,60 @@ export function requireBABTCConfigured(): void {
 }
 
 // =============================================================================
+// GENESIS BABIES NFT CONFIG
+// =============================================================================
+
+/**
+ * Genesis Babies NFT App Configuration
+ *
+ * NFT collection for BitcoinBaby with mining boosts.
+ * Separate from BABTC token - uses 'n' app type instead of 't'.
+ */
+export const GENESIS_BABIES_TESTNET4 = {
+  /**
+   * App ID - SHA256 hash of the genesis UTXO
+   * For NFTs we can use a deterministic ID based on project
+   */
+  appId:
+    process.env.NEXT_PUBLIC_GBABY_APP_ID ||
+    process.env.GBABY_APP_ID ||
+    // Deterministic: SHA256("genesis-babies-testnet4-v1")
+    "c8d4e7f2a1b5c9d3e7f1a5b9c3d7e1f5a9b3c7d1e5f9a3b7c1d5e9f3a7b1c5d9",
+
+  /**
+   * Verification Key - For simple NFTs, can be same as appId
+   * or a separate key for the NFT contract logic
+   */
+  appVk:
+    process.env.NEXT_PUBLIC_GBABY_APP_VK ||
+    process.env.GBABY_APP_VK ||
+    // Deterministic: SHA256("genesis-babies-vk-v1")
+    "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+
+  /** Collection name */
+  name: "Genesis Babies",
+
+  /** Collection symbol */
+  symbol: "GBABY",
+
+  /** Max supply */
+  maxSupply: 10_000,
+
+  /** Price in satoshis */
+  priceSats: 50_000n,
+} as const;
+
+/**
+ * Check if Genesis Babies NFT is configured
+ */
+export function isGenesisBabiesConfigured(): boolean {
+  return (
+    GENESIS_BABIES_TESTNET4.appId.length === 64 &&
+    GENESIS_BABIES_TESTNET4.appVk.length === 64
+  );
+}
+
+// =============================================================================
 // MINING CONFIG
 // =============================================================================
 

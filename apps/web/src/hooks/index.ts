@@ -91,7 +91,11 @@ export { useBabyState } from "./useBabyState";
 /**
  * @deprecated Use `useNFTMinting` from `@bitcoinbaby/core` for full blockchain integration.
  */
-export { useMintNFT, type MintState, type MintResult } from "./useMintNFT";
+export {
+  useMintNFT,
+  type MintResult,
+  type UseMintNFTReturn,
+} from "./useMintNFT";
 
 // Platform hooks
 export { useCapacitor, type UseCapacitorReturn } from "./useCapacitor";

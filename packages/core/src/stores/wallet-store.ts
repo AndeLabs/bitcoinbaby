@@ -1,11 +1,29 @@
-import { create } from 'zustand';
-import type { WalletInfo } from '../types';
+/**
+ * Wallet Store
+ *
+ * Manages wallet state, connection, and transaction signing.
+ */
+
+import { create } from "zustand";
+import type { WalletInfo } from "../types";
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+export type SignPsbtFn = (psbtHex: string) => Promise<string | null>;
+export type BroadcastTxFn = (txHex: string) => Promise<string | null>;
 
 interface WalletStore {
+  // State
   wallet: WalletInfo | null;
   isConnected: boolean;
   isLoading: boolean;
   error: string | null;
+
+  // Signing functions (set by wallet provider)
+  signPsbt: SignPsbtFn | null;
+  broadcastTx: BroadcastTxFn | null;
 
   // Actions
   setWallet: (wallet: WalletInfo) => void;
@@ -14,14 +32,28 @@ interface WalletStore {
   setError: (error: string | null) => void;
   updateBalance: (balance: bigint) => void;
   updateBabyTokens: (tokens: bigint) => void;
+
+  // Signing setup
+  setSigningFunctions: (
+    signPsbt: SignPsbtFn,
+    broadcastTx?: BroadcastTxFn,
+  ) => void;
 }
 
+// =============================================================================
+// STORE
+// =============================================================================
+
 export const useWalletStore = create<WalletStore>((set) => ({
+  // Initial state
   wallet: null,
   isConnected: false,
   isLoading: false,
   error: null,
+  signPsbt: null,
+  broadcastTx: null,
 
+  // Set wallet (after successful connection)
   setWallet: (wallet) =>
     set({
       wallet,
@@ -30,24 +62,34 @@ export const useWalletStore = create<WalletStore>((set) => ({
       error: null,
     }),
 
+  // Disconnect wallet
   disconnect: () =>
     set({
       wallet: null,
       isConnected: false,
       error: null,
+      signPsbt: null,
+      broadcastTx: null,
     }),
 
+  // Loading state
   setLoading: (isLoading) => set({ isLoading }),
 
+  // Error state
   setError: (error) => set({ error, isLoading: false }),
 
+  // Update BTC balance
   updateBalance: (balance) =>
-    set((s) =>
-      s.wallet ? { wallet: { ...s.wallet, balance } } : s
-    ),
+    set((s) => (s.wallet ? { wallet: { ...s.wallet, balance } } : s)),
 
+  // Update BABY token balance
   updateBabyTokens: (babyTokens) =>
-    set((s) =>
-      s.wallet ? { wallet: { ...s.wallet, babyTokens } } : s
-    ),
+    set((s) => (s.wallet ? { wallet: { ...s.wallet, babyTokens } } : s)),
+
+  // Set signing functions (called by wallet provider after connection)
+  setSigningFunctions: (signPsbt, broadcastTx) =>
+    set({
+      signPsbt,
+      broadcastTx: broadcastTx || null,
+    }),
 }));

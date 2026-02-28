@@ -1,35 +1,25 @@
 /**
- * @deprecated This hook has been moved to @bitcoinbaby/core as useNFTMinting
- * Please import from '@bitcoinbaby/core' instead:
+ * useMintNFT Hook
  *
- * ```tsx
- * import { useNFTMinting } from '@bitcoinbaby/core';
- * ```
- *
- * This file provides a DEMO implementation for backwards compatibility.
- * The core version provides full blockchain integration.
+ * NFT minting hook that integrates with wallet for real transactions.
+ * Falls back to demo mode when wallet is not connected.
  */
 
 "use client";
 
-import { useState, useCallback } from "react";
-import type { BabyNFTState } from "@bitcoinbaby/bitcoin";
+import { useState, useCallback, useMemo } from "react";
+import {
+  createNFTMintService,
+  createMempoolClient,
+  type BabyNFTState,
+  type MintResult as ServiceMintResult,
+  type PreviewResult,
+} from "@bitcoinbaby/bitcoin";
+import { useWalletStore } from "@bitcoinbaby/core";
 
-// Re-export the canonical hook
-export {
-  useNFTMinting,
-  type UseNFTMintingOptions,
-  type UseNFTMintingReturn,
-  type NFTMintResult,
-} from "@bitcoinbaby/core";
-
-// Legacy types for backwards compatibility
-export interface MintState {
-  isLoading: boolean;
-  error: string | null;
-  lastMinted: BabyNFTState | null;
-  txid: string | null;
-}
+// =============================================================================
+// TYPES
+// =============================================================================
 
 export interface MintResult {
   success: boolean;
@@ -38,7 +28,23 @@ export interface MintResult {
   error?: string;
 }
 
-// Demo bloodlines and types
+export interface UseMintNFTReturn {
+  isLoading: boolean;
+  error: string | null;
+  lastMinted: BabyNFTState | null;
+  txid: string | null;
+  mint: () => Promise<MintResult>;
+  preview: () => BabyNFTState;
+  reset: () => void;
+  canMint: boolean;
+  /** Is using real blockchain or demo mode */
+  isDemo: boolean;
+}
+
+// =============================================================================
+// DEMO DATA
+// =============================================================================
+
 const BLOODLINES = ["royal", "warrior", "rogue", "mystic"] as const;
 const BASE_TYPES = ["human", "animal", "robot", "mystic", "alien"] as const;
 const RARITIES = [
@@ -52,13 +58,13 @@ const RARITIES = [
   "legendary",
 ] as const;
 
-function generateRandomNFT(tokenId: number): BabyNFTState {
+function generateDemoNFT(tokenId: number): BabyNFTState {
   const pick = <T>(arr: readonly T[]) =>
     arr[Math.floor(Math.random() * arr.length)] as T;
 
   return {
     tokenId,
-    dna: Array.from({ length: 32 }, () =>
+    dna: Array.from({ length: 64 }, () =>
       Math.floor(Math.random() * 16).toString(16),
     ).join(""),
     bloodline: pick(BLOODLINES),
@@ -75,40 +81,113 @@ function generateRandomNFT(tokenId: number): BabyNFTState {
   };
 }
 
-/**
- * @deprecated Use useNFTMinting from @bitcoinbaby/core
- *
- * This provides a DEMO implementation for the NFTs page.
- */
-export function useMintNFT() {
+// =============================================================================
+// HOOK
+// =============================================================================
+
+export function useMintNFT(): UseMintNFTReturn {
+  // State
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastMinted, setLastMinted] = useState<BabyNFTState | null>(null);
   const [txid, setTxid] = useState<string | null>(null);
   const [nextTokenId, setNextTokenId] = useState(1);
+  const [currentPreview, setCurrentPreview] = useState<BabyNFTState | null>(
+    null,
+  );
 
-  // Preview generates a random NFT
+  // Wallet
+  const wallet = useWalletStore((s) => s.wallet);
+  const signPsbt = useWalletStore((s) => s.signPsbt);
+
+  // Services
+  const mintService = useMemo(
+    () => createNFTMintService({ network: "testnet4" }),
+    [],
+  );
+
+  const mempoolClient = useMemo(
+    () => createMempoolClient({ network: "testnet4" }),
+    [],
+  );
+
+  // Is using real blockchain?
+  const isDemo = !wallet?.address || !signPsbt;
+
+  /**
+   * Preview NFT
+   */
   const preview = useCallback((): BabyNFTState => {
-    return generateRandomNFT(nextTokenId);
-  }, [nextTokenId]);
+    if (isDemo) {
+      const nft = generateDemoNFT(nextTokenId);
+      setCurrentPreview(nft);
+      return nft;
+    }
 
-  // Mint creates the NFT (demo: just generates and returns it)
+    const result = mintService.preview();
+    setCurrentPreview(result.nft);
+    return result.nft;
+  }, [isDemo, nextTokenId, mintService]);
+
+  /**
+   * Mint NFT
+   */
   const mint = useCallback(async (): Promise<MintResult> => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Simulate network delay
-      await new Promise((r) => setTimeout(r, 1500));
+      // Demo mode
+      if (isDemo) {
+        await new Promise((r) => setTimeout(r, 1500));
+        const nft = currentPreview || generateDemoNFT(nextTokenId);
+        const fakeTxid = `demo_${Date.now().toString(16)}`;
 
-      const nft = generateRandomNFT(nextTokenId);
-      const fakeTxid = `demo_${Date.now().toString(16)}`;
+        setLastMinted(nft);
+        setTxid(fakeTxid);
+        setNextTokenId((id) => id + 1);
+        setCurrentPreview(null);
 
-      setLastMinted(nft);
-      setTxid(fakeTxid);
+        return { success: true, nft, txid: fakeTxid };
+      }
+
+      // Real mode - get UTXOs and create PSBT
+      const utxos = await mempoolClient.getUTXOs(wallet!.address);
+
+      if (!utxos || utxos.length === 0) {
+        throw new Error("No UTXOs available. Please fund your wallet first.");
+      }
+
+      const mintResult = await mintService.createMintPSBT({
+        buyerAddress: wallet!.address,
+        utxos,
+        dna: currentPreview?.dna,
+        feeRate: 10,
+      });
+
+      if (!mintResult.success || !mintResult.psbtHex) {
+        throw new Error(mintResult.error || "Failed to create transaction");
+      }
+
+      // Sign PSBT
+      const signedPsbt = await signPsbt!(mintResult.psbtHex);
+      if (!signedPsbt) {
+        throw new Error("Failed to sign transaction");
+      }
+
+      // Broadcast
+      const broadcastTxid =
+        await mempoolClient.broadcastTransaction(signedPsbt);
+      if (!broadcastTxid) {
+        throw new Error("Failed to broadcast transaction");
+      }
+
+      setLastMinted(mintResult.nft!);
+      setTxid(broadcastTxid);
       setNextTokenId((id) => id + 1);
+      setCurrentPreview(null);
 
-      return { success: true, nft, txid: fakeTxid };
+      return { success: true, nft: mintResult.nft, txid: broadcastTxid };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Mint failed";
       setError(message);
@@ -116,14 +195,25 @@ export function useMintNFT() {
     } finally {
       setIsLoading(false);
     }
-  }, [nextTokenId]);
+  }, [
+    isDemo,
+    currentPreview,
+    nextTokenId,
+    wallet,
+    signPsbt,
+    mintService,
+    mempoolClient,
+  ]);
 
-  // Reset state
+  /**
+   * Reset state
+   */
   const reset = useCallback(() => {
     setIsLoading(false);
     setError(null);
     setLastMinted(null);
     setTxid(null);
+    setCurrentPreview(null);
   }, []);
 
   return {
@@ -134,6 +224,9 @@ export function useMintNFT() {
     mint,
     preview,
     reset,
-    canMint: true, // Demo always allows minting
+    canMint: !isLoading,
+    isDemo,
   };
 }
+
+export default useMintNFT;
