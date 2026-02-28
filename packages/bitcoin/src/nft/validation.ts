@@ -6,9 +6,13 @@
  */
 
 import * as bitcoin from "bitcoinjs-lib";
+import * as ecc from "tiny-secp256k1";
 import type { UTXO } from "../blockchain/types";
 import type { BitcoinNetwork } from "../types";
 import { NFT_SALE_CONFIG } from "../charms/nft-sale";
+
+// Initialize ECC for taproot address validation
+bitcoin.initEccLib(ecc);
 
 // =============================================================================
 // TYPES
