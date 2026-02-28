@@ -54,10 +54,6 @@ export interface UseMiningShareSubmissionOptions {
   strategy?: SubmissionStrategy;
   /** Notification callback */
   onNotification?: (notification: SubmissionNotification) => void;
-  /** Enable auto-submission (default: true) */
-  autoSubmit?: boolean;
-  /** Minimum shares before submitting batch (default: 1) */
-  batchSize?: number;
 }
 
 export interface UseMiningShareSubmissionReturn {
@@ -86,8 +82,6 @@ export interface UseMiningShareSubmissionReturn {
 // =============================================================================
 
 const MAX_NOTIFICATIONS = 10;
-
-// Note: Share expiry and cleanup are now handled by SyncManager
 
 // =============================================================================
 // HOOK
@@ -118,7 +112,6 @@ export function useMiningShareSubmission(
   const [notifications, setNotifications] = useState<SubmissionNotification[]>(
     [],
   );
-  const [isOnline, setIsOnline] = useState(true);
 
   // Track processed shares to avoid duplicates (in-memory for instant feedback)
   const processedSharesRef = useRef<Set<string>>(new Set());
@@ -160,12 +153,6 @@ export function useMiningShareSubmission(
           break;
         case "sync_error":
           setIsSubmitting(false);
-          break;
-        case "online":
-          setIsOnline(true);
-          break;
-        case "offline":
-          setIsOnline(false);
           break;
       }
     });

@@ -64,8 +64,6 @@ export function MiningSection() {
     lastSubmission,
   } = useMiningShareSubmission({
     strategy: "virtual-first",
-    autoSubmit: true,
-    batchSize: 1,
   });
 
   // Track recent reward for animation
