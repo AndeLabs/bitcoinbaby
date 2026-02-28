@@ -6,6 +6,12 @@
  *
  * Storage: SQLite (free tier on Cloudflare)
  * One instance per user address.
+ *
+ * SECURITY:
+ * - All proofs are validated server-side (SHA256 + difficulty check)
+ * - Rewards are calculated server-side (never trust client)
+ * - Rate limiting is enforced
+ * - Proof hashes are globally unique (prevents cross-address submission)
  */
 
 import { DurableObject } from "cloudflare:workers";
@@ -16,6 +22,15 @@ import type {
   ApiResponse,
   BalanceResponse,
 } from "../lib/types";
+import {
+  validateMiningProof,
+  checkRateLimit,
+  calculateRewardWithStreak,
+  getStreakMultiplier,
+  isProofUsedGlobally,
+  markProofUsedGlobally,
+  STREAK_RESET_MS,
+} from "../lib/proof-validation";
 
 // Minimum withdraw amount (from env)
 const DEFAULT_MIN_WITHDRAW = 100n;
@@ -63,17 +78,17 @@ export class VirtualBalanceDO extends DurableObject<Env> {
     }
 
     // Mining proofs table (for audit trail)
+    // SECURITY: Hash is UNIQUE to prevent same proof being submitted multiple times
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS mining_proofs (
         id TEXT PRIMARY KEY,
-        hash TEXT NOT NULL,
+        hash TEXT NOT NULL UNIQUE,
         nonce INTEGER NOT NULL,
         difficulty INTEGER NOT NULL,
         block_data TEXT NOT NULL,
         reward TEXT NOT NULL,
         credited INTEGER NOT NULL DEFAULT 0,
-        created_at INTEGER NOT NULL,
-        UNIQUE(hash, nonce)
+        created_at INTEGER NOT NULL
       )
     `);
 
@@ -235,6 +250,13 @@ export class VirtualBalanceDO extends DurableObject<Env> {
 
   /**
    * POST /balance/{address}/credit - Credit mining reward
+   *
+   * SECURITY: All validation is done server-side
+   * - Proof hash is verified (SHA256)
+   * - Difficulty is verified (leading zeros)
+   * - Reward is calculated server-side (never trust client)
+   * - Rate limiting is enforced
+   * - Global duplicate check prevents cross-address submission
    */
   private async handleCreditMining(request: Request): Promise<Response> {
     if (!this.address) {
@@ -247,52 +269,83 @@ export class VirtualBalanceDO extends DurableObject<Env> {
 
     const { proof } = body;
 
-    // Validate proof (use explicit checks to handle nonce=0 correctly)
+    // =========================================================================
+    // SECURITY: Validate proof fields exist
+    // =========================================================================
     if (
       !proof ||
       !proof.hash ||
       typeof proof.nonce !== "number" ||
-      !proof.reward
+      !proof.blockData
     ) {
-      return this.errorResponse("Invalid proof", 400);
+      return this.errorResponse("Invalid proof: missing required fields", 400);
+    }
+
+    const now = Date.now();
+
+    // =========================================================================
+    // SECURITY: Cryptographic proof validation
+    // Verifies: hash matches SHA256(blockData + nonce) AND meets difficulty
+    // =========================================================================
+    const proofValidation = await validateMiningProof({
+      hash: proof.hash,
+      nonce: proof.nonce,
+      difficulty: proof.difficulty,
+      blockData: proof.blockData,
+      timestamp: proof.timestamp,
+    });
+
+    if (!proofValidation.valid) {
+      return this.errorResponse(
+        `Invalid proof: ${proofValidation.reason}`,
+        400,
+      );
     }
 
     // =========================================================================
-    // STREAK BONUS SYSTEM - OPTIMIZED (minimal DB reads)
-    // Streak stored in balance table, not calculated from proofs
+    // SECURITY: Check global duplicate (prevents same proof to multiple addresses)
     // =========================================================================
+    const kv = this.env.CACHE || null;
+    const isUsed = await isProofUsedGlobally(proof.hash, kv);
+    if (isUsed) {
+      return this.errorResponse("Proof already used", 409);
+    }
 
-    const now = Date.now();
-    const STREAK_RESET_MS = 30 * 60 * 1000; // 30 minutes
-
-    // Get balance (includes streak info) - SINGLE READ
+    // =========================================================================
+    // Get balance and check rate limits
+    // =========================================================================
     const balance = this.getOrCreateBalance(this.address);
 
-    // Check if streak is still active (within 30 min of last mining)
+    // SECURITY: Rate limiting
+    const sharesThisHour = this.getSharesInLastHour();
+    const rateLimitCheck = checkRateLimit({
+      sharesThisHour,
+      lastShareTime: balance.lastMiningAt,
+    });
+
+    if (!rateLimitCheck.valid) {
+      return this.errorResponse(rateLimitCheck.reason!, 429);
+    }
+
+    // =========================================================================
+    // Calculate streak bonus (server-side)
+    // =========================================================================
     const streakActive = now - balance.lastMiningAt < STREAK_RESET_MS;
-    const consecutiveShares = streakActive ? this.getStreakCount(balance) : 0;
-
-    // Calculate streak multiplier (1.0x to 2.0x)
-    const streakMultiplier = this.getStreakMultiplier(consecutiveShares);
+    const consecutiveShares = streakActive ? balance.streakCount : 0;
+    const streakMultiplier = getStreakMultiplier(consecutiveShares);
 
     // =========================================================================
-    // SUSTAINABLE EMISSION - NO LIMITS
-    // Base reward: 100 $BABY, Difficulty: D22
-    // La dificultad controla la emision naturalmente
+    // SECURITY: Calculate reward SERVER-SIDE (never trust client)
     // =========================================================================
-
-    // Apply streak bonus to reward
-    const baseReward = BigInt(proof.reward);
-    const boostedReward = BigInt(
-      Math.floor(Number(baseReward) * streakMultiplier),
+    const boostedReward = calculateRewardWithStreak(
+      proof.difficulty,
+      consecutiveShares,
     );
-
-    // Daily total from balance (no extra query needed)
-    const dailyTotal = balance.totalMined;
+    const baseReward = proofValidation.calculatedReward!;
 
     // =========================================================================
-
-    // Store proof - UNIQUE index prevents duplicates (NO SELECT needed)
+    // Store proof with UNIQUE constraint (local duplicate check)
+    // =========================================================================
     const proofId = crypto.randomUUID();
 
     try {
@@ -304,28 +357,39 @@ export class VirtualBalanceDO extends DurableObject<Env> {
         proof.hash,
         proof.nonce,
         proof.difficulty,
-        proof.blockData || "",
+        proof.blockData,
         boostedReward.toString(),
         now,
       );
     } catch (e) {
-      // UNIQUE constraint violation = duplicate proof
       if (e instanceof Error && e.message.includes("UNIQUE")) {
         return this.errorResponse("Proof already credited", 409);
       }
       throw e;
     }
 
-    // Update balance with boosted reward and streak
+    // Mark proof as used globally (prevents cross-address submission)
+    await markProofUsedGlobally(proof.hash, this.address, kv);
+
+    // =========================================================================
+    // Update balance
+    // =========================================================================
     balance.virtualBalance += boostedReward;
     balance.totalMined += boostedReward;
     balance.lastMiningAt = now;
 
-    // Update streak count in balance
-    this.updateStreakCount(balance, streakActive);
+    // Update streak count
+    if (streakActive) {
+      balance.streakCount += 1;
+    } else {
+      balance.streakCount = 1;
+    }
+
     this.updateBalance(balance);
 
-    // Response includes streak info for UI (NO LIMITS, just stats)
+    // =========================================================================
+    // Response
+    // =========================================================================
     const response: ApiResponse<{
       credited: string;
       newBalance: string;
@@ -337,10 +401,6 @@ export class VirtualBalanceDO extends DurableObject<Env> {
         boostedReward: string;
         nextTierAt: number;
       };
-      dailyStats: {
-        totalToday: string;
-        sharesCount: number;
-      };
     }> = {
       success: true,
       data: {
@@ -348,15 +408,11 @@ export class VirtualBalanceDO extends DurableObject<Env> {
         newBalance: balance.virtualBalance.toString(),
         proofId,
         streakInfo: {
-          consecutiveShares: consecutiveShares + 1,
+          consecutiveShares: balance.streakCount,
           multiplier: streakMultiplier,
           baseReward: baseReward.toString(),
           boostedReward: boostedReward.toString(),
-          nextTierAt: this.getNextStreakTier(consecutiveShares + 1),
-        },
-        dailyStats: {
-          totalToday: (dailyTotal + boostedReward).toString(),
-          sharesCount: consecutiveShares + 1,
+          nextTierAt: this.getNextStreakTier(balance.streakCount),
         },
       },
       timestamp: now,
@@ -366,48 +422,18 @@ export class VirtualBalanceDO extends DurableObject<Env> {
   }
 
   /**
-   * Get streak count from balance (NO DB READ - uses cached balance)
+   * Get number of shares submitted in the last hour
+   * Used for rate limiting
    */
-  private getStreakCount(balance: VirtualBalance): number {
-    return balance.streakCount;
-  }
-
-  /**
-   * Update streak count in balance object
-   */
-  private updateStreakCount(
-    balance: VirtualBalance,
-    streakActive: boolean,
-  ): void {
-    if (streakActive) {
-      // Increment streak
-      balance.streakCount += 1;
-    } else {
-      // Reset streak to 1 (this is the first share of new streak)
-      balance.streakCount = 1;
-    }
-  }
-
-  /**
-   * Calculate streak multiplier based on consecutive shares
-   *
-   * 0-9 shares:    1.0x (base)
-   * 10-49 shares:  1.2x (+20%)
-   * 50-99 shares:  1.5x (+50%)
-   * 100-249:       1.75x (+75%)
-   * 250-499:       1.9x (+90%)
-   * 500+:          2.0x (+100%) MAX
-   */
-  private getStreakMultiplier(consecutiveShares: number): number {
-    const tiers = [10, 50, 100, 250, 500];
-    const multipliers = [1.0, 1.2, 1.5, 1.75, 1.9, 2.0];
-
-    for (let i = tiers.length - 1; i >= 0; i--) {
-      if (consecutiveShares >= tiers[i]) {
-        return multipliers[i + 1];
-      }
-    }
-    return multipliers[0];
+  private getSharesInLastHour(): number {
+    const oneHourAgo = Date.now() - 60 * 60 * 1000;
+    const result = this.sql
+      .exec(
+        `SELECT COUNT(*) as count FROM mining_proofs WHERE created_at > ?`,
+        oneHourAgo,
+      )
+      .toArray();
+    return (result[0]?.count as number) || 0;
   }
 
   /**

@@ -58,26 +58,31 @@ export interface VirtualBalance {
 
 /**
  * Mining proof submitted by user
+ *
+ * SECURITY: Server validates all fields - never trust client data
+ * - hash must match SHA256(blockData + nonce)
+ * - hash must have required leading zeros (difficulty)
+ * - reward is calculated server-side (client value ignored)
  */
 export interface MiningProof {
   /** Unique proof ID */
-  id: string;
+  id?: string;
   /** User's Bitcoin address */
-  address: string;
-  /** Mining hash */
+  address?: string;
+  /** Mining hash - MUST match SHA256(blockData + nonce) */
   hash: string;
   /** Nonce that solved the puzzle */
   nonce: number;
-  /** Difficulty achieved */
+  /** Difficulty achieved (leading zero bits) */
   difficulty: number;
-  /** Block data used */
+  /** Block data used - required for hash verification */
   blockData: string;
-  /** Timestamp of mining */
-  timestamp: number;
-  /** Calculated reward in tokens */
-  reward: bigint;
+  /** Timestamp of mining (optional, validated if provided) */
+  timestamp?: number;
+  /** Calculated reward in tokens (ignored by server - calculated server-side) */
+  reward?: bigint;
   /** Whether this proof has been credited */
-  credited: boolean;
+  credited?: boolean;
 }
 
 // =============================================================================
