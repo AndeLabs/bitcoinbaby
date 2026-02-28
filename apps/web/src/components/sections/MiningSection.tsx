@@ -11,7 +11,7 @@
  * - Share submission and notifications
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useMiningWithNFTs, useVirtualBalance } from "@/hooks";
 import { useMiningShareSubmission } from "@/hooks/useMiningShareSubmission";
 import {
@@ -21,6 +21,31 @@ import {
   AnimatedTokenCounter,
 } from "@bitcoinbaby/ui";
 import { useWalletStore, useNFTStore, formatHashrate } from "@bitcoinbaby/core";
+
+// Throttle hook for smoother updates
+function useThrottledValue<T>(value: T, delay: number): T {
+  const [throttled, setThrottled] = useState(value);
+  const lastUpdate = useRef(Date.now());
+
+  useEffect(() => {
+    const now = Date.now();
+    if (now - lastUpdate.current >= delay) {
+      setThrottled(value);
+      lastUpdate.current = now;
+    } else {
+      const timeout = setTimeout(
+        () => {
+          setThrottled(value);
+          lastUpdate.current = Date.now();
+        },
+        delay - (now - lastUpdate.current),
+      );
+      return () => clearTimeout(timeout);
+    }
+  }, [value, delay]);
+
+  return throttled;
+}
 
 export function MiningSection() {
   const wallet = useWalletStore((s) => s.wallet);
@@ -70,6 +95,18 @@ export function MiningSection() {
   const recentReward = lastSubmission?.success
     ? lastSubmission.credited
     : undefined;
+
+  // Throttle rapidly changing values for smoother UX (prevents scroll issues)
+  const displayHashrate = useThrottledValue(hashrate, 500);
+  const displayEffectiveHashrate = useThrottledValue(effectiveHashrate, 500);
+  const displayHashes = useThrottledValue(totalHashes, 500);
+  const displayShares = useThrottledValue(shares, 1000);
+
+  // Limit notifications to prevent layout shifts (max 2, only most recent)
+  const displayNotifications = useMemo(
+    () => notifications.slice(0, 2),
+    [notifications],
+  );
 
   // Uptime counter
   useEffect(() => {
@@ -174,37 +211,45 @@ export function MiningSection() {
           </div>
         )}
 
-        {/* Recent Notifications */}
-        {notifications.length > 0 && (
-          <div className="mb-6 space-y-2">
-            {notifications.slice(0, 3).map((notification) => (
-              <div
-                key={notification.id}
-                className={`p-3 border-4 ${
-                  notification.type === "success"
-                    ? "border-pixel-success bg-pixel-success/10"
-                    : notification.type === "error"
-                      ? "border-pixel-error bg-pixel-error/10"
-                      : "border-pixel-border bg-pixel-bg-medium"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-pixel text-[9px] text-pixel-text">
-                    {notification.title}
-                  </span>
-                  {notification.reward && (
-                    <span className="font-pixel text-[9px] text-pixel-success">
-                      +{notification.reward.toString()} $BABY
+        {/* Recent Notifications - Fixed height to prevent layout shifts */}
+        <div className="mb-6 min-h-[80px] overflow-hidden">
+          {displayNotifications.length > 0 ? (
+            <div className="space-y-2">
+              {displayNotifications.map((notification) => (
+                <div
+                  key={notification.id}
+                  className={`p-3 border-4 transition-opacity duration-300 ${
+                    notification.type === "success"
+                      ? "border-pixel-success bg-pixel-success/10"
+                      : notification.type === "error"
+                        ? "border-pixel-error bg-pixel-error/10"
+                        : "border-pixel-border bg-pixel-bg-medium"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-pixel text-[9px] text-pixel-text">
+                      {notification.title}
                     </span>
-                  )}
+                    {notification.reward && (
+                      <span className="font-pixel text-[9px] text-pixel-success">
+                        +{notification.reward.toString()} $BABY
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-pixel-body text-xs text-pixel-text-muted mt-1">
+                    {notification.message}
+                  </p>
                 </div>
-                <p className="font-pixel-body text-xs text-pixel-text-muted mt-1">
-                  {notification.message}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          ) : (
+            <div className="h-[80px] flex items-center justify-center">
+              <span className="font-pixel text-[8px] text-pixel-text-muted">
+                Mining activity will appear here
+              </span>
+            </div>
+          )}
+        </div>
 
         {/* Mining Visualization */}
         <div className="bg-pixel-bg-medium border-4 border-pixel-border p-6 mb-6 shadow-[8px_8px_0_0_#000]">
@@ -226,12 +271,12 @@ export function MiningSection() {
             {/* Hashrate Display */}
             <div className="text-center mb-6">
               <div className="font-pixel text-3xl text-pixel-primary mb-1">
-                {formatHashrate(effectiveHashrate)}
+                {formatHashrate(displayEffectiveHashrate)}
               </div>
               {nftBoost > 0 && (
                 <div className="flex items-center justify-center gap-2">
                   <span className="font-pixel text-[8px] text-pixel-text-muted">
-                    Base: {formatHashrate(hashrate)}
+                    Base: {formatHashrate(displayHashrate)}
                   </span>
                   <span className="font-pixel text-[8px] text-pixel-success">
                     +{nftBoost}% NFT Boost
@@ -269,10 +314,10 @@ export function MiningSection() {
           <MiningStatsGrid
             stats={{
               uptime,
-              totalHashes,
-              shares,
+              totalHashes: displayHashes,
+              shares: displayShares,
               difficulty,
-              hashrate: effectiveHashrate,
+              hashrate: displayEffectiveHashrate,
               minerType:
                 minerType === "webgpu"
                   ? "WebGPU"
