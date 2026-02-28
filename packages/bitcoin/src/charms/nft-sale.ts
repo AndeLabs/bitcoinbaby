@@ -2,7 +2,10 @@
  * NFT Sale System
  *
  * Handles pricing, payment validation, and sales tracking for Genesis Babies NFTs.
- * Price: $50 USD equivalent in BTC (fetched at time of purchase)
+ * Price: FIXED in Bitcoin (satoshis) - does not fluctuate with USD
+ *
+ * Current price: 50,000 sats (~€50 at time of setting)
+ * This ensures stable pricing for Bitcoin users.
  */
 
 import { GENESIS_BABIES_CONFIG, type RarityTier } from "./nft";
@@ -13,23 +16,30 @@ import { GENESIS_BABIES_CONFIG, type RarityTier } from "./nft";
 
 /**
  * NFT Sale Configuration
+ *
+ * IMPORTANT: Price is FIXED in satoshis, not USD.
+ * This provides price stability for Bitcoin users.
  */
 export const NFT_SALE_CONFIG = {
-  /** Base price in USD */
-  basePriceUSD: 50,
+  /** Base price in SATOSHIS (fixed, does not change with USD) */
+  basePriceSats: 50_000n, // 50,000 sats = 0.0005 BTC (~€50 at ~€100k/BTC)
 
-  /** Price multipliers by rarity (optional premium for guaranteed rarity) */
-  rarityMultipliers: {
-    common: 1.0, // $50
-    uncommon: 1.2, // $60
-    rare: 1.5, // $75
-    epic: 2.0, // $100
-    legendary: 3.0, // $150
-    mythic: 5.0, // $250
-  } as Record<RarityTier, number>,
+  /** Alternative prices for different tiers (all in sats) */
+  tierPrices: {
+    standard: 50_000n, // 0.0005 BTC - Random rarity
+    premium: 100_000n, // 0.001 BTC - Guaranteed rare+
+    legendary: 250_000n, // 0.0025 BTC - Guaranteed legendary+
+  } as const,
 
-  /** Whether to allow rarity selection (or random only) */
-  allowRaritySelection: false,
+  /** Rarity guaranteed by tier */
+  tierGuarantees: {
+    standard: null, // Random based on weights
+    premium: "rare" as RarityTier, // Rare or better
+    legendary: "legendary" as RarityTier, // Legendary or better
+  } as const,
+
+  /** Whether premium tiers are available */
+  premiumTiersEnabled: false, // Set to true to enable premium purchases
 
   /** Dust limit for NFT UTXO */
   dustLimit: 546n,
@@ -45,172 +55,115 @@ export const NFT_SALE_CONFIG = {
 
   /** Sale phases */
   phases: {
-    whitelist: { active: false, discount: 20 }, // 20% off for whitelist
-    public: { active: true, discount: 0 },
+    whitelist: { active: false, discountPercent: 20 }, // 20% off = 40,000 sats
+    public: { active: true, discountPercent: 0 },
   },
 } as const;
 
 // =============================================================================
-// PRICE ORACLE
+// PRICE UTILITIES (Fixed BTC pricing - no USD conversion needed)
 // =============================================================================
 
 /**
- * BTC Price data from oracle
+ * Price tier for NFT purchase
  */
-export interface BTCPriceData {
-  priceUSD: number;
-  timestamp: number;
-  source: string;
-}
-
-// Cache price for 60 seconds to avoid excessive API calls
-let priceCache: BTCPriceData | null = null;
-const PRICE_CACHE_TTL = 60_000; // 60 seconds
+export type PriceTier = "standard" | "premium" | "legendary";
 
 /**
- * Fetch current BTC price in USD
- * Uses CoinGecko API (free, no API key required)
+ * Format satoshis for display
  */
-export async function getBTCPrice(): Promise<BTCPriceData> {
-  // Check cache
-  if (priceCache && Date.now() - priceCache.timestamp < PRICE_CACHE_TTL) {
-    return priceCache;
+export function formatSatsPrice(sats: bigint): string {
+  const btc = Number(sats) / 100_000_000;
+  if (btc >= 0.001) {
+    return `${btc.toFixed(4)} BTC`;
   }
-
-  try {
-    // Primary: CoinGecko
-    const response = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd",
-      { headers: { Accept: "application/json" } },
-    );
-
-    if (!response.ok) {
-      throw new Error(`CoinGecko API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const price: BTCPriceData = {
-      priceUSD: data.bitcoin.usd,
-      timestamp: Date.now(),
-      source: "coingecko",
-    };
-
-    priceCache = price;
-    return price;
-  } catch (error) {
-    // Fallback: Use cached price if available (even if stale)
-    if (priceCache) {
-      console.warn("[PriceOracle] Using stale cache due to API error");
-      return priceCache;
-    }
-
-    // Last resort: hardcoded fallback (should be updated periodically)
-    console.error("[PriceOracle] All sources failed, using fallback");
-    return {
-      priceUSD: 95000, // Update this periodically as fallback
-      timestamp: Date.now(),
-      source: "fallback",
-    };
-  }
+  return `${sats.toLocaleString()} sats`;
 }
 
 /**
- * Convert USD to satoshis
+ * Get price for a specific tier
  */
-export async function usdToSats(usdAmount: number): Promise<bigint> {
-  const { priceUSD } = await getBTCPrice();
-  const btcAmount = usdAmount / priceUSD;
-  const sats = Math.ceil(btcAmount * 100_000_000);
-  return BigInt(sats);
+export function getTierPrice(tier: PriceTier): bigint {
+  return NFT_SALE_CONFIG.tierPrices[tier];
 }
 
 /**
- * Convert satoshis to USD
+ * Get guaranteed minimum rarity for a tier
  */
-export async function satsToUsd(sats: bigint): Promise<number> {
-  const { priceUSD } = await getBTCPrice();
-  const btcAmount = Number(sats) / 100_000_000;
-  return btcAmount * priceUSD;
+export function getTierGuarantee(tier: PriceTier): RarityTier | null {
+  return NFT_SALE_CONFIG.tierGuarantees[tier];
 }
 
 // =============================================================================
-// SALE PRICE CALCULATION
+// SALE PRICE CALCULATION (Fixed BTC pricing)
 // =============================================================================
 
 /**
  * NFT Price breakdown
+ * All prices are FIXED in satoshis - no USD conversion
  */
 export interface NFTPriceBreakdown {
-  /** Base price in USD */
-  basePriceUSD: number;
-  /** Rarity multiplier applied */
-  rarityMultiplier: number;
+  /** Selected price tier */
+  tier: PriceTier;
+  /** Base price in satoshis */
+  basePriceSats: bigint;
   /** Discount applied (whitelist, etc.) */
   discountPercent: number;
-  /** Final price in USD */
-  finalPriceUSD: number;
   /** Final price in satoshis */
   finalPriceSats: bigint;
   /** Platform fee in satoshis */
   platformFeeSats: bigint;
   /** Creator receives in satoshis */
   creatorReceivesSats: bigint;
-  /** BTC price used for conversion */
-  btcPriceUSD: number;
-  /** Timestamp of price calculation */
+  /** Guaranteed minimum rarity (if premium tier) */
+  guaranteedRarity: RarityTier | null;
+  /** Formatted price for display */
+  displayPrice: string;
+  /** Timestamp of calculation */
   timestamp: number;
 }
 
 /**
  * Calculate NFT purchase price
+ * Uses FIXED satoshi pricing - no USD fluctuation
  */
-export async function calculateNFTPrice(options: {
-  rarityTier?: RarityTier;
+export function calculateNFTPrice(options: {
+  tier?: PriceTier;
   isWhitelist?: boolean;
-}): Promise<NFTPriceBreakdown> {
-  const { rarityTier, isWhitelist = false } = options;
+}): NFTPriceBreakdown {
+  const { tier = "standard", isWhitelist = false } = options;
 
-  // Get current BTC price
-  const { priceUSD: btcPriceUSD, timestamp } = await getBTCPrice();
+  // Get base price for tier (fixed in sats)
+  const basePriceSats = NFT_SALE_CONFIG.tierPrices[tier];
 
-  // Base price
-  let basePriceUSD = NFT_SALE_CONFIG.basePriceUSD;
-
-  // Apply rarity multiplier if selecting specific rarity
-  const rarityMultiplier =
-    rarityTier && NFT_SALE_CONFIG.allowRaritySelection
-      ? NFT_SALE_CONFIG.rarityMultipliers[rarityTier]
-      : 1.0;
-
-  // Apply discount
+  // Apply whitelist discount if applicable
   const discountPercent =
     isWhitelist && NFT_SALE_CONFIG.phases.whitelist.active
-      ? NFT_SALE_CONFIG.phases.whitelist.discount
+      ? NFT_SALE_CONFIG.phases.whitelist.discountPercent
       : 0;
 
-  // Calculate final USD price
-  const priceAfterMultiplier = basePriceUSD * rarityMultiplier;
-  const finalPriceUSD = priceAfterMultiplier * (1 - discountPercent / 100);
-
-  // Convert to satoshis
-  const btcAmount = finalPriceUSD / btcPriceUSD;
-  const finalPriceSats = BigInt(Math.ceil(btcAmount * 100_000_000));
+  // Calculate final price
+  const discountAmount = (basePriceSats * BigInt(discountPercent)) / 100n;
+  const finalPriceSats = basePriceSats - discountAmount;
 
   // Calculate platform fee
   const platformFeeSats =
     (finalPriceSats * BigInt(NFT_SALE_CONFIG.platformFeePercent)) / 100n;
   const creatorReceivesSats = finalPriceSats - platformFeeSats;
 
+  // Get guaranteed rarity for tier
+  const guaranteedRarity = NFT_SALE_CONFIG.tierGuarantees[tier];
+
   return {
-    basePriceUSD,
-    rarityMultiplier,
+    tier,
+    basePriceSats,
     discountPercent,
-    finalPriceUSD,
     finalPriceSats,
     platformFeeSats,
     creatorReceivesSats,
-    btcPriceUSD,
-    timestamp,
+    guaranteedRarity,
+    displayPrice: formatSatsPrice(finalPriceSats),
+    timestamp: Date.now(),
   };
 }
 
@@ -225,14 +178,16 @@ export interface PurchaseValidation {
   valid: boolean;
   errors: string[];
   warnings: string[];
+  priceBreakdown: NFTPriceBreakdown | null;
 }
 
-export async function validatePurchase(params: {
+export function validatePurchase(params: {
   buyerAddress: string;
   buyerBalance: bigint;
-  tokenId?: number;
+  tier?: PriceTier;
   mintedCount?: number;
-}): Promise<PurchaseValidation> {
+  isWhitelist?: boolean;
+}): PurchaseValidation {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -247,13 +202,26 @@ export async function validatePurchase(params: {
     errors.push("All NFTs have been minted (max supply reached)");
   }
 
-  // Calculate price and check balance
-  const price = await calculateNFTPrice({});
-  const totalNeeded = price.finalPriceSats + NFT_SALE_CONFIG.dustLimit;
+  // Check premium tier availability
+  const tier = params.tier ?? "standard";
+  if (tier !== "standard" && !NFT_SALE_CONFIG.premiumTiersEnabled) {
+    errors.push("Premium tiers are not available yet");
+  }
+
+  // Calculate price (no async needed - fixed sats)
+  const price = calculateNFTPrice({
+    tier,
+    isWhitelist: params.isWhitelist,
+  });
+
+  // Check balance (price + dust for NFT UTXO + estimated fee)
+  const estimatedFee = 2000n; // ~2000 sats for typical tx
+  const totalNeeded =
+    price.finalPriceSats + NFT_SALE_CONFIG.dustLimit + estimatedFee;
 
   if (params.buyerBalance < totalNeeded) {
     errors.push(
-      `Insufficient balance. Need ${totalNeeded} sats, have ${params.buyerBalance} sats`,
+      `Insufficient balance. Need ${formatSatsPrice(totalNeeded)}, have ${formatSatsPrice(params.buyerBalance)}`,
     );
   }
 
@@ -264,10 +232,17 @@ export async function validatePurchase(params: {
     );
   }
 
+  if (params.buyerBalance < totalNeeded * 2n) {
+    warnings.push(
+      "Low balance - consider adding more BTC for future purchases",
+    );
+  }
+
   return {
     valid: errors.length === 0,
     errors,
     warnings,
+    priceBreakdown: errors.length === 0 ? price : null,
   };
 }
 

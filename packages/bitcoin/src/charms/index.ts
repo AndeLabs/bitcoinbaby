@@ -162,11 +162,11 @@ export {
 } from "./balance";
 
 // =============================================================================
-// NFT SALES
+// NFT SALES (Fixed BTC Pricing)
 // =============================================================================
 
 export type {
-  BTCPriceData,
+  PriceTier,
   NFTPriceBreakdown,
   PurchaseValidation,
   NFTPurchaseParams,
@@ -178,10 +178,10 @@ export type {
 export {
   // Config
   NFT_SALE_CONFIG,
-  // Price Oracle
-  getBTCPrice,
-  usdToSats,
-  satsToUsd,
+  // Price Utilities (fixed sats - no USD conversion)
+  formatSatsPrice,
+  getTierPrice,
+  getTierGuarantee,
   // Price Calculation
   calculateNFTPrice,
   // Validation

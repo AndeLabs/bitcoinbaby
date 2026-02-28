@@ -132,8 +132,8 @@ export {
   createNFTGenesisSpell,
   createNFTWorkProofSpell,
   createNFTLevelUpSpell,
-  // NFT Sales
-  type BTCPriceData,
+  // NFT Sales (Fixed BTC Pricing)
+  type PriceTier,
   type NFTPriceBreakdown,
   type PurchaseValidation,
   type NFTPurchaseParams,
@@ -141,9 +141,9 @@ export {
   type NFTSaleRecord,
   type SalesStats,
   NFT_SALE_CONFIG,
-  getBTCPrice,
-  usdToSats,
-  satsToUsd,
+  formatSatsPrice,
+  getTierPrice,
+  getTierGuarantee,
   calculateNFTPrice,
   validatePurchase,
   calculatePurchaseOutputs,

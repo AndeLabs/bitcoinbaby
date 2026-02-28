@@ -1,20 +1,21 @@
 /**
  * useNFTSale Hook
  *
- * Frontend hook for purchasing Genesis Babies NFTs at $50 USD equivalent in BTC.
- * Handles price fetching, validation, and transaction building.
+ * Frontend hook for purchasing Genesis Babies NFTs.
+ * Uses FIXED Bitcoin pricing (50,000 sats = ~€50)
+ * Price does NOT fluctuate with USD - stable for Bitcoin users.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  getBTCPrice,
   calculateNFTPrice,
   validatePurchase,
   NFT_SALE_CONFIG,
-  type BTCPriceData,
+  formatSatsPrice,
+  getTierPrice,
+  type PriceTier,
   type NFTPriceBreakdown,
   type PurchaseValidation,
-  type RarityTier,
 } from "@bitcoinbaby/bitcoin";
 
 // =============================================================================
@@ -26,33 +27,40 @@ export interface UseNFTSaleOptions {
   buyerAddress?: string;
   /** Buyer's current balance in satoshis */
   buyerBalance?: bigint;
-  /** Auto-refresh price interval (ms, default: 60000) */
-  priceRefreshInterval?: number;
+  /** Selected price tier */
+  tier?: PriceTier;
+  /** Whether buyer is on whitelist */
+  isWhitelist?: boolean;
   /** Treasury address to receive payments */
   treasuryAddress?: string;
 }
 
 export interface UseNFTSaleReturn {
-  /** Current BTC price data */
-  btcPrice: BTCPriceData | null;
   /** Price breakdown for purchase */
-  priceBreakdown: NFTPriceBreakdown | null;
+  priceBreakdown: NFTPriceBreakdown;
   /** Purchase validation result */
-  validation: PurchaseValidation | null;
-  /** Whether price is loading */
-  isLoadingPrice: boolean;
+  validation: PurchaseValidation;
   /** Whether purchase is in progress */
   isPurchasing: boolean;
   /** Error message if any */
   error: string | null;
-  /** Refresh price manually */
-  refreshPrice: () => Promise<void>;
   /** Check if user can purchase */
   canPurchase: boolean;
-  /** Formatted price string (e.g., "$50.00 (~0.00052 BTC)") */
+  /** Formatted price string (e.g., "50,000 sats") */
   formattedPrice: string;
   /** Sale config */
   config: typeof NFT_SALE_CONFIG;
+  /** Available tiers with prices */
+  availableTiers: Array<{
+    tier: PriceTier;
+    price: bigint;
+    formattedPrice: string;
+    guarantee: string | null;
+  }>;
+  /** Change selected tier */
+  setTier: (tier: PriceTier) => void;
+  /** Current tier */
+  currentTier: PriceTier;
   /** Initiate purchase (returns PSBT for signing) */
   initiatePurchase: (tokenId: number) => Promise<{
     success: boolean;
@@ -69,98 +77,57 @@ export function useNFTSale(options: UseNFTSaleOptions = {}): UseNFTSaleReturn {
   const {
     buyerAddress,
     buyerBalance = 0n,
-    priceRefreshInterval = 60000,
+    tier: initialTier = "standard",
+    isWhitelist = false,
     treasuryAddress,
   } = options;
 
   // State
-  const [btcPrice, setBtcPrice] = useState<BTCPriceData | null>(null);
-  const [priceBreakdown, setPriceBreakdown] =
-    useState<NFTPriceBreakdown | null>(null);
-  const [validation, setValidation] = useState<PurchaseValidation | null>(null);
-  const [isLoadingPrice, setIsLoadingPrice] = useState(true);
+  const [currentTier, setTier] = useState<PriceTier>(initialTier);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Refs for cleanup
-  const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Calculate price (sync - no API call needed)
+  const priceBreakdown = useMemo(
+    () => calculateNFTPrice({ tier: currentTier, isWhitelist }),
+    [currentTier, isWhitelist],
+  );
 
-  /**
-   * Fetch current BTC price and calculate NFT price
-   */
-  const refreshPrice = useCallback(async () => {
-    try {
-      setIsLoadingPrice(true);
-      setError(null);
-
-      // Get BTC price
-      const price = await getBTCPrice();
-      setBtcPrice(price);
-
-      // Calculate NFT price
-      const breakdown = await calculateNFTPrice({});
-      setPriceBreakdown(breakdown);
-
-      // Validate purchase if we have buyer info
-      if (buyerAddress) {
-        const validationResult = await validatePurchase({
-          buyerAddress,
-          buyerBalance,
-        });
-        setValidation(validationResult);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch price");
-    } finally {
-      setIsLoadingPrice(false);
-    }
-  }, [buyerAddress, buyerBalance]);
-
-  /**
-   * Initialize and auto-refresh price
-   */
-  useEffect(() => {
-    // Initial fetch
-    refreshPrice();
-
-    // Setup auto-refresh
-    refreshTimerRef.current = setInterval(refreshPrice, priceRefreshInterval);
-
-    return () => {
-      if (refreshTimerRef.current) {
-        clearInterval(refreshTimerRef.current);
-      }
-    };
-  }, [refreshPrice, priceRefreshInterval]);
-
-  /**
-   * Re-validate when buyer info changes
-   */
-  useEffect(() => {
-    if (buyerAddress && priceBreakdown) {
+  // Validate purchase
+  const validation = useMemo(
+    () =>
       validatePurchase({
-        buyerAddress,
+        buyerAddress: buyerAddress || "",
         buyerBalance,
-      }).then(setValidation);
-    }
-  }, [buyerAddress, buyerBalance, priceBreakdown]);
+        tier: currentTier,
+        isWhitelist,
+      }),
+    [buyerAddress, buyerBalance, currentTier, isWhitelist],
+  );
 
-  /**
-   * Format price for display
-   */
-  const formattedPrice = priceBreakdown
-    ? `$${priceBreakdown.finalPriceUSD.toFixed(2)} (~${(Number(priceBreakdown.finalPriceSats) / 100_000_000).toFixed(6)} BTC)`
-    : "$50.00";
+  // Available tiers
+  const availableTiers = useMemo(() => {
+    const tiers: PriceTier[] = ["standard"];
+    if (NFT_SALE_CONFIG.premiumTiersEnabled) {
+      tiers.push("premium", "legendary");
+    }
+
+    return tiers.map((tier) => {
+      const price = getTierPrice(tier);
+      const guarantee = NFT_SALE_CONFIG.tierGuarantees[tier];
+      return {
+        tier,
+        price,
+        formattedPrice: formatSatsPrice(price),
+        guarantee: guarantee ? `${guarantee}+` : null,
+      };
+    });
+  }, []);
 
   /**
    * Check if user can purchase
    */
-  const canPurchase = !!(
-    buyerAddress &&
-    validation?.valid &&
-    priceBreakdown &&
-    !isPurchasing
-  );
+  const canPurchase = !!(buyerAddress && validation.valid && !isPurchasing);
 
   /**
    * Initiate purchase - creates PSBT for signing
@@ -174,7 +141,7 @@ export function useNFTSale(options: UseNFTSaleOptions = {}): UseNFTSaleReturn {
           success: false,
           error: !treasuryAddress
             ? "Treasury address not configured"
-            : "Cannot purchase - validation failed",
+            : validation.errors.join(", ") || "Cannot purchase",
         };
       }
 
@@ -182,23 +149,13 @@ export function useNFTSale(options: UseNFTSaleOptions = {}): UseNFTSaleReturn {
       setError(null);
 
       try {
-        // Re-validate with fresh price
-        await refreshPrice();
-
-        if (!validation?.valid) {
-          return {
-            success: false,
-            error: validation?.errors.join(", ") || "Validation failed",
-          };
-        }
-
         // TODO: Build PSBT with spell for NFT mint + payment
         // This requires integration with the transaction builder
         // For now, return a placeholder
 
         return {
           success: false,
-          error: "NFT purchase transaction building not yet implemented",
+          error: "NFT purchase transaction building coming soon",
         };
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : "Purchase failed";
@@ -208,20 +165,20 @@ export function useNFTSale(options: UseNFTSaleOptions = {}): UseNFTSaleReturn {
         setIsPurchasing(false);
       }
     },
-    [canPurchase, treasuryAddress, refreshPrice, validation],
+    [canPurchase, treasuryAddress, validation],
   );
 
   return {
-    btcPrice,
     priceBreakdown,
     validation,
-    isLoadingPrice,
     isPurchasing,
     error,
-    refreshPrice,
     canPurchase,
-    formattedPrice,
+    formattedPrice: priceBreakdown.displayPrice,
     config: NFT_SALE_CONFIG,
+    availableTiers,
+    setTier,
+    currentTier,
     initiatePurchase,
   };
 }
