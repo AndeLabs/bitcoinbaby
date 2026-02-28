@@ -38,12 +38,11 @@ export function NFTsSection() {
     canMint,
   } = useMintNFT();
 
-  // NFT Sale hook for pricing
-  const { formattedPrice, priceBreakdown, validation, canPurchase } =
-    useNFTSale({
-      buyerAddress: wallet?.address,
-      buyerBalance: 0n, // TODO: Get real balance
-    });
+  // NFT Sale hook for pricing (simple: 50,000 sats fixed)
+  const { formattedPrice, validation } = useNFTSale({
+    buyerAddress: wallet?.address,
+    buyerBalance: 0n, // TODO: Get real balance
+  });
 
   const handlePreview = useCallback(() => {
     const previewNFT = preview();

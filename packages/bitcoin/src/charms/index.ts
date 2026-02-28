@@ -162,7 +162,7 @@ export {
 } from "./balance";
 
 // =============================================================================
-// NFT SALES (Fixed BTC Pricing)
+// NFT SALES (Simple Fixed BTC Pricing)
 // =============================================================================
 
 export type {
@@ -178,16 +178,16 @@ export type {
 export {
   // Config
   NFT_SALE_CONFIG,
-  // Price Utilities (fixed sats - no USD conversion)
+  setTreasuryAddress,
+  getTreasuryAddress,
+  // Price
   formatSatsPrice,
-  getTierPrice,
-  getTierGuarantee,
-  // Price Calculation
+  getNFTPrice,
+  getTierPrice, // Legacy compat
+  getTierGuarantee, // Legacy compat
   calculateNFTPrice,
-  // Validation
+  // Validation & Purchase
   validatePurchase,
-  // Transaction Building
   calculatePurchaseOutputs,
-  // Statistics
   calculateSalesStats,
 } from "./nft-sale";

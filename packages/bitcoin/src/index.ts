@@ -132,7 +132,7 @@ export {
   createNFTGenesisSpell,
   createNFTWorkProofSpell,
   createNFTLevelUpSpell,
-  // NFT Sales (Fixed BTC Pricing)
+  // NFT Sales (Simple Fixed BTC Pricing)
   type PriceTier,
   type NFTPriceBreakdown,
   type PurchaseValidation,
@@ -141,7 +141,10 @@ export {
   type NFTSaleRecord,
   type SalesStats,
   NFT_SALE_CONFIG,
+  setTreasuryAddress,
+  getTreasuryAddress,
   formatSatsPrice,
+  getNFTPrice,
   getTierPrice,
   getTierGuarantee,
   calculateNFTPrice,

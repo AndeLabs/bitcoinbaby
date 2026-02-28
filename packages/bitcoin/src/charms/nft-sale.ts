@@ -1,11 +1,9 @@
 /**
  * NFT Sale System
  *
- * Handles pricing, payment validation, and sales tracking for Genesis Babies NFTs.
- * Price: FIXED in Bitcoin (satoshis) - does not fluctuate with USD
- *
- * Current price: 50,000 sats (~€50 at time of setting)
- * This ensures stable pricing for Bitcoin users.
+ * Simple NFT sales for Genesis Babies.
+ * Price: FIXED in Bitcoin (50,000 sats)
+ * All funds go to single treasury wallet.
  */
 
 import { GENESIS_BABIES_CONFIG, type RarityTier } from "./nft";
@@ -17,389 +15,219 @@ import { GENESIS_BABIES_CONFIG, type RarityTier } from "./nft";
 /**
  * NFT Sale Configuration
  *
- * IMPORTANT: Price is FIXED in satoshis, not USD.
- * This provides price stability for Bitcoin users.
+ * Simple pricing: 50,000 sats per NFT
+ * All funds → Treasury (no splits)
  */
 export const NFT_SALE_CONFIG = {
-  /** Base price in SATOSHIS (fixed, does not change with USD) */
-  basePriceSats: 50_000n, // 50,000 sats = 0.0005 BTC (~€50 at ~€100k/BTC)
-
-  /** Alternative prices for different tiers (all in sats) */
-  tierPrices: {
-    standard: 50_000n, // 0.0005 BTC - Random rarity
-    premium: 100_000n, // 0.001 BTC - Guaranteed rare+
-    legendary: 250_000n, // 0.0025 BTC - Guaranteed legendary+
-  } as const,
-
-  /** Rarity guaranteed by tier */
-  tierGuarantees: {
-    standard: null, // Random based on weights
-    premium: "rare" as RarityTier, // Rare or better
-    legendary: "legendary" as RarityTier, // Legendary or better
-  } as const,
-
-  /** Whether premium tiers are available */
-  premiumTiersEnabled: false, // Set to true to enable premium purchases
+  /** Price in SATOSHIS (fixed) */
+  priceSats: 50_000n, // 0.0005 BTC (~€50)
 
   /** Dust limit for NFT UTXO */
   dustLimit: 546n,
 
-  /** Platform fee percentage (5%) */
-  platformFeePercent: 5,
+  /** Treasury address - receives ALL payment */
+  treasuryAddress: "", // Set via setTreasuryAddress()
 
-  /** Creator treasury address (receives sales) */
-  treasuryAddress: "", // Set at runtime
-
-  /** Max supply from config */
+  /** Max supply */
   maxSupply: GENESIS_BABIES_CONFIG.maxSupply,
-
-  /** Sale phases */
-  phases: {
-    whitelist: { active: false, discountPercent: 20 }, // 20% off = 40,000 sats
-    public: { active: true, discountPercent: 0 },
-  },
 } as const;
 
+// Mutable treasury (set at runtime)
+let _treasuryAddress = "";
+
+export function setTreasuryAddress(address: string): void {
+  _treasuryAddress = address;
+}
+
+export function getTreasuryAddress(): string {
+  return _treasuryAddress || NFT_SALE_CONFIG.treasuryAddress;
+}
+
 // =============================================================================
-// PRICE UTILITIES (Fixed BTC pricing - no USD conversion needed)
+// PRICE UTILITIES
 // =============================================================================
 
 /**
- * Price tier for NFT purchase
+ * Price tier (simplified - only standard for now)
  */
-export type PriceTier = "standard" | "premium" | "legendary";
+export type PriceTier = "standard";
 
 /**
  * Format satoshis for display
  */
 export function formatSatsPrice(sats: bigint): string {
-  const btc = Number(sats) / 100_000_000;
-  if (btc >= 0.001) {
-    return `${btc.toFixed(4)} BTC`;
-  }
   return `${sats.toLocaleString()} sats`;
 }
 
 /**
- * Get price for a specific tier
+ * Get NFT price
  */
-export function getTierPrice(tier: PriceTier): bigint {
-  return NFT_SALE_CONFIG.tierPrices[tier];
+export function getNFTPrice(): bigint {
+  return NFT_SALE_CONFIG.priceSats;
 }
 
-/**
- * Get guaranteed minimum rarity for a tier
- */
-export function getTierGuarantee(tier: PriceTier): RarityTier | null {
-  return NFT_SALE_CONFIG.tierGuarantees[tier];
-}
+// Legacy exports for compatibility
+export const getTierPrice = (_tier?: PriceTier): bigint => getNFTPrice();
+export const getTierGuarantee = (_tier?: PriceTier): RarityTier | null => null;
 
 // =============================================================================
-// SALE PRICE CALCULATION (Fixed BTC pricing)
+// PRICE BREAKDOWN
 // =============================================================================
 
 /**
- * NFT Price breakdown
- * All prices are FIXED in satoshis - no USD conversion
+ * Simple price breakdown
  */
 export interface NFTPriceBreakdown {
-  /** Selected price tier */
-  tier: PriceTier;
-  /** Base price in satoshis */
-  basePriceSats: bigint;
-  /** Discount applied (whitelist, etc.) */
-  discountPercent: number;
-  /** Final price in satoshis */
-  finalPriceSats: bigint;
-  /** Platform fee in satoshis */
-  platformFeeSats: bigint;
-  /** Creator receives in satoshis */
-  creatorReceivesSats: bigint;
-  /** Guaranteed minimum rarity (if premium tier) */
-  guaranteedRarity: RarityTier | null;
-  /** Formatted price for display */
+  /** Price in satoshis */
+  priceSats: bigint;
+  /** Formatted price */
   displayPrice: string;
-  /** Timestamp of calculation */
-  timestamp: number;
+  /** Total needed (price + dust + estimated fee) */
+  totalNeeded: bigint;
 }
 
 /**
- * Calculate NFT purchase price
- * Uses FIXED satoshi pricing - no USD fluctuation
+ * Calculate NFT price (simple)
  */
-export function calculateNFTPrice(options: {
+export function calculateNFTPrice(_options?: {
   tier?: PriceTier;
   isWhitelist?: boolean;
 }): NFTPriceBreakdown {
-  const { tier = "standard", isWhitelist = false } = options;
-
-  // Get base price for tier (fixed in sats)
-  const basePriceSats = NFT_SALE_CONFIG.tierPrices[tier];
-
-  // Apply whitelist discount if applicable
-  const discountPercent =
-    isWhitelist && NFT_SALE_CONFIG.phases.whitelist.active
-      ? NFT_SALE_CONFIG.phases.whitelist.discountPercent
-      : 0;
-
-  // Calculate final price
-  const discountAmount = (basePriceSats * BigInt(discountPercent)) / 100n;
-  const finalPriceSats = basePriceSats - discountAmount;
-
-  // Calculate platform fee
-  const platformFeeSats =
-    (finalPriceSats * BigInt(NFT_SALE_CONFIG.platformFeePercent)) / 100n;
-  const creatorReceivesSats = finalPriceSats - platformFeeSats;
-
-  // Get guaranteed rarity for tier
-  const guaranteedRarity = NFT_SALE_CONFIG.tierGuarantees[tier];
+  const priceSats = NFT_SALE_CONFIG.priceSats;
+  const estimatedFee = 2000n; // ~2000 sats for tx fee
 
   return {
-    tier,
-    basePriceSats,
-    discountPercent,
-    finalPriceSats,
-    platformFeeSats,
-    creatorReceivesSats,
-    guaranteedRarity,
-    displayPrice: formatSatsPrice(finalPriceSats),
-    timestamp: Date.now(),
+    priceSats,
+    displayPrice: formatSatsPrice(priceSats),
+    totalNeeded: priceSats + NFT_SALE_CONFIG.dustLimit + estimatedFee,
   };
 }
 
 // =============================================================================
-// SALE VALIDATION
+// VALIDATION
 // =============================================================================
 
-/**
- * Validate a purchase request
- */
 export interface PurchaseValidation {
   valid: boolean;
   errors: string[];
   warnings: string[];
-  priceBreakdown: NFTPriceBreakdown | null;
 }
 
 export function validatePurchase(params: {
   buyerAddress: string;
   buyerBalance: bigint;
-  tier?: PriceTier;
   mintedCount?: number;
-  isWhitelist?: boolean;
 }): PurchaseValidation {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // Validate address format
+  // Validate address
   if (!params.buyerAddress || params.buyerAddress.length < 26) {
-    errors.push("Invalid buyer address");
+    errors.push("Connect wallet first");
   }
 
   // Check supply
   const mintedCount = params.mintedCount ?? 0;
   if (mintedCount >= NFT_SALE_CONFIG.maxSupply) {
-    errors.push("All NFTs have been minted (max supply reached)");
+    errors.push("Sold out!");
   }
 
-  // Check premium tier availability
-  const tier = params.tier ?? "standard";
-  if (tier !== "standard" && !NFT_SALE_CONFIG.premiumTiersEnabled) {
-    errors.push("Premium tiers are not available yet");
-  }
-
-  // Calculate price (no async needed - fixed sats)
-  const price = calculateNFTPrice({
-    tier,
-    isWhitelist: params.isWhitelist,
-  });
-
-  // Check balance (price + dust for NFT UTXO + estimated fee)
-  const estimatedFee = 2000n; // ~2000 sats for typical tx
-  const totalNeeded =
-    price.finalPriceSats + NFT_SALE_CONFIG.dustLimit + estimatedFee;
-
-  if (params.buyerBalance < totalNeeded) {
+  // Check balance
+  const price = calculateNFTPrice();
+  if (params.buyerBalance < price.totalNeeded) {
     errors.push(
-      `Insufficient balance. Need ${formatSatsPrice(totalNeeded)}, have ${formatSatsPrice(params.buyerBalance)}`,
+      `Need ${formatSatsPrice(price.totalNeeded)}, have ${formatSatsPrice(params.buyerBalance)}`,
     );
   }
 
-  // Warnings
+  // Low supply warning
   if (mintedCount > NFT_SALE_CONFIG.maxSupply * 0.9) {
-    warnings.push(
-      `Only ${NFT_SALE_CONFIG.maxSupply - mintedCount} NFTs remaining!`,
-    );
+    warnings.push(`Only ${NFT_SALE_CONFIG.maxSupply - mintedCount} left!`);
   }
 
-  if (params.buyerBalance < totalNeeded * 2n) {
-    warnings.push(
-      "Low balance - consider adding more BTC for future purchases",
-    );
-  }
-
-  return {
-    valid: errors.length === 0,
-    errors,
-    warnings,
-    priceBreakdown: errors.length === 0 ? price : null,
-  };
+  return { valid: errors.length === 0, errors, warnings };
 }
 
 // =============================================================================
-// SALE TRANSACTION BUILDER
+// PURCHASE TRANSACTION
 // =============================================================================
 
-/**
- * Parameters for creating an NFT purchase transaction
- */
 export interface NFTPurchaseParams {
-  /** Buyer's Bitcoin address */
   buyerAddress: string;
-  /** Buyer's UTXOs for payment */
-  buyerUtxos: Array<{
-    txid: string;
-    vout: number;
-    value: bigint;
-  }>;
-  /** Treasury address to receive payment */
-  treasuryAddress: string;
-  /** Price breakdown */
-  price: NFTPriceBreakdown;
-  /** NFT token ID */
+  buyerUtxos: Array<{ txid: string; vout: number; value: bigint }>;
   tokenId: number;
-  /** Network fee rate (sats/vB) */
   feeRate?: number;
 }
 
-/**
- * Output structure for purchase transaction
- */
 export interface NFTPurchaseOutputs {
-  /** Payment to treasury */
-  treasuryOutput: {
-    address: string;
-    value: bigint;
-  };
-  /** NFT output to buyer (with charm) */
-  nftOutput: {
-    address: string;
-    value: bigint; // dust limit
-  };
-  /** Change output to buyer (if any) */
-  changeOutput?: {
-    address: string;
-    value: bigint;
-  };
+  outputs: Array<{ address: string; value: bigint }>;
+  fee: bigint;
+  change: bigint;
 }
 
 /**
- * Calculate transaction outputs for NFT purchase
+ * Calculate outputs for NFT purchase
+ *
+ * Simple structure:
+ * - Output 0: Payment to treasury (50,000 sats)
+ * - Output 1: NFT to buyer (546 sats dust with charm)
+ * - Output 2: Change to buyer (if any)
  */
 export function calculatePurchaseOutputs(
   params: NFTPurchaseParams,
 ): NFTPurchaseOutputs {
-  const totalInput = params.buyerUtxos.reduce(
-    (sum, utxo) => sum + utxo.value,
-    0n,
-  );
-
-  // Estimate tx size for fee calculation (rough: 1 input, 3 outputs)
-  const estimatedVsize = 250;
-  const feeRate = params.feeRate ?? 10;
-  const fee = BigInt(estimatedVsize * feeRate);
-
-  // Calculate change
-  const totalSpent =
-    params.price.finalPriceSats + NFT_SALE_CONFIG.dustLimit + fee;
-  const change = totalInput - totalSpent;
-
-  const outputs: NFTPurchaseOutputs = {
-    treasuryOutput: {
-      address: params.treasuryAddress,
-      value: params.price.creatorReceivesSats,
-    },
-    nftOutput: {
-      address: params.buyerAddress,
-      value: NFT_SALE_CONFIG.dustLimit,
-    },
-  };
-
-  // Only add change if above dust
-  if (change > NFT_SALE_CONFIG.dustLimit) {
-    outputs.changeOutput = {
-      address: params.buyerAddress,
-      value: change,
-    };
+  const treasury = getTreasuryAddress();
+  if (!treasury) {
+    throw new Error("Treasury address not configured");
   }
 
-  return outputs;
+  const totalInput = params.buyerUtxos.reduce((sum, u) => sum + u.value, 0n);
+  const price = NFT_SALE_CONFIG.priceSats;
+  const dust = NFT_SALE_CONFIG.dustLimit;
+
+  // Fee estimate: ~250 vbytes * feeRate
+  const feeRate = params.feeRate ?? 10;
+  const fee = BigInt(250 * feeRate);
+
+  const totalSpent = price + dust + fee;
+  const change = totalInput - totalSpent;
+
+  const outputs: Array<{ address: string; value: bigint }> = [
+    { address: treasury, value: price }, // Payment
+    { address: params.buyerAddress, value: dust }, // NFT
+  ];
+
+  // Add change if above dust
+  if (change > dust) {
+    outputs.push({ address: params.buyerAddress, value: change });
+  }
+
+  return { outputs, fee, change: change > dust ? change : 0n };
 }
 
 // =============================================================================
-// SALES TRACKING
+// SALE RECORD (simple)
 // =============================================================================
 
-/**
- * Sale record for tracking
- */
 export interface NFTSaleRecord {
   tokenId: number;
   buyerAddress: string;
   priceSats: bigint;
-  priceUSD: number;
-  btcPriceUSD: number;
   txid: string;
-  blockHeight?: number;
   timestamp: number;
   rarityTier: RarityTier;
 }
 
-/**
- * Sales statistics
- */
 export interface SalesStats {
   totalMinted: number;
   totalRevenueSats: bigint;
-  totalRevenueUSD: number;
-  rarityDistribution: Record<RarityTier, number>;
-  averagePriceUSD: number;
 }
 
-/**
- * Calculate sales statistics from records
- */
 export function calculateSalesStats(sales: NFTSaleRecord[]): SalesStats {
-  const stats: SalesStats = {
+  return {
     totalMinted: sales.length,
-    totalRevenueSats: 0n,
-    totalRevenueUSD: 0,
-    rarityDistribution: {
-      common: 0,
-      uncommon: 0,
-      rare: 0,
-      epic: 0,
-      legendary: 0,
-      mythic: 0,
-    },
-    averagePriceUSD: 0,
+    totalRevenueSats: sales.reduce((sum, s) => sum + s.priceSats, 0n),
   };
-
-  for (const sale of sales) {
-    stats.totalRevenueSats += sale.priceSats;
-    stats.totalRevenueUSD += sale.priceUSD;
-    stats.rarityDistribution[sale.rarityTier]++;
-  }
-
-  if (sales.length > 0) {
-    stats.averagePriceUSD = stats.totalRevenueUSD / sales.length;
-  }
-
-  return stats;
 }
-
-// =============================================================================
-// EXPORTS
-// =============================================================================
 
 export { GENESIS_BABIES_CONFIG };

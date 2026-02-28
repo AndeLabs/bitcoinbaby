@@ -1,19 +1,18 @@
 /**
  * useNFTSale Hook
  *
- * Frontend hook for purchasing Genesis Babies NFTs.
- * Uses FIXED Bitcoin pricing (50,000 sats = ~€50)
- * Price does NOT fluctuate with USD - stable for Bitcoin users.
+ * Simple hook for NFT purchase.
+ * Fixed price: 50,000 sats
+ * All funds → Treasury
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   calculateNFTPrice,
   validatePurchase,
+  calculatePurchaseOutputs,
   NFT_SALE_CONFIG,
-  formatSatsPrice,
-  getTierPrice,
-  type PriceTier,
+  getTreasuryAddress,
   type NFTPriceBreakdown,
   type PurchaseValidation,
 } from "@bitcoinbaby/bitcoin";
@@ -23,50 +22,31 @@ import {
 // =============================================================================
 
 export interface UseNFTSaleOptions {
-  /** Buyer's Bitcoin address */
   buyerAddress?: string;
-  /** Buyer's current balance in satoshis */
   buyerBalance?: bigint;
-  /** Selected price tier */
-  tier?: PriceTier;
-  /** Whether buyer is on whitelist */
-  isWhitelist?: boolean;
-  /** Treasury address to receive payments */
-  treasuryAddress?: string;
 }
 
 export interface UseNFTSaleReturn {
-  /** Price breakdown for purchase */
-  priceBreakdown: NFTPriceBreakdown;
-  /** Purchase validation result */
-  validation: PurchaseValidation;
-  /** Whether purchase is in progress */
-  isPurchasing: boolean;
-  /** Error message if any */
-  error: string | null;
-  /** Check if user can purchase */
-  canPurchase: boolean;
-  /** Formatted price string (e.g., "50,000 sats") */
+  /** Price info */
+  price: NFTPriceBreakdown;
+  /** Formatted price string */
   formattedPrice: string;
-  /** Sale config */
-  config: typeof NFT_SALE_CONFIG;
-  /** Available tiers with prices */
-  availableTiers: Array<{
-    tier: PriceTier;
-    price: bigint;
-    formattedPrice: string;
-    guarantee: string | null;
-  }>;
-  /** Change selected tier */
-  setTier: (tier: PriceTier) => void;
-  /** Current tier */
-  currentTier: PriceTier;
-  /** Initiate purchase (returns PSBT for signing) */
-  initiatePurchase: (tokenId: number) => Promise<{
-    success: boolean;
-    psbt?: string;
-    error?: string;
-  }>;
+  /** Validation result */
+  validation: PurchaseValidation;
+  /** Can purchase? */
+  canPurchase: boolean;
+  /** Is purchasing? */
+  isPurchasing: boolean;
+  /** Error message */
+  error: string | null;
+  /** Initiate purchase */
+  purchase: (tokenId: number) => Promise<PurchaseResult>;
+}
+
+export interface PurchaseResult {
+  success: boolean;
+  psbt?: string;
+  error?: string;
 }
 
 // =============================================================================
@@ -74,74 +54,42 @@ export interface UseNFTSaleReturn {
 // =============================================================================
 
 export function useNFTSale(options: UseNFTSaleOptions = {}): UseNFTSaleReturn {
-  const {
-    buyerAddress,
-    buyerBalance = 0n,
-    tier: initialTier = "standard",
-    isWhitelist = false,
-    treasuryAddress,
-  } = options;
+  const { buyerAddress, buyerBalance = 0n } = options;
 
-  // State
-  const [currentTier, setTier] = useState<PriceTier>(initialTier);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Calculate price (sync - no API call needed)
-  const priceBreakdown = useMemo(
-    () => calculateNFTPrice({ tier: currentTier, isWhitelist }),
-    [currentTier, isWhitelist],
-  );
+  // Price (fixed - no calculation needed)
+  const price = useMemo(() => calculateNFTPrice(), []);
 
-  // Validate purchase
+  // Validation
   const validation = useMemo(
     () =>
       validatePurchase({
         buyerAddress: buyerAddress || "",
         buyerBalance,
-        tier: currentTier,
-        isWhitelist,
       }),
-    [buyerAddress, buyerBalance, currentTier, isWhitelist],
+    [buyerAddress, buyerBalance],
   );
 
-  // Available tiers
-  const availableTiers = useMemo(() => {
-    const tiers: PriceTier[] = ["standard"];
-    if (NFT_SALE_CONFIG.premiumTiersEnabled) {
-      tiers.push("premium", "legendary");
-    }
-
-    return tiers.map((tier) => {
-      const price = getTierPrice(tier);
-      const guarantee = NFT_SALE_CONFIG.tierGuarantees[tier];
-      return {
-        tier,
-        price,
-        formattedPrice: formatSatsPrice(price),
-        guarantee: guarantee ? `${guarantee}+` : null,
-      };
-    });
-  }, []);
-
-  /**
-   * Check if user can purchase
-   */
+  // Can purchase?
   const canPurchase = !!(buyerAddress && validation.valid && !isPurchasing);
 
   /**
-   * Initiate purchase - creates PSBT for signing
+   * Purchase NFT
    */
-  const initiatePurchase = useCallback(
-    async (
-      tokenId: number,
-    ): Promise<{ success: boolean; psbt?: string; error?: string }> => {
-      if (!canPurchase || !treasuryAddress) {
+  const purchase = useCallback(
+    async (tokenId: number): Promise<PurchaseResult> => {
+      const treasury = getTreasuryAddress();
+
+      if (!treasury) {
+        return { success: false, error: "Treasury not configured" };
+      }
+
+      if (!canPurchase) {
         return {
           success: false,
-          error: !treasuryAddress
-            ? "Treasury address not configured"
-            : validation.errors.join(", ") || "Cannot purchase",
+          error: validation.errors[0] || "Cannot purchase",
         };
       }
 
@@ -149,36 +97,45 @@ export function useNFTSale(options: UseNFTSaleOptions = {}): UseNFTSaleReturn {
       setError(null);
 
       try {
-        // TODO: Build PSBT with spell for NFT mint + payment
-        // This requires integration with the transaction builder
-        // For now, return a placeholder
+        // TODO: Implement PSBT creation
+        // 1. Get buyer UTXOs (from MempoolClient)
+        // 2. Create NFT spell (createNFTGenesisSpell)
+        // 3. Build PSBT (TransactionBuilder)
+        // 4. Return PSBT hex for wallet signing
+
+        // For now, show what would happen:
+        console.log("[NFT Purchase]", {
+          tokenId,
+          treasury,
+          price: price.priceSats.toString(),
+          buyer: buyerAddress,
+        });
 
         return {
           success: false,
-          error: "NFT purchase transaction building coming soon",
+          error: "PSBT building coming soon - treasury configured",
         };
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : "Purchase failed";
-        setError(errorMsg);
-        return { success: false, error: errorMsg };
+        const msg = err instanceof Error ? err.message : "Purchase failed";
+        setError(msg);
+        return { success: false, error: msg };
       } finally {
         setIsPurchasing(false);
       }
     },
-    [canPurchase, treasuryAddress, validation],
+    [canPurchase, validation, price, buyerAddress],
   );
 
   return {
-    priceBreakdown,
+    price,
+    formattedPrice: price.displayPrice,
     validation,
+    canPurchase,
     isPurchasing,
     error,
-    canPurchase,
-    formattedPrice: priceBreakdown.displayPrice,
-    config: NFT_SALE_CONFIG,
-    availableTiers,
-    setTier,
-    currentTier,
-    initiatePurchase,
+    purchase,
   };
 }
+
+// Legacy export for compatibility
+export { useNFTSale as default };
