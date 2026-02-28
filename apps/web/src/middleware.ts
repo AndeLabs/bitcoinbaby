@@ -34,6 +34,9 @@ export function middleware(request: NextRequest) {
     },
   });
 
+  // Check if running in development
+  const isDev = process.env.NODE_ENV === "development";
+
   // PRODUCTION CSP - Balanced security for Web3 apps
   // 'wasm-unsafe-eval' required for WebAssembly (bitcoinjs-lib/secp256k1)
   // 'unsafe-inline' needed for Next.js hydration and wallet extensions
@@ -48,7 +51,8 @@ export function middleware(request: NextRequest) {
     // Images
     "img-src 'self' data: blob:",
     // API connections - Bitcoin network APIs + Workers API
-    "connect-src 'self' https://mempool.space https://scrolls.charms.dev https://*.workers.dev wss://mempool.space",
+    // In development, also allow localhost for local Workers
+    `connect-src 'self' https://mempool.space https://scrolls.charms.dev https://*.workers.dev wss://mempool.space${isDev ? " http://localhost:* ws://localhost:*" : ""}`,
     // Web Workers for mining
     "worker-src 'self' blob:",
     // Prevent framing (clickjacking protection)
@@ -57,8 +61,8 @@ export function middleware(request: NextRequest) {
     "form-action 'self'",
     // Base URI restriction
     "base-uri 'self'",
-    // Upgrade HTTP to HTTPS
-    "upgrade-insecure-requests",
+    // Upgrade HTTP to HTTPS (skip in development)
+    ...(isDev ? [] : ["upgrade-insecure-requests"]),
   ];
 
   // Set security headers
