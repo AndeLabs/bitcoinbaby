@@ -120,6 +120,7 @@ export class CPUMiner implements Miner {
             nonce: data.nonce,
             difficulty: data.difficulty,
             timestamp: Date.now(),
+            blockData: data.blockData, // Include blockData for server validation
           });
           break;
 
@@ -473,6 +474,7 @@ export class CPUMiner implements Miner {
             nonce: nonce - 1,
             difficulty: zeroBits,
             timestamp: Date.now(),
+            blockData, // Include blockData for server validation
           });
         }
       }

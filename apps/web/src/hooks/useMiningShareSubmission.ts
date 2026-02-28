@@ -321,12 +321,21 @@ export function useMiningShareSubmission(
     // Calculate reward based on actual difficulty from the share
     const reward = calculateShareReward(share.difficulty);
 
+    // Validate share has required data for server validation
+    if (!share.blockData) {
+      console.warn(
+        "[ShareSubmission] Share missing blockData, cannot submit:",
+        share.hash.slice(0, 16),
+      );
+      return;
+    }
+
     // Add real share data to queue
     pendingQueueRef.current.push({
       hash: share.hash,
       nonce: share.nonce,
       difficulty: share.difficulty,
-      blockData: share.blockData || `block-${share.timestamp}`,
+      blockData: share.blockData,
       reward,
       timestamp: share.timestamp,
     });

@@ -84,9 +84,10 @@ export async function validateMiningProof(
     }
   }
 
-  // 4. Recalculate hash = SHA256(blockData + nonce)
-  const dataToHash = proof.blockData + proof.nonce.toString();
-  const calculatedHash = await sha256Hex(dataToHash);
+  // 4. Recalculate hash = double SHA256(blockData)
+  // NOTE: blockData already includes the nonce (format: block:address:nonce)
+  // The miner uses double SHA256 (Bitcoin standard hash256)
+  const calculatedHash = await hash256Hex(proof.blockData);
 
   // 5. Verify hash matches (case-insensitive)
   if (calculatedHash.toLowerCase() !== proof.hash.toLowerCase()) {
@@ -212,6 +213,15 @@ async function sha256Hex(data: string): Promise<string> {
   const hashBuffer = await crypto.subtle.digest("SHA-256", dataBuffer);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Double SHA256 (Bitcoin standard hash256)
+ * hash256(data) = SHA256(SHA256(data))
+ */
+async function hash256Hex(data: string): Promise<string> {
+  const firstHash = await sha256Hex(data);
+  return sha256Hex(firstHash);
 }
 
 /**

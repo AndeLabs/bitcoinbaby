@@ -385,11 +385,13 @@ export class WebGPUMiner implements Miner {
             .map((w) => w.toString(16).padStart(8, "0"))
             .join("");
 
+          const foundNonce = Number(result.bestNonce & 0xffffffffn);
           this.onWorkFound?.({
             hash: hashHex,
-            nonce: Number(result.bestNonce & 0xffffffffn),
+            nonce: foundNonce,
             difficulty: result.bestLeadingZeros,
             timestamp: Date.now(),
+            blockData: `${this.challenge}:${foundNonce}`, // Include for server validation
           });
         }
       } catch (err) {
