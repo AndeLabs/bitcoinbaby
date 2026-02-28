@@ -18,6 +18,7 @@ import {
   MiningStatsGrid,
   MiningControlButton,
   NFTBoostPanel,
+  AnimatedTokenCounter,
 } from "@bitcoinbaby/ui";
 import { useWalletStore, useNFTStore, formatHashrate } from "@bitcoinbaby/core";
 
@@ -60,11 +61,17 @@ export function MiningSection() {
     isSubmitting,
     notifications,
     canSubmitToBlockchain,
+    lastSubmission,
   } = useMiningShareSubmission({
     strategy: "virtual-first",
     autoSubmit: true,
     batchSize: 1,
   });
+
+  // Track recent reward for animation
+  const recentReward = lastSubmission?.success
+    ? lastSubmission.credited
+    : undefined;
 
   // Uptime counter
   useEffect(() => {
@@ -110,15 +117,20 @@ export function MiningSection() {
         {/* Balance Panel */}
         {wallet && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            {/* Virtual Balance (Primary) */}
+            {/* Virtual Balance (Primary) - Animated Counter */}
             <div className="bg-pixel-bg-medium border-4 border-pixel-success p-4">
               <div className="font-pixel text-[7px] text-pixel-text-muted uppercase mb-2">
                 $BABY Balance
               </div>
-              <div className="font-pixel text-lg text-pixel-success">
-                {virtualBalance.toLocaleString()}
-              </div>
-              <div className="font-pixel text-[8px] text-pixel-text-muted">
+              <AnimatedTokenCounter
+                value={virtualBalance}
+                recentReward={recentReward}
+                size="lg"
+                showParticles={true}
+                showGlow={true}
+                className="text-pixel-success"
+              />
+              <div className="font-pixel text-[8px] text-pixel-text-muted mt-1">
                 Available to withdraw
               </div>
             </div>

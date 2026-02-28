@@ -210,6 +210,56 @@ canvas,
 .animate-pixel-rainbow { animation: pixel-rainbow 3s linear infinite; }
 .animate-loading-bar { animation: loading-bar 1.5s ease-in-out infinite; }
 
+/* Token Counter Animations (2025 UX best practices) */
+@keyframes token-float {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-30px) scale(1.2);
+    opacity: 0;
+  }
+}
+
+@keyframes token-glow {
+  0% {
+    opacity: 0.3;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 0.3;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes reward-popup {
+  0% {
+    transform: translateX(-50%) translateY(0) scale(0.5);
+    opacity: 0;
+  }
+  20% {
+    transform: translateX(-50%) translateY(-10px) scale(1.2);
+    opacity: 1;
+  }
+  80% {
+    transform: translateX(-50%) translateY(-20px) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-50%) translateY(-40px) scale(0.8);
+    opacity: 0;
+  }
+}
+
+.animate-token-float { animation: token-float 1s ease-out forwards; }
+.animate-token-glow { animation: token-glow 0.5s ease-in-out; }
+.animate-reward-popup { animation: reward-popup 2s ease-out forwards; }
+
 /* CRT Scanline effect (optional) */
 .crt-effect::after {
   content: '';

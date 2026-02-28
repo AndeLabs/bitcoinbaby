@@ -33,3 +33,9 @@ export {
   NFTBoostBadge,
   type NFTBoostPanelProps,
 } from "./NFTBoostPanel";
+
+// Animated Token Counter
+export {
+  AnimatedTokenCounter,
+  TokenCounterBadge,
+} from "./AnimatedTokenCounter";

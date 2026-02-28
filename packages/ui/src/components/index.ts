@@ -39,6 +39,8 @@ export {
   MiningQuickToggle,
   NFTBoostPanel,
   NFTBoostBadge,
+  AnimatedTokenCounter,
+  TokenCounterBadge,
   type MiningStatusBadgeProps,
   type MiningStatsGridProps,
   type MiningStats,
