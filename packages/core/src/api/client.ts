@@ -229,16 +229,15 @@ let clientInstance: BitcoinBabyClient | null = null;
 
 /**
  * Get the API client singleton
+ *
+ * Always uses production Workers API by default.
+ * The Workers API handles both testnet and mainnet.
  */
 export function getApiClient(env?: Environment): BitcoinBabyClient {
   if (!clientInstance) {
-    // Auto-detect environment
-    const detectedEnv =
-      env ??
-      (typeof window !== "undefined" && window.location.hostname === "localhost"
-        ? "development"
-        : "production");
-    clientInstance = new BitcoinBabyClient(detectedEnv);
+    // Always use production - Workers API is deployed on Cloudflare
+    // Development mode only used when explicitly requested
+    clientInstance = new BitcoinBabyClient(env ?? "production");
   }
   return clientInstance;
 }
