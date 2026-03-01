@@ -132,11 +132,39 @@ function mapNetwork(network: "mainnet" | "testnet4"): BitcoinNetwork {
 export function useWallet(): UseWalletReturn {
   // Network configuration
   const { network } = useNetworkStore();
-  const { setWallet: setStoreWallet, disconnect: disconnectStore } =
-    useWalletStore();
+  const {
+    setWallet: setStoreWallet,
+    disconnect: disconnectStore,
+    setSigningFunctions: storeSetSigningFunctions,
+  } = useWalletStore();
 
   // Internal wallet instance
   const walletRef = useRef<BitcoinWallet | null>(null);
+
+  /**
+   * Set up signing functions in global store
+   * Must be called after wallet is ready
+   */
+  const setupSigningFunctions = useCallback(() => {
+    if (!walletRef.current) return;
+
+    const signPsbtFn = async (psbtHex: string): Promise<string | null> => {
+      if (!walletRef.current) return null;
+
+      try {
+        const { Psbt } = await import("@bitcoinbaby/bitcoin");
+        const psbt = Psbt.fromHex(psbtHex);
+        const signedPsbt = walletRef.current.signPSBT(psbt);
+        signedPsbt.finalizeAllInputs();
+        return signedPsbt.toHex();
+      } catch (error) {
+        console.error("Failed to sign PSBT:", error);
+        return null;
+      }
+    };
+
+    storeSetSigningFunctions(signPsbtFn);
+  }, [storeSetSigningFunctions]);
 
   // State
   const [state, setState] = useState<WalletState>({
@@ -243,6 +271,9 @@ export function useWallet(): UseWalletReturn {
         // Update global store
         setStoreWallet(toStoreWalletInfo(info));
 
+        // Set up signing functions for global access
+        setupSigningFunctions();
+
         // Return mnemonic for user to backup
         return mnemonic;
       } catch (error) {
@@ -255,7 +286,7 @@ export function useWallet(): UseWalletReturn {
         throw error;
       }
     },
-    [network, setStoreWallet],
+    [network, setStoreWallet, setupSigningFunctions],
   );
 
   /**
@@ -290,6 +321,9 @@ export function useWallet(): UseWalletReturn {
 
         // Update global store
         setStoreWallet(toStoreWalletInfo(info));
+
+        // Set up signing functions for global access
+        setupSigningFunctions();
       } catch (error) {
         setState((prev) => ({
           ...prev,
@@ -300,7 +334,7 @@ export function useWallet(): UseWalletReturn {
         throw error;
       }
     },
-    [network, setStoreWallet],
+    [network, setStoreWallet, setupSigningFunctions],
   );
 
   /**
@@ -332,6 +366,9 @@ export function useWallet(): UseWalletReturn {
 
         // Update global store
         setStoreWallet(toStoreWalletInfo(info));
+
+        // Set up signing functions for global access
+        setupSigningFunctions();
       } catch (error) {
         setState((prev) => ({
           ...prev,
@@ -342,7 +379,7 @@ export function useWallet(): UseWalletReturn {
         throw error;
       }
     },
-    [network, setStoreWallet],
+    [network, setStoreWallet, setupSigningFunctions],
   );
 
   /**
