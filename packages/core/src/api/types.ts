@@ -30,6 +30,13 @@ export interface BalanceResponse {
   suggestedDifficulty?: number;
   /** Average time between shares */
   averageShareTime?: number;
+  /** Engagement state (for bonuses) */
+  engagement?: {
+    dailyStreak: number;
+    playTimeToday: number;
+    lastLoginDay: string;
+    currentMultiplier: number;
+  };
 }
 
 export interface CreditResponse {
@@ -49,6 +56,16 @@ export interface CreditResponse {
     suggestedDifficulty: number;
     averageShareTime: number;
     difficultyChanged: boolean;
+  };
+  /** Engagement bonus information */
+  engagement?: {
+    multiplier: number;
+    breakdown: {
+      babyCare: number;
+      dailyStreak: number;
+      playTime: number;
+    };
+    status: "inactive" | "casual" | "engaged" | "dedicated";
   };
 }
 

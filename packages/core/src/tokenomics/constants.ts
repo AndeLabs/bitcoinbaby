@@ -79,20 +79,58 @@ export const GLOBAL_DAILY_EMISSION_CAP = BigInt(100_000_000); // 100M soft refer
 
 /**
  * Calculate reward for a share at given difficulty
- * Each +1 difficulty above MIN doubles the reward
  *
- * D22 = 100 $BABY (base)
- * D23 = 200 $BABY
- * D24 = 400 $BABY
- * D26 = 1,600 $BABY
+ * LOGARITHMIC FORMULA (Balanced for Fairness)
+ * ============================================
+ *
+ * Old (exponential): reward = BASE * 2^extraDiff
+ * - D22 = 100, D26 = 1600, D32 = 102,400 (1024x gap!)
+ *
+ * New (logarithmic): reward = BASE * (1 + sqrt(extraDiff) * 0.5)
+ * - D22 = 100, D26 = 200, D32 = 258 (2.6x gap)
+ *
+ * Why this matters:
+ * - GPU miners still earn MORE (they do more work)
+ * - But not 1000x more - only 2-4x more
+ * - Casual players can compete through engagement
+ * - Hardcore miners feel rewarded but not dominant
+ *
+ * With engagement bonuses (baby care, streaks, playtime):
+ * - Active phone user: 100 base * 2.0x engagement = 200/share
+ * - Idle GPU miner: 258 base * 1.0x engagement = 258/share
+ * - Engaged laptop: 200 base * 1.5x engagement = 300/share
  */
 export function calculateShareReward(difficulty: number): bigint {
   if (difficulty <= MIN_DIFFICULTY) {
     return BASE_REWARD_PER_SHARE;
   }
-  const extraDifficulty = BigInt(difficulty - MIN_DIFFICULTY);
-  return BASE_REWARD_PER_SHARE * BigInt(2) ** extraDifficulty;
+
+  const extraDiff = difficulty - MIN_DIFFICULTY;
+
+  // Square root formula for diminishing returns
+  // Each difficulty level adds less bonus than the previous
+  // sqrt(10) = 3.16, so D32 gets ~2.6x base (not 1024x)
+  const multiplier = 1 + Math.sqrt(extraDiff) * 0.5;
+
+  return BigInt(Math.floor(Number(BASE_REWARD_PER_SHARE) * multiplier));
 }
+
+/**
+ * REWARD COMPARISON TABLE
+ *
+ * | Difficulty | Old (2^x) | New (sqrt) | Reduction |
+ * |------------|-----------|------------|-----------|
+ * | D22 (min)  | 100       | 100        | 0%        |
+ * | D23        | 200       | 150        | -25%      |
+ * | D24        | 400       | 170        | -57%      |
+ * | D25        | 800       | 186        | -77%      |
+ * | D26        | 1,600     | 200        | -87%      |
+ * | D28        | 6,400     | 222        | -97%      |
+ * | D30        | 25,600    | 241        | -99%      |
+ * | D32 (max)  | 102,400   | 258        | -99.7%    |
+ *
+ * Result: GPU (D32) earns 2.6x phone (D22), not 1024x
+ */
 
 // =============================================================================
 // STREAK BONUS SYSTEM

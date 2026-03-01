@@ -1,7 +1,10 @@
 /**
  * Tokenomics Module
- * 
- * Simple, minimalist token economics for $BABY
+ *
+ * Token economics for $BABY with:
+ * - Logarithmic difficulty rewards (fair for all devices)
+ * - Engagement mining bonuses (baby care, streaks, playtime)
  */
 
-export * from './constants';
+export * from "./constants";
+export * from "./engagement";
