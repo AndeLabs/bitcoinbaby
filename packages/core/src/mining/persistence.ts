@@ -52,6 +52,8 @@ export interface PersistedSession {
 // CONSTANTS
 // =============================================================================
 
+import { MIN_DIFFICULTY } from "../tokenomics/constants";
+
 const DB_NAME = "bitcoinbaby-mining";
 const DB_VERSION = 1;
 const STORE_STATE = "mining-state";
@@ -314,7 +316,7 @@ export class MiningStatePersistence {
       lastNonce: 0,
       totalHashes: 0,
       totalShares: 0,
-      difficulty: 16,
+      difficulty: MIN_DIFFICULTY,
       lastBlockData: "",
       lastSavedAt: Date.now(),
       sessionUptime: 0,

@@ -37,6 +37,7 @@ import {
   MiningWakeLock,
   type WakeLockStatus,
 } from "../mining/wake-lock";
+import { MIN_DIFFICULTY } from "../tokenomics/constants";
 
 // =============================================================================
 // TYPES
@@ -329,7 +330,7 @@ function getDefaultState(): PersistedMiningState {
     lastNonce: 0,
     totalHashes: 0,
     totalShares: 0,
-    difficulty: 16,
+    difficulty: MIN_DIFFICULTY,
     lastBlockData: "",
     lastSavedAt: Date.now(),
     sessionUptime: 0,

@@ -21,7 +21,12 @@ import {
   AnimatedTokenCounter,
   HelpTooltip,
 } from "@bitcoinbaby/ui";
-import { useWalletStore, useNFTStore, formatHashrate } from "@bitcoinbaby/core";
+import {
+  useWalletStore,
+  useNFTStore,
+  formatHashrate,
+  MIN_DIFFICULTY,
+} from "@bitcoinbaby/core";
 
 // Throttle hook for smoother updates
 function useThrottledValue<T>(value: T, delay: number): T {
@@ -83,7 +88,7 @@ export function MiningSection() {
     pause,
     resume,
   } = useMiningWithNFTs({
-    difficulty: 16,
+    difficulty: MIN_DIFFICULTY, // D22 required by server
     minerAddress: wallet?.address || "",
     autoStart: false,
   });
