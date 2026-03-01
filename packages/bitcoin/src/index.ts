@@ -42,6 +42,15 @@ export {
   verifySchnorr,
 } from "./crypto";
 
+// JSON utilities (BigInt-safe serialization)
+export {
+  stringifyWithBigInt,
+  parseWithBigInt,
+  safeStringify,
+  bigIntReplacer,
+  bigIntReviver,
+} from "./utils";
+
 // Wallet
 export {
   BitcoinWallet,

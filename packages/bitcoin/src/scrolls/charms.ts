@@ -5,13 +5,13 @@
  * Handles spell creation, token minting, and transfers.
  */
 
-import { ScrollsClient, type ScrollsClientOptions } from './client';
+import { ScrollsClient, type ScrollsClientOptions } from "./client";
 import type {
   ScrollsNetwork,
   CharmToken,
   CharmUTXO,
   SpellConfig,
-} from './types';
+} from "./types";
 import {
   validateAddress,
   validateHash,
@@ -21,7 +21,8 @@ import {
   validatePositiveInt,
   assertValid,
   ValidationError,
-} from '../validation';
+} from "../validation";
+import { stringifyWithBigInt } from "../utils";
 
 export interface CharmsServiceOptions extends ScrollsClientOptions {
   tokenTicker?: string;
@@ -33,7 +34,7 @@ export class CharmsService {
 
   constructor(options: CharmsServiceOptions = {}) {
     this.client = new ScrollsClient(options);
-    this.tokenTicker = options.tokenTicker || 'BABY';
+    this.tokenTicker = options.tokenTicker || "BABY";
   }
 
   /**
@@ -64,22 +65,26 @@ export class CharmsService {
   createMiningSpell(
     minerAddress: string,
     amount: bigint,
-    proofOfWork: string
+    proofOfWork: string,
   ): SpellConfig {
     // Validate inputs
     const network = this.client.getNetwork();
-    const btcNetwork = network === 'main' ? 'mainnet' : 'testnet4';
-    assertValid(validateAddress(minerAddress, btcNetwork), 'minerAddress', 'INVALID_ADDRESS');
-    assertValid(validateSatoshis(amount, 'amount'), 'amount', 'INVALID_AMOUNT');
-    assertValid(validateHash(proofOfWork), 'proofOfWork', 'INVALID_HASH');
+    const btcNetwork = network === "main" ? "mainnet" : "testnet4";
+    assertValid(
+      validateAddress(minerAddress, btcNetwork),
+      "minerAddress",
+      "INVALID_ADDRESS",
+    );
+    assertValid(validateSatoshis(amount, "amount"), "amount", "INVALID_AMOUNT");
+    assertValid(validateHash(proofOfWork), "proofOfWork", "INVALID_HASH");
 
     return {
-      version: '1',
+      version: "1",
       app: `${this.tokenTicker.toLowerCase()}-miner`,
       inputs: [],
       outputs: [
         {
-          type: 'mint',
+          type: "mint",
           address: minerAddress,
           amount,
           data: proofOfWork,
@@ -94,16 +99,24 @@ export class CharmsService {
   createTransferSpell(
     fromUtxo: CharmUTXO,
     toAddress: string,
-    amount: bigint
+    amount: bigint,
   ): SpellConfig {
     // Validate inputs
     const network = this.client.getNetwork();
-    const btcNetwork = network === 'main' ? 'mainnet' : 'testnet4';
-    assertValid(validateAddress(toAddress, btcNetwork), 'toAddress', 'INVALID_ADDRESS');
-    assertValid(validateSatoshis(amount, 'amount'), 'amount', 'INVALID_AMOUNT');
+    const btcNetwork = network === "main" ? "mainnet" : "testnet4";
+    assertValid(
+      validateAddress(toAddress, btcNetwork),
+      "toAddress",
+      "INVALID_ADDRESS",
+    );
+    assertValid(validateSatoshis(amount, "amount"), "amount", "INVALID_AMOUNT");
 
     if (amount <= BigInt(0)) {
-      throw new ValidationError('Amount must be positive', 'INVALID_AMOUNT', 'amount');
+      throw new ValidationError(
+        "Amount must be positive",
+        "INVALID_AMOUNT",
+        "amount",
+      );
     }
 
     const charm = fromUtxo.charms?.find((c) => c.ticker === this.tokenTicker);
@@ -116,9 +129,9 @@ export class CharmsService {
     }
 
     const changeAmount = charm.amount - amount;
-    const outputs: SpellConfig['outputs'] = [
+    const outputs: SpellConfig["outputs"] = [
       {
-        type: 'transfer',
+        type: "transfer",
         address: toAddress,
         amount,
       },
@@ -127,18 +140,18 @@ export class CharmsService {
     // Add change output if needed
     if (changeAmount > BigInt(0)) {
       outputs.push({
-        type: 'transfer',
+        type: "transfer",
         address: fromUtxo.scriptPubKey, // Back to sender
         amount: changeAmount,
       });
     }
 
     return {
-      version: '1',
+      version: "1",
       app: `${this.tokenTicker.toLowerCase()}-transfer`,
       inputs: [
         {
-          type: 'charm',
+          type: "charm",
           txid: fromUtxo.txid,
           vout: fromUtxo.vout,
           amount: charm.amount,
@@ -157,7 +170,7 @@ export class CharmsService {
     // Format: CHARM_MAGIC + version + compressed_spell_data
     const CHARM_MAGIC = new Uint8Array([0x43, 0x48, 0x52, 0x4d]); // "CHRM"
 
-    const spellJson = JSON.stringify(spell);
+    const spellJson = stringifyWithBigInt(spell);
     const encoder = new TextEncoder();
     const spellData = encoder.encode(spellJson);
 
@@ -195,20 +208,32 @@ export class CharmsService {
    */
   async calculateFee(
     numberOfInputs: number,
-    totalInputSats: number
+    totalInputSats: number,
   ): Promise<{
     fee: number;
     feeAddress: string;
   }> {
     // Validate inputs
-    assertValid(validateNumberOfInputs(numberOfInputs), 'numberOfInputs', 'INVALID_INPUT_COUNT');
     assertValid(
-      validatePositiveInt(totalInputSats, 'totalInputSats', 0, 21_000_000 * 100_000_000),
-      'totalInputSats',
-      'INVALID_SATOSHIS'
+      validateNumberOfInputs(numberOfInputs),
+      "numberOfInputs",
+      "INVALID_INPUT_COUNT",
+    );
+    assertValid(
+      validatePositiveInt(
+        totalInputSats,
+        "totalInputSats",
+        0,
+        21_000_000 * 100_000_000,
+      ),
+      "totalInputSats",
+      "INVALID_SATOSHIS",
     );
 
-    const feeCalc = await this.client.calculateFee(numberOfInputs, totalInputSats);
+    const feeCalc = await this.client.calculateFee(
+      numberOfInputs,
+      totalInputSats,
+    );
     return {
       fee: feeCalc.totalFee,
       feeAddress: feeCalc.feeAddress,
@@ -219,7 +244,7 @@ export class CharmsService {
    * Derive a unique address for mining operations
    */
   async deriveMiningAddress(nonce: number): Promise<string> {
-    assertValid(validateNonce(nonce), 'nonce', 'INVALID_NONCE');
+    assertValid(validateNonce(nonce), "nonce", "INVALID_NONCE");
     return this.client.deriveAddress(nonce);
   }
 }
@@ -228,7 +253,7 @@ export class CharmsService {
  * Create a Charms service instance
  */
 export function createCharmsService(
-  options?: CharmsServiceOptions
+  options?: CharmsServiceOptions,
 ): CharmsService {
   return new CharmsService(options);
 }

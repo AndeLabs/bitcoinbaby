@@ -10,6 +10,7 @@
 
 import type { SpellConfig } from "../scrolls/types";
 import type { SpellV2, SpellV10 } from "../charms/types";
+import { stringifyWithBigInt } from "../utils";
 
 // Spell type union - supports v1, v2, and v10 formats
 type Spell = SpellConfig | SpellV2 | SpellV10;
@@ -35,7 +36,7 @@ const OP_PUSHDATA2 = 0x4d;
  */
 export function encodeSpellForWitness(spell: Spell): Uint8Array {
   // Serialize spell to JSON
-  const spellJson = JSON.stringify(spell);
+  const spellJson = stringifyWithBigInt(spell);
   const encoder = new TextEncoder();
   const spellBytes = encoder.encode(spellJson);
 
@@ -200,7 +201,7 @@ function extractPushData(
  * Used when spell is too large for witness
  */
 export function createSpellOpReturn(spell: Spell): Uint8Array {
-  const spellJson = JSON.stringify(spell);
+  const spellJson = stringifyWithBigInt(spell);
   const encoder = new TextEncoder();
   const spellBytes = encoder.encode(spellJson);
 
@@ -217,7 +218,7 @@ export function createSpellOpReturn(spell: Spell): Uint8Array {
  * Calculate the size of encoded spell
  */
 export function calculateSpellSize(spell: Spell): number {
-  const spellJson = JSON.stringify(spell);
+  const spellJson = stringifyWithBigInt(spell);
   const spellBytes = new TextEncoder().encode(spellJson);
 
   // MAGIC (4) + VERSION (1) + JSON

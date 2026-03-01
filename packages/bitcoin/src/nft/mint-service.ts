@@ -39,6 +39,7 @@ import {
   checkRateLimit,
   recordMintAttempt,
 } from "./validation";
+import { stringifyWithBigInt } from "../utils";
 
 // Initialize ECC
 bitcoin.initEccLib(ecc);
@@ -341,7 +342,7 @@ export class NFTMintService {
    * Create OP_RETURN script for spell
    */
   private createSpellOpReturn(spell: SpellV2): Buffer {
-    const spellJson = JSON.stringify(spell);
+    const spellJson = stringifyWithBigInt(spell);
     const spellBytes = Buffer.from(spellJson, "utf8");
 
     // Charms protocol: OP_RETURN + "CHARM" + spell data
