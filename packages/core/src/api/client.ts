@@ -3,6 +3,11 @@
  *
  * Client for communicating with Cloudflare Workers backend.
  * Handles balance, withdrawals, and game state sync.
+ *
+ * Features:
+ * - Automatic retry with exponential backoff
+ * - Request timeout handling
+ * - Error normalization
  */
 
 import type {
@@ -33,6 +38,84 @@ const API_ENDPOINTS = {
 } as const;
 
 type Environment = keyof typeof API_ENDPOINTS;
+
+/** Default timeout for requests (10 seconds) */
+const DEFAULT_TIMEOUT_MS = 10_000;
+
+/** Max retries for transient failures */
+const MAX_RETRIES = 3;
+
+/** Base delay for exponential backoff (ms) */
+const BASE_RETRY_DELAY_MS = 1000;
+
+// =============================================================================
+// RETRY HELPER
+// =============================================================================
+
+/**
+ * Fetch with retry and timeout
+ * Only retries on network errors and 5xx server errors
+ */
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit = {},
+  maxRetries: number = MAX_RETRIES,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      // Create abort controller for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      // Don't retry on client errors (4xx)
+      if (response.status >= 400 && response.status < 500) {
+        return response;
+      }
+
+      // Retry on server errors (5xx)
+      if (response.status >= 500 && attempt < maxRetries) {
+        const delay = BASE_RETRY_DELAY_MS * Math.pow(2, attempt);
+        console.warn(
+          `[API] Server error ${response.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        continue;
+      }
+
+      return response;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      // Don't retry on abort (timeout)
+      if (lastError.name === "AbortError") {
+        throw new Error(`Request timeout after ${timeoutMs}ms`);
+      }
+
+      // Retry on network errors
+      if (attempt < maxRetries) {
+        const delay = BASE_RETRY_DELAY_MS * Math.pow(2, attempt);
+        console.warn(
+          `[API] Network error, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries}):`,
+          lastError.message,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        continue;
+      }
+    }
+  }
+
+  throw lastError || new Error("Request failed after retries");
+}
 
 // =============================================================================
 // CLIENT
@@ -69,24 +152,28 @@ export class BitcoinBabyClient {
    * Get user's virtual balance
    */
   async getBalance(address: string): Promise<ApiResponse<BalanceResponse>> {
-    const response = await fetch(`${this.baseUrl}/api/balance/${address}`);
+    const response = await fetchWithRetry(
+      `${this.baseUrl}/api/balance/${address}`,
+    );
     return response.json() as Promise<ApiResponse<BalanceResponse>>;
   }
 
   /**
    * Credit mining reward to user's balance
+   * Note: No retry on POST to prevent double-crediting
    */
   async creditMining(
     address: string,
     proof: MiningProof,
   ): Promise<ApiResponse<CreditResponse>> {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${this.baseUrl}/api/balance/${address}/credit`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ proof }),
       },
+      0, // No retries for POST - server handles idempotency via hash uniqueness
     );
     return response.json() as Promise<ApiResponse<CreditResponse>>;
   }
@@ -101,13 +188,14 @@ export class BitcoinBabyClient {
     address: string,
     hashrate: number,
   ): Promise<ApiResponse<SetHashrateResponse>> {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${this.baseUrl}/api/balance/${address}/set-hashrate`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ hashrate }),
       },
+      1, // Single retry for this idempotent operation
     );
     return response.json() as Promise<ApiResponse<SetHashrateResponse>>;
   }
@@ -122,7 +210,9 @@ export class BitcoinBabyClient {
   async getPoolStatus(
     poolType: PoolType,
   ): Promise<ApiResponse<PoolStatusResponse>> {
-    const response = await fetch(`${this.baseUrl}/api/pool/${poolType}/status`);
+    const response = await fetchWithRetry(
+      `${this.baseUrl}/api/pool/${poolType}/status`,
+    );
     return response.json() as Promise<ApiResponse<PoolStatusResponse>>;
   }
 
@@ -156,6 +246,7 @@ export class BitcoinBabyClient {
 
   /**
    * Create withdrawal request
+   * Note: No retry to prevent duplicate withdrawal requests
    */
   async createWithdrawRequest(
     poolType: PoolType,
@@ -164,7 +255,7 @@ export class BitcoinBabyClient {
     amount: string,
     maxFeeRate?: number,
   ): Promise<ApiResponse<WithdrawResponse>> {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${this.baseUrl}/api/pool/${poolType}/request`,
       {
         method: "POST",
@@ -176,6 +267,7 @@ export class BitcoinBabyClient {
           maxFeeRate,
         }),
       },
+      0, // No retries for withdrawal creation
     );
     return response.json() as Promise<ApiResponse<WithdrawResponse>>;
   }
@@ -188,13 +280,14 @@ export class BitcoinBabyClient {
     requestId: string,
     fromAddress: string,
   ): Promise<ApiResponse<{ released: string; availableNow: string }>> {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${this.baseUrl}/api/pool/${poolType}/cancel`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId, fromAddress }),
       },
+      1, // Single retry - operation is idempotent
     );
     return response.json() as Promise<
       ApiResponse<{ released: string; availableNow: string }>
@@ -208,7 +301,7 @@ export class BitcoinBabyClient {
     poolType: PoolType,
     address: string,
   ): Promise<ApiResponse<WithdrawRequest[]>> {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${this.baseUrl}/api/pool/${poolType}/requests?address=${address}`,
     );
     return response.json() as Promise<ApiResponse<WithdrawRequest[]>>;
@@ -222,7 +315,9 @@ export class BitcoinBabyClient {
    * Get current game state (HTTP, non-realtime)
    */
   async getGameState(roomId: string): Promise<ApiResponse<GameState>> {
-    const response = await fetch(`${this.baseUrl}/api/game/${roomId}/state`);
+    const response = await fetchWithRetry(
+      `${this.baseUrl}/api/game/${roomId}/state`,
+    );
     return response.json() as Promise<ApiResponse<GameState>>;
   }
 
@@ -232,9 +327,11 @@ export class BitcoinBabyClient {
   async resetGameState(
     roomId: string,
   ): Promise<ApiResponse<{ reset: boolean }>> {
-    const response = await fetch(`${this.baseUrl}/api/game/${roomId}/reset`, {
-      method: "POST",
-    });
+    const response = await fetchWithRetry(
+      `${this.baseUrl}/api/game/${roomId}/reset`,
+      { method: "POST" },
+      1, // Single retry - idempotent operation
+    );
     return response.json() as Promise<ApiResponse<{ reset: boolean }>>;
   }
 
@@ -266,7 +363,9 @@ export class BitcoinBabyClient {
       limit: limit.toString(),
       offset: offset.toString(),
     });
-    const response = await fetch(`${this.baseUrl}/api/leaderboard?${params}`);
+    const response = await fetchWithRetry(
+      `${this.baseUrl}/api/leaderboard?${params}`,
+    );
     return response.json() as Promise<ApiResponse<LeaderboardResponse>>;
   }
 
@@ -279,7 +378,7 @@ export class BitcoinBabyClient {
     period: LeaderboardPeriod = "alltime",
   ): Promise<ApiResponse<UserRankResponse>> {
     const params = new URLSearchParams({ category, period });
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${this.baseUrl}/api/leaderboard/rank/${address}?${params}`,
     );
     return response.json() as Promise<ApiResponse<UserRankResponse>>;
@@ -293,11 +392,15 @@ export class BitcoinBabyClient {
     category: LeaderboardCategory,
     score: number,
   ): Promise<ApiResponse<void>> {
-    const response = await fetch(`${this.baseUrl}/api/leaderboard/update`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address, category, score }),
-    });
+    const response = await fetchWithRetry(
+      `${this.baseUrl}/api/leaderboard/update`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address, category, score }),
+      },
+      1, // Single retry - updates are idempotent
+    );
     return response.json() as Promise<ApiResponse<void>>;
   }
 
@@ -305,7 +408,7 @@ export class BitcoinBabyClient {
    * Get user stats
    */
   async getUserStats(address: string): Promise<ApiResponse<UserStats | null>> {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${this.baseUrl}/api/leaderboard/stats/${address}`,
     );
     return response.json() as Promise<ApiResponse<UserStats | null>>;

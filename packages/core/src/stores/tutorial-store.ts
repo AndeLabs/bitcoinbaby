@@ -96,13 +96,6 @@ interface TutorialStore {
   isActive: boolean;
   steps: TutorialStep[];
 
-  // Computed
-  currentStepData: TutorialStep | null;
-  totalSteps: number;
-  isLastStep: boolean;
-  isFirstStep: boolean;
-  progress: number;
-
   // Actions
   startTutorial: () => void;
   nextStep: () => void;
@@ -113,6 +106,31 @@ interface TutorialStore {
   goToStep: (step: number) => void;
 }
 
+// =============================================================================
+// SELECTORS (Reactive computed values)
+// =============================================================================
+
+/** Get current step data - use with useTutorialStore(selectCurrentStepData) */
+export const selectCurrentStepData = (
+  state: TutorialStore,
+): TutorialStep | null => state.steps[state.currentStep] ?? null;
+
+/** Get total steps count */
+export const selectTotalSteps = (state: TutorialStore): number =>
+  state.steps.length;
+
+/** Check if on last step */
+export const selectIsLastStep = (state: TutorialStore): boolean =>
+  state.currentStep >= state.steps.length - 1;
+
+/** Check if on first step */
+export const selectIsFirstStep = (state: TutorialStore): boolean =>
+  state.currentStep === 0;
+
+/** Get tutorial progress percentage */
+export const selectProgress = (state: TutorialStore): number =>
+  ((state.currentStep + 1) / state.steps.length) * 100;
+
 export const useTutorialStore = create<TutorialStore>()(
   persist(
     (set, get) => ({
@@ -121,30 +139,6 @@ export const useTutorialStore = create<TutorialStore>()(
       currentStep: 0,
       isActive: false,
       steps: TUTORIAL_STEPS,
-
-      // Computed getters (implemented as properties that compute on access)
-      get currentStepData() {
-        const state = get();
-        return state.steps[state.currentStep] ?? null;
-      },
-
-      get totalSteps() {
-        return get().steps.length;
-      },
-
-      get isLastStep() {
-        const state = get();
-        return state.currentStep >= state.steps.length - 1;
-      },
-
-      get isFirstStep() {
-        return get().currentStep === 0;
-      },
-
-      get progress() {
-        const state = get();
-        return ((state.currentStep + 1) / state.steps.length) * 100;
-      },
 
       // Actions
       startTutorial: () => {

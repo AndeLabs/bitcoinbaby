@@ -13,6 +13,7 @@ import type { WalletInfo } from "../types";
 
 export type SignPsbtFn = (psbtHex: string) => Promise<string | null>;
 export type BroadcastTxFn = (txHex: string) => Promise<string | null>;
+export type CleanupFn = () => void;
 
 interface WalletStore {
   // State
@@ -25,6 +26,9 @@ interface WalletStore {
   // Signing functions (set by wallet provider)
   signPsbt: SignPsbtFn | null;
   broadcastTx: BroadcastTxFn | null;
+
+  // Cleanup callbacks for external subscriptions
+  cleanupCallbacks: CleanupFn[];
 
   // Actions
   setWallet: (wallet: WalletInfo) => void;
@@ -40,13 +44,16 @@ interface WalletStore {
     signPsbt: SignPsbtFn,
     broadcastTx?: BroadcastTxFn,
   ) => void;
+
+  // Cleanup registration
+  registerCleanup: (cleanup: CleanupFn) => void;
 }
 
 // =============================================================================
 // STORE
 // =============================================================================
 
-export const useWalletStore = create<WalletStore>((set) => ({
+export const useWalletStore = create<WalletStore>((set, get) => ({
   // Initial state
   wallet: null,
   isConnected: false,
@@ -55,6 +62,7 @@ export const useWalletStore = create<WalletStore>((set) => ({
   error: null,
   signPsbt: null,
   broadcastTx: null,
+  cleanupCallbacks: [],
 
   // Set wallet (after successful connection/unlock)
   setWallet: (wallet) =>
@@ -66,8 +74,19 @@ export const useWalletStore = create<WalletStore>((set) => ({
       error: null,
     }),
 
-  // Disconnect/lock wallet
-  disconnect: () =>
+  // Disconnect/lock wallet - run all cleanup callbacks first
+  disconnect: () => {
+    const state = get();
+
+    // Run all cleanup callbacks to prevent memory leaks
+    state.cleanupCallbacks.forEach((cleanup) => {
+      try {
+        cleanup();
+      } catch (e) {
+        console.warn("[WalletStore] Cleanup error:", e);
+      }
+    });
+
     set({
       wallet: null,
       isConnected: false,
@@ -75,7 +94,9 @@ export const useWalletStore = create<WalletStore>((set) => ({
       error: null,
       signPsbt: null,
       broadcastTx: null,
-    }),
+      cleanupCallbacks: [],
+    });
+  },
 
   // Loading state
   setLoading: (isLoading) => set({ isLoading }),
@@ -86,13 +107,29 @@ export const useWalletStore = create<WalletStore>((set) => ({
   // Lock state (without full disconnect)
   setLocked: (isLocked) => set({ isLocked }),
 
-  // Update BTC balance
+  // Update BTC balance (with race condition protection)
   updateBalance: (balance) =>
-    set((s) => (s.wallet ? { wallet: { ...s.wallet, balance } } : s)),
+    set((s) => {
+      if (!s.wallet || !s.isConnected) {
+        console.warn(
+          "[WalletStore] Attempted balance update on disconnected wallet",
+        );
+        return s;
+      }
+      return { wallet: { ...s.wallet, balance } };
+    }),
 
-  // Update BABY token balance
+  // Update BABY token balance (with race condition protection)
   updateBabyTokens: (babyTokens) =>
-    set((s) => (s.wallet ? { wallet: { ...s.wallet, babyTokens } } : s)),
+    set((s) => {
+      if (!s.wallet || !s.isConnected) {
+        console.warn(
+          "[WalletStore] Attempted token update on disconnected wallet",
+        );
+        return s;
+      }
+      return { wallet: { ...s.wallet, babyTokens } };
+    }),
 
   // Set signing functions (called by wallet provider after connection)
   setSigningFunctions: (signPsbt, broadcastTx) =>
@@ -100,4 +137,10 @@ export const useWalletStore = create<WalletStore>((set) => ({
       signPsbt,
       broadcastTx: broadcastTx || null,
     }),
+
+  // Register a cleanup callback to run on disconnect
+  registerCleanup: (cleanup) =>
+    set((s) => ({
+      cleanupCallbacks: [...s.cleanupCallbacks, cleanup],
+    })),
 }));

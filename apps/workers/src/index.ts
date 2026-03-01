@@ -47,19 +47,42 @@ const app = new Hono<{ Bindings: Env }>();
 // =============================================================================
 
 // CORS for frontend
+// SECURITY: No wildcards with credentials - list exact origins
 app.use(
   "*",
   cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "https://bitcoinbaby.app",
-      "https://*.bitcoinbaby.app",
-      "https://bitcoinbaby.vercel.app",
-      "https://*.vercel.app",
-    ],
+    origin: (origin) => {
+      // Allow exact matches
+      const allowedOrigins = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://bitcoinbaby.app",
+        "https://www.bitcoinbaby.app",
+        "https://bitcoinbaby.vercel.app",
+      ];
+
+      if (!origin) return allowedOrigins[0]; // For non-browser requests
+
+      // Check exact match first
+      if (allowedOrigins.includes(origin)) {
+        return origin;
+      }
+
+      // Allow bitcoinbaby.app subdomains (validated pattern)
+      if (/^https:\/\/[a-z0-9-]+\.bitcoinbaby\.app$/.test(origin)) {
+        return origin;
+      }
+
+      // Allow Vercel preview deployments (pattern validated)
+      if (/^https:\/\/bitcoinbaby-[a-z0-9-]+\.vercel\.app$/.test(origin)) {
+        return origin;
+      }
+
+      // Reject unknown origins
+      return null;
+    },
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
     exposeHeaders: ["X-Request-Id"],
     maxAge: 86400,
     credentials: true,
@@ -360,18 +383,67 @@ app.post("/api/pool/:poolType/request", async (c) => {
   const poolId = c.env.WITHDRAW_POOL.idFromName(poolType);
   const poolStub = c.env.WITHDRAW_POOL.get(poolId);
 
-  const response = await poolStub.fetch(
-    new Request(`http://internal/pool/${poolType}/request`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...body,
-        requestId,
+  let poolResponse: Response;
+  try {
+    poolResponse = await poolStub.fetch(
+      new Request(`http://internal/pool/${poolType}/request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...body,
+          requestId,
+        }),
       }),
-    }),
-  );
+    );
+  } catch (error) {
+    // Pool request failed - release the reserved balance
+    console.error(
+      "[Withdraw] Pool request failed, releasing reservation:",
+      error,
+    );
+    await balanceStub.fetch(
+      new Request(
+        `http://internal/balance/${body.fromAddress}/cancel-withdraw`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: body.amount,
+            requestId,
+          }),
+        },
+      ),
+    );
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error:
+          "Failed to create withdrawal request. Balance has been released.",
+        timestamp: Date.now(),
+      },
+      500,
+    );
+  }
 
-  return response;
+  // If pool creation failed, release the reservation
+  if (!poolResponse.ok) {
+    console.error("[Withdraw] Pool returned error, releasing reservation");
+    await balanceStub.fetch(
+      new Request(
+        `http://internal/balance/${body.fromAddress}/cancel-withdraw`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: body.amount,
+            requestId,
+          }),
+        },
+      ),
+    );
+  }
+
+  return poolResponse;
 });
 
 /**
@@ -665,6 +737,9 @@ app.get("/api/leaderboard/rank/:address", async (c) => {
 /**
  * POST /api/leaderboard/update - Update user score
  *
+ * INTERNAL ENDPOINT: Called by SyncManager after successful mining credit.
+ * Rate limited to prevent abuse.
+ *
  * Body:
  * - address: string (Bitcoin address)
  * - category: miners | babies | earners
@@ -675,6 +750,54 @@ app.get("/api/leaderboard/rank/:address", async (c) => {
  */
 app.post("/api/leaderboard/update", async (c) => {
   try {
+    // =========================================================================
+    // RATE LIMITING: Prevent leaderboard spam
+    // Uses edge cache to track requests per address
+    // =========================================================================
+    const clientIP = c.req.header("CF-Connecting-IP") || "unknown";
+    const rateLimitKey = new Request(
+      `https://ratelimit.internal/leaderboard-update/${clientIP}`,
+    );
+    const cache = caches.default;
+
+    // Check rate limit (max 60 updates per minute per IP)
+    const rateLimitEntry = await cache.match(rateLimitKey);
+    if (rateLimitEntry) {
+      const count = parseInt(rateLimitEntry.headers.get("X-Count") || "0");
+      if (count >= 60) {
+        return c.json<ApiResponse>(
+          {
+            success: false,
+            error: "Rate limit exceeded. Try again later.",
+            timestamp: Date.now(),
+          },
+          429,
+        );
+      }
+      // Increment counter
+      c.executionCtx.waitUntil(
+        cache.put(
+          rateLimitKey,
+          new Response("", {
+            headers: {
+              "X-Count": String(count + 1),
+              "Cache-Control": "max-age=60",
+            },
+          }),
+        ),
+      );
+    } else {
+      // Start new rate limit window
+      c.executionCtx.waitUntil(
+        cache.put(
+          rateLimitKey,
+          new Response("", {
+            headers: { "X-Count": "1", "Cache-Control": "max-age=60" },
+          }),
+        ),
+      );
+    }
+
     const body = await c.req.json<{
       address: string;
       category: LeaderboardCategory;
@@ -706,6 +829,19 @@ app.post("/api/leaderboard/update", async (c) => {
       );
     }
 
+    // Sanity check: Prevent unreasonably large scores (anti-abuse)
+    const MAX_SCORE_INCREMENT = 1_000_000_000; // 1 billion max per update
+    if (body.score > MAX_SCORE_INCREMENT) {
+      return c.json<ApiResponse>(
+        {
+          success: false,
+          error: "Score exceeds maximum",
+          timestamp: Date.now(),
+        },
+        400,
+      );
+    }
+
     const redis = getRedis(c.env);
 
     // Update all periods (daily, weekly, alltime)
@@ -718,10 +854,6 @@ app.post("/api/leaderboard/update", async (c) => {
       ...(body.category === "earners" && { totalTokens: body.score }),
       ...(body.category === "babies" && { babyLevel: body.score }),
     });
-
-    // Invalidate edge cache for this category (non-blocking)
-    // Cache will naturally expire, but we don't purge aggressively to reduce load
-    // The stale-while-revalidate will handle serving stale data while refreshing
 
     return c.json<ApiResponse>({
       success: true,

@@ -199,10 +199,20 @@ export const useNetworkStore = create<NetworkStore>()(
         network: state.network,
         mainnetAllowed: state.mainnetAllowed,
       }),
-      // Restore config on rehydration
+      // Restore config on rehydration with validation
       onRehydrateStorage: () => (state) => {
         if (state) {
-          state.config = NETWORK_CONFIGS[state.network];
+          // Validate that the persisted network still exists in config
+          const validNetwork = NETWORK_CONFIGS[state.network];
+          if (!validNetwork) {
+            console.warn(
+              `[NetworkStore] Invalid network "${state.network}", resetting to default`,
+            );
+            state.network = DEFAULT_NETWORK;
+            state.config = NETWORK_CONFIGS[DEFAULT_NETWORK];
+          } else {
+            state.config = validNetwork;
+          }
         }
       },
     },

@@ -130,6 +130,9 @@ export function useVirtualBalance(
   // Scrolls client ref
   const scrollsClientRef = useRef<ScrollsClient | null>(null);
 
+  // Debounce timer ref for sync events
+  const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Initialize Scrolls client
   useEffect(() => {
     scrollsClientRef.current = createScrollsClient({
@@ -202,11 +205,20 @@ export function useVirtualBalance(
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      // Fetch both in parallel
-      const [virtualData, onChainBalance] = await Promise.all([
+      // Fetch both in parallel using allSettled for resilience
+      const results = await Promise.allSettled([
         fetchVirtualBalance(),
         fetchOnChainBalance(),
       ]);
+
+      // Extract results - use null/0n if fetch failed
+      const virtualResult = results[0];
+      const onChainResult = results[1];
+
+      const virtualData =
+        virtualResult.status === "fulfilled" ? virtualResult.value : null;
+      const onChainBalance =
+        onChainResult.status === "fulfilled" ? onChainResult.value : 0n;
 
       const virtualBalance = virtualData
         ? BigInt(virtualData.virtualBalance)
@@ -225,6 +237,15 @@ export function useVirtualBalance(
       // Total = virtual (not yet on-chain) + on-chain confirmed
       const totalBalance = virtualBalance + onChainBalance;
 
+      // Collect errors if any
+      const errors: string[] = [];
+      if (virtualResult.status === "rejected") {
+        errors.push(`Workers: ${virtualResult.reason}`);
+      }
+      if (onChainResult.status === "rejected") {
+        errors.push(`Scrolls: ${onChainResult.reason}`);
+      }
+
       setState({
         totalBalance,
         virtualBalance,
@@ -234,10 +255,10 @@ export function useVirtualBalance(
         totalMined,
         totalWithdrawn,
         isLoading: false,
-        error: null,
+        error: errors.length > 0 ? errors.join("; ") : null,
         lastUpdated: Date.now(),
         workersApiAvailable: virtualData !== null,
-        scrollsApiAvailable: true,
+        scrollsApiAvailable: onChainResult.status === "fulfilled",
       });
     } catch (error) {
       setState((prev) => ({
@@ -344,6 +365,32 @@ export function useVirtualBalance(
       return () => clearInterval(interval);
     }
   }, [address, refresh, refreshInterval]);
+
+  // Listen for mining sync success events to refresh balance immediately
+  useEffect(() => {
+    if (!address) return;
+
+    const handleSyncSuccess = () => {
+      // Clear any pending debounce to prevent multiple rapid refreshes
+      if (syncDebounceRef.current) {
+        clearTimeout(syncDebounceRef.current);
+      }
+      // Debounce multiple rapid syncs
+      syncDebounceRef.current = setTimeout(() => {
+        syncDebounceRef.current = null;
+        refresh();
+      }, 500);
+    };
+
+    window.addEventListener("mining:sync-success", handleSyncSuccess);
+    return () => {
+      window.removeEventListener("mining:sync-success", handleSyncSuccess);
+      // Clear timeout on cleanup
+      if (syncDebounceRef.current) {
+        clearTimeout(syncDebounceRef.current);
+      }
+    };
+  }, [address, refresh]);
 
   return {
     ...state,

@@ -288,18 +288,32 @@ function countLeadingZeroBits(hexString: string): number {
 // GLOBAL PROOF REGISTRY (prevents cross-address duplicate submission)
 // =============================================================================
 
+// Track if we've already logged the KV warning (avoid spam)
+let kvWarningLogged = false;
+
 /**
  * Check if a proof hash has been used globally
  * This prevents the same proof from being submitted to multiple addresses
  *
- * NOTE: This uses a global KV store, passed in from the environment
+ * SECURITY: In production, KV MUST be configured for proper deduplication
  */
 export async function isProofUsedGlobally(
   hash: string,
   kv: KVNamespace | null,
+  environment?: string,
 ): Promise<boolean> {
   if (!kv) {
-    // If no KV available, fall back to local-only check
+    // CRITICAL: Log warning in production
+    if (environment === "production" && !kvWarningLogged) {
+      console.error(
+        "[SECURITY] CRITICAL: KV namespace not configured! " +
+          "Global proof deduplication is DISABLED. " +
+          "Same proof can be submitted to multiple addresses. " +
+          "Configure CACHE KV namespace immediately!",
+      );
+      kvWarningLogged = true;
+    }
+    // Fall back to local-only check (each DO has its own UNIQUE constraint)
     return false;
   }
 

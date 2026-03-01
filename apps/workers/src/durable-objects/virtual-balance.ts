@@ -442,7 +442,11 @@ export class VirtualBalanceDO extends DurableObject<Env> {
     // SECURITY: Check global duplicate (prevents same proof to multiple addresses)
     // =========================================================================
     const kv = this.env.CACHE || null;
-    const isUsed = await isProofUsedGlobally(proof.hash, kv);
+    const isUsed = await isProofUsedGlobally(
+      proof.hash,
+      kv,
+      this.env.ENVIRONMENT,
+    );
     if (isUsed) {
       return this.errorResponse("Proof already used", 409);
     }
@@ -471,13 +475,20 @@ export class VirtualBalanceDO extends DurableObject<Env> {
     }
 
     // Validate that submitted difficulty meets the assigned difficulty
-    // We accept shares at OR ABOVE assigned difficulty (higher diff = more valuable)
+    // SECURITY: Reject shares below assigned difficulty to prevent reward farming
     const assignedDiff = this.difficultyState.currentDiff;
     if (proof.difficulty < assignedDiff) {
-      // Don't reject, but suggest they increase their difficulty
-      // This helps gradual transition for existing miners
+      // Grace period: allow 2 levels below for network latency
+      const minAcceptable = Math.max(assignedDiff - 2, 1);
+      if (proof.difficulty < minAcceptable) {
+        return this.errorResponse(
+          `Share difficulty D${proof.difficulty} below minimum D${minAcceptable} (assigned: D${assignedDiff})`,
+          400,
+        );
+      }
+      // Log below-assigned shares for monitoring
       console.log(
-        `[VarDiff] Share at D${proof.difficulty} below assigned D${assignedDiff}, accepting but suggesting increase`,
+        `[VarDiff] Share at D${proof.difficulty} below assigned D${assignedDiff}, accepting with grace period`,
       );
     }
 
@@ -611,8 +622,15 @@ export class VirtualBalanceDO extends DurableObject<Env> {
     const now = Date.now();
     const oneHourAgo = now - 60 * 60 * 1000;
 
-    // If hour has rolled over, reset counter and do one DB query
-    if (this.sharesHourStartedAt < oneHourAgo) {
+    // Check if we've crossed into a new hour boundary
+    // Using floor division to detect actual hour change, not just cache age
+    const currentHourSlot = Math.floor(now / (60 * 60 * 1000));
+    const cachedHourSlot = Math.floor(
+      this.sharesHourStartedAt / (60 * 60 * 1000),
+    );
+
+    if (currentHourSlot !== cachedHourSlot || this.sharesHourStartedAt === 0) {
+      // Hour boundary crossed - query DB for accurate count
       const result = this.sql
         .exec(
           `SELECT COUNT(*) as count FROM mining_proofs WHERE created_at > ?`,

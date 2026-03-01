@@ -30,13 +30,21 @@ class_name = "GameRoomDO"
 tag = "v1"
 new_sqlite_classes = ["VirtualBalanceDO", "WithdrawPoolDO", "GameRoomDO"]
 
-# KV Namespace will be created on first deploy
-# Run: wrangler kv:namespace create CACHE
-# Then update the IDs below
-# [[kv_namespaces]]
-# binding = "CACHE"
-# id = "REPLACE_WITH_KV_ID"
-# preview_id = "REPLACE_WITH_PREVIEW_KV_ID"
+# =============================================================================
+# KV Namespace - REQUIRED for proof deduplication security
+# =============================================================================
+# SETUP INSTRUCTIONS:
+# 1. Create KV namespace: wrangler kv:namespace create CACHE
+# 2. Create preview namespace: wrangler kv:namespace create CACHE --preview
+# 3. Update the IDs below with the output from the commands
+# 4. Deploy: wrangler deploy
+#
+# SECURITY: Without KV, same proof can be submitted to multiple addresses!
+# =============================================================================
+[[kv_namespaces]]
+binding = "CACHE"
+id = "YOUR_KV_NAMESPACE_ID"
+preview_id = "YOUR_PREVIEW_KV_NAMESPACE_ID"
 
 # Scheduled tasks (Cron) - Consolidated to stay under free tier limit (5)
 # All tasks handled in one cron, logic in handleScheduled()
@@ -80,6 +88,11 @@ ENVIRONMENT = "production"
 MIN_WITHDRAW_AMOUNT = "100"
 POOL_PERIOD_DAYS = "7"
 MAX_FEE_RATE_SAT_VB = "5"
+
+# Production KV namespace (use same as development or create separate)
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "YOUR_PRODUCTION_KV_NAMESPACE_ID"
 
 # Production cron - consolidated to single trigger
 [env.production.triggers]

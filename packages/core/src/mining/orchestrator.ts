@@ -33,6 +33,8 @@ export class MiningOrchestrator {
   private activeMiner: Miner | null = null;
   private events: Partial<MinerEvents> = {};
   private isRunning = false;
+  private isStarting = false; // Prevents concurrent start() calls
+  private startCancelled = false; // Tracks if stop() was called during start()
   private capabilities: DeviceCapabilities | null = null;
   private cleanupFunctions: (() => void)[] = [];
   private currentBlockData?: string; // Store for fallback recovery
@@ -55,13 +57,20 @@ export class MiningOrchestrator {
    * Initialize and start the appropriate miner
    */
   async start(blockData?: string): Promise<void> {
+    // Prevent concurrent start() calls
+    if (this.isStarting) {
+      console.warn("[Orchestrator] Start already in progress");
+      return;
+    }
+
     if (this.isRunning) {
       console.warn("[Orchestrator] Mining already running");
       return;
     }
 
-    // Set running state BEFORE async operations to prevent race conditions
-    // This prevents duplicate miners from being created if start() is called twice quickly
+    // Set flags BEFORE async operations to prevent race conditions
+    this.isStarting = true;
+    this.startCancelled = false;
     this.isRunning = true;
     this.currentBlockData = blockData;
 
@@ -69,9 +78,28 @@ export class MiningOrchestrator {
       // Detect capabilities
       const caps = await this.detectCapabilities();
 
+      // Check if stop() was called during detectCapabilities()
+      if (this.startCancelled) {
+        console.log(
+          "[Orchestrator] Start cancelled during capability detection",
+        );
+        this.isRunning = false;
+        this.isStarting = false;
+        return;
+      }
+
       if (this.config.preferWebGPU && caps.webgpu) {
         // Use WebGPU miner for 10-100x faster hashing
         const { WebGPUMiner } = await import("./webgpu-miner");
+
+        // Check again after dynamic import
+        if (this.startCancelled) {
+          console.log("[Orchestrator] Start cancelled during WebGPU import");
+          this.isRunning = false;
+          this.isStarting = false;
+          return;
+        }
+
         this.activeMiner = new WebGPUMiner({
           difficulty: this.config.initialDifficulty,
           address: this.config.minerAddress,
@@ -87,6 +115,16 @@ export class MiningOrchestrator {
         throw new Error("No mining backend available");
       }
 
+      // Final check before starting
+      if (this.startCancelled) {
+        console.log("[Orchestrator] Start cancelled before miner.start()");
+        this.activeMiner?.terminate();
+        this.activeMiner = null;
+        this.isRunning = false;
+        this.isStarting = false;
+        return;
+      }
+
       // Setup visibility handling
       if (this.config.throttleWhenHidden) {
         this.setupVisibilityHandling();
@@ -98,10 +136,12 @@ export class MiningOrchestrator {
       }
 
       await this.activeMiner.start(blockData);
+      this.isStarting = false;
       this.events.onStatusChange?.("running");
     } catch (error) {
       // Reset state on failure
       this.isRunning = false;
+      this.isStarting = false;
       this.activeMiner = null;
       throw error;
     }
@@ -131,11 +171,19 @@ export class MiningOrchestrator {
    * Stop the active miner
    */
   stop(): void {
-    if (!this.isRunning || !this.activeMiner) {
+    // Cancel any in-progress start() operation
+    if (this.isStarting) {
+      this.startCancelled = true;
+    }
+
+    if (!this.isRunning) {
       return;
     }
 
-    this.activeMiner.stop();
+    if (this.activeMiner) {
+      this.activeMiner.stop();
+    }
+
     this.isRunning = false;
     this.events.onStatusChange?.("stopped");
   }
@@ -179,6 +227,10 @@ export class MiningOrchestrator {
    * Terminate and cleanup
    */
   terminate(): void {
+    // Cancel any in-progress start
+    this.startCancelled = true;
+    this.isStarting = false;
+
     this.stop();
 
     // Cleanup event listeners

@@ -42,6 +42,8 @@ export interface SyncManagerConfig {
   maxRetries: number;
   /** Batch size for sync (default: 10) */
   batchSize: number;
+  /** Callback when sync completes successfully (for balance refresh) */
+  onSyncSuccess?: (data: { synced: number; totalReward: string }) => void;
 }
 
 export interface SyncEvent {
@@ -251,14 +253,23 @@ class SyncManager {
    * Trigger a sync cycle
    */
   private async triggerSync(): Promise<void> {
-    // Skip if already syncing, offline, or API unhealthy
-    if (this.isSyncing || !this.isOnline || !this.apiHealthy || !this.address) {
+    // Skip if already syncing, offline, or no address
+    if (this.isSyncing || !this.isOnline || !this.address) {
       return;
     }
 
     // Check circuit breaker (rate limit protection)
     if (Date.now() < this.circuitBreakerUntil) {
       return;
+    }
+
+    // If API was marked unhealthy, do a quick health check before skipping
+    // This prevents being stuck in unhealthy state for 30+ seconds
+    if (!this.apiHealthy) {
+      const isHealthy = await this.checkHealth();
+      if (!isHealthy) {
+        return;
+      }
     }
 
     this.isSyncing = true;
@@ -300,6 +311,24 @@ class SyncManager {
       if (synced > 0) {
         this.consecutiveFailures = 0;
         this.circuitBreakerUntil = 0;
+
+        // Mark API as healthy since sync succeeded
+        this.apiHealthy = true;
+
+        // Call success callback for balance refresh
+        this.config.onSyncSuccess?.({
+          synced,
+          totalReward: totalReward.toString(),
+        });
+
+        // Dispatch custom event for balance refresh (useVirtualBalance listens to this)
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("mining:sync-success", {
+              detail: { synced, totalReward: totalReward.toString() },
+            }),
+          );
+        }
       }
 
       this.emit({
@@ -376,7 +405,11 @@ class SyncManager {
         );
 
         // Apply VarDiff adjustment if server suggested a new difficulty
-        if (response.data?.varDiff?.difficultyChanged) {
+        if (
+          response.data?.varDiff?.difficultyChanged &&
+          typeof response.data.varDiff.suggestedDifficulty === "number" &&
+          response.data.varDiff.suggestedDifficulty > 0
+        ) {
           this.applyVarDiffAdjustment(
             response.data.varDiff.suggestedDifficulty,
           );
@@ -523,6 +556,16 @@ class SyncManager {
       apiHealthy: this.apiHealthy,
       address: this.address,
     };
+  }
+
+  /**
+   * Set callback for when sync succeeds (for triggering balance refresh)
+   * Can be called after initialization to set/update the callback
+   */
+  setOnSyncSuccess(
+    callback: (data: { synced: number; totalReward: string }) => void,
+  ): void {
+    this.config.onSyncSuccess = callback;
   }
 
   /**

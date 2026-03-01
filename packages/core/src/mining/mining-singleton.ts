@@ -374,14 +374,35 @@ class MiningManager {
    * Pause mining
    */
   pause(): void {
-    this.orchestrator?.pause();
+    if (!this.orchestrator || !this.state.isRunning || this.state.isPaused) {
+      return;
+    }
+    this.orchestrator.pause();
+    this.updateState({ isPaused: true });
+
+    // Release wake lock when paused
+    if (this.wakeLock) {
+      this.wakeLock.release();
+      this.updateState({ wakeLockActive: false });
+    }
   }
 
   /**
    * Resume mining
    */
   resume(): void {
-    this.orchestrator?.resume();
+    if (!this.orchestrator || !this.state.isRunning || !this.state.isPaused) {
+      return;
+    }
+    this.orchestrator.resume();
+    this.updateState({ isPaused: false });
+
+    // Re-acquire wake lock when resumed
+    if (this.wakeLock && this.config.enableWakeLock) {
+      this.wakeLock.acquire().then((acquired) => {
+        this.updateState({ wakeLockActive: acquired });
+      });
+    }
   }
 
   /**
