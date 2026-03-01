@@ -55,3 +55,9 @@ export {
   TUTORIAL_STEPS,
   type TutorialStep,
 } from "./tutorial-store";
+export {
+  usePendingTxStore,
+  usePendingTxCount,
+  type TransactionType,
+  type PendingTransaction,
+} from "./pending-tx-store";

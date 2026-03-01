@@ -54,6 +54,7 @@ export {
   NFTGrid,
   NFTStats,
   NFTInfoPanel,
+  PendingTransactions,
   getMiningBoost,
   canLevelUp,
   getXpForNextLevel,
@@ -70,6 +71,7 @@ export {
   type Bloodline,
   type RarityTier,
   type BaseType,
+  type PendingTx,
 } from "./nft";
 
 // Help & Tooltips

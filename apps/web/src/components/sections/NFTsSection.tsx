@@ -18,10 +18,16 @@ import {
   NFTInfoPanel,
   HelpTooltip,
   TransactionConfirmModal,
+  PendingTransactions,
   type BabyNFTState,
   type TransactionDetails,
 } from "@bitcoinbaby/ui";
-import { useNFTStore, useWalletStore, useNFTSale } from "@bitcoinbaby/core";
+import {
+  useNFTStore,
+  useWalletStore,
+  useNFTSale,
+  usePendingTxStore,
+} from "@bitcoinbaby/core";
 import { useMintNFT } from "@/hooks/useMintNFT";
 
 type SubTab = "collection" | "mint";
@@ -34,6 +40,14 @@ export function NFTsSection() {
 
   const { ownedNFTs, isLoading, setOwnedNFTs } = useNFTStore();
   const wallet = useWalletStore((s) => s.wallet);
+
+  // Pending transactions
+  const pendingTransactions = usePendingTxStore((s) => s.transactions);
+  const refreshTransactions = usePendingTxStore((s) => s.refresh);
+  const clearCompletedTransactions = usePendingTxStore((s) => s.clearCompleted);
+  const nftTransactions = pendingTransactions.filter(
+    (tx) => tx.type === "nft_mint" || tx.type === "nft_purchase",
+  );
 
   const {
     isLoading: isMinting,
@@ -195,6 +209,16 @@ export function NFTsSection() {
                 className="sticky top-4"
               />
 
+              {/* Pending Transactions */}
+              {nftTransactions.length > 0 && (
+                <PendingTransactions
+                  transactions={nftTransactions}
+                  onRefresh={refreshTransactions}
+                  onClearCompleted={clearCompletedTransactions}
+                  className="mt-6"
+                />
+              )}
+
               {/* Mint CTA in sidebar */}
               <div className="mt-6 bg-pixel-bg-medium border-4 border-pixel-border p-4">
                 <h3 className="font-pixel text-[8px] text-pixel-secondary uppercase mb-3">
@@ -265,6 +289,21 @@ export function NFTsSection() {
                   Go to Wallet tab to connect
                 </p>
               </div>
+            )}
+
+            {/* Pending Transactions Banner */}
+            {nftTransactions.filter(
+              (tx) =>
+                tx.status === "pending" ||
+                tx.status === "mempool" ||
+                tx.status === "confirming",
+            ).length > 0 && (
+              <PendingTransactions
+                transactions={nftTransactions}
+                onRefresh={refreshTransactions}
+                onClearCompleted={clearCompletedTransactions}
+                className="mb-6"
+              />
             )}
 
             {/* Error Display */}

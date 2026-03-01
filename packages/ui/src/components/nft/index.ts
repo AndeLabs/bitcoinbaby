@@ -38,6 +38,7 @@ export {
 export { NFTStats, type NFTStatsProps } from "./NFTStats";
 export { NFTSprite } from "./NFTSprite";
 export { NFTInfoPanel } from "./NFTInfoPanel";
+export { PendingTransactions, type PendingTx } from "./PendingTransactions";
 
 // Trait Configuration
 export {

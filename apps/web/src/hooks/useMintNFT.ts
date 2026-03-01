@@ -14,7 +14,7 @@ import {
   Psbt,
   type BabyNFTState,
 } from "@bitcoinbaby/bitcoin";
-import { useWalletStore } from "@bitcoinbaby/core";
+import { useWalletStore, usePendingTxStore } from "@bitcoinbaby/core";
 
 // =============================================================================
 // TYPES
@@ -54,6 +54,10 @@ export function useMintNFT(): UseMintNFTReturn {
   // Wallet
   const wallet = useWalletStore((s) => s.wallet);
   const signPsbt = useWalletStore((s) => s.signPsbt);
+
+  // Pending transactions
+  const addTransaction = usePendingTxStore((s) => s.addTransaction);
+  const startTracking = usePendingTxStore((s) => s.startTracking);
 
   // Services - testnet4 production
   const mintService = useMemo(
@@ -120,6 +124,14 @@ export function useMintNFT(): UseMintNFTReturn {
       if (!broadcastTxid) {
         throw new Error("Failed to broadcast transaction to the network");
       }
+
+      // Track pending transaction
+      startTracking();
+      addTransaction(
+        broadcastTxid,
+        "nft_mint",
+        `Genesis Baby #${mintResult.nft?.tokenId ?? "?"} mint`,
+      );
 
       setLastMinted(mintResult.nft!);
       setTxid(broadcastTxid);
