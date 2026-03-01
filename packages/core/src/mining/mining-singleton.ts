@@ -187,11 +187,13 @@ class MiningManager {
         const savedState = await this.persistence.loadState();
         const stats = await this.persistence.getLifetimeStats();
 
+        // NOTE: Difficulty is NOT restored from persistence
+        // Always use config.initialDifficulty to ensure MIN_DIFFICULTY is enforced
         this.updateState({
           canResume: savedState !== null,
           lifetimeHashes: stats.totalHashes,
           lifetimeShares: stats.totalShares,
-          difficulty: savedState?.difficulty ?? this.state.difficulty,
+          // difficulty is intentionally NOT restored - use config value
         });
 
         console.log("[MiningManager] Persistence initialized", {

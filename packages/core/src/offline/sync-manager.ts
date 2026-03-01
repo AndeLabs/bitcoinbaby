@@ -24,6 +24,7 @@ import {
   type QueueStats,
 } from "./share-queue";
 import { getApiClient } from "../api/client";
+import { MIN_DIFFICULTY } from "../tokenomics/constants";
 
 // =============================================================================
 // TYPES
@@ -165,6 +166,14 @@ class SyncManager {
     timestamp: number;
   }): Promise<{ queued: boolean; duplicate: boolean }> {
     if (!this.address) {
+      return { queued: false, duplicate: false };
+    }
+
+    // Reject shares below minimum difficulty (server will reject anyway)
+    if (share.difficulty < MIN_DIFFICULTY) {
+      console.warn(
+        `[SyncManager] Share rejected: D${share.difficulty} < MIN_DIFFICULTY (${MIN_DIFFICULTY})`,
+      );
       return { queued: false, duplicate: false };
     }
 
