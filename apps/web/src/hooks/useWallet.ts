@@ -41,6 +41,48 @@ function toStoreWalletInfo(info: BitcoinWalletInfo): CoreWalletInfo {
   };
 }
 
+// =============================================================================
+// MODULE-LEVEL WALLET SINGLETON
+// =============================================================================
+// This persists across component unmounts (tab switching, navigation)
+// The wallet instance and info are stored here so they survive React lifecycle
+
+interface WalletSingleton {
+  instance: BitcoinWallet | null;
+  info: WalletInfo | null;
+}
+
+const walletSingleton: WalletSingleton = {
+  instance: null,
+  info: null,
+};
+
+/**
+ * Store wallet in singleton (called when unlocking)
+ */
+function setWalletSingleton(wallet: BitcoinWallet, info: WalletInfo): void {
+  walletSingleton.instance = wallet;
+  walletSingleton.info = info;
+}
+
+/**
+ * Clear wallet singleton (called when locking)
+ */
+function clearWalletSingleton(): void {
+  if (walletSingleton.instance) {
+    walletSingleton.instance.clear();
+  }
+  walletSingleton.instance = null;
+  walletSingleton.info = null;
+}
+
+/**
+ * Get wallet from singleton (called on component mount)
+ */
+function getWalletSingleton(): WalletSingleton {
+  return walletSingleton;
+}
+
 /**
  * Wallet state
  */
@@ -136,6 +178,9 @@ export function useWallet(): UseWalletReturn {
     setWallet: setStoreWallet,
     disconnect: disconnectStore,
     setSigningFunctions: storeSetSigningFunctions,
+    isLocked: storeIsLocked,
+    isConnected: storeIsConnected,
+    wallet: storeWallet,
   } = useWalletStore();
 
   // Internal wallet instance
@@ -178,19 +223,39 @@ export function useWallet(): UseWalletReturn {
   });
 
   /**
-   * Initialize - check for stored wallet
+   * Initialize - check for stored wallet and restore from singleton
    */
   useEffect(() => {
     async function init() {
       try {
         const metadata = await SecureStorage.getMetadata();
 
+        // Check if wallet singleton has a valid wallet (survives component remount)
+        const singleton = getWalletSingleton();
+        if (singleton.instance && singleton.info) {
+          // Restore walletRef from singleton
+          walletRef.current = singleton.instance;
+
+          setState({
+            wallet: singleton.info,
+            isLoaded: true,
+            hasStoredWallet: metadata.exists,
+            metadata,
+            isLoading: false,
+            error: null,
+            isLocked: false,
+          });
+
+          // Re-setup signing functions
+          setupSigningFunctions();
+          return;
+        }
+
         setState((prev) => ({
           ...prev,
           hasStoredWallet: metadata.exists,
           metadata,
           isLoading: false,
-          isLocked: true,
         }));
       } catch (error) {
         setState((prev) => ({
@@ -203,6 +268,8 @@ export function useWallet(): UseWalletReturn {
     }
 
     init();
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /**
@@ -253,8 +320,9 @@ export function useWallet(): UseWalletReturn {
         // Store encrypted mnemonic
         await SecureStorage.storeMnemonic(mnemonic, password, network);
 
-        // Update refs and state
+        // Update refs, state, and singleton
         walletRef.current = wallet;
+        setWalletSingleton(wallet, info);
 
         const metadata = await SecureStorage.getMetadata();
 
@@ -304,8 +372,9 @@ export function useWallet(): UseWalletReturn {
         // Store encrypted mnemonic
         await SecureStorage.storeMnemonic(mnemonic, password, network);
 
-        // Update refs and state
+        // Update refs, state, and singleton
         walletRef.current = wallet;
+        setWalletSingleton(wallet, info);
 
         const metadata = await SecureStorage.getMetadata();
 
@@ -352,8 +421,9 @@ export function useWallet(): UseWalletReturn {
         const wallet = new BitcoinWallet({ network: mapNetwork(network) });
         const info = await wallet.fromMnemonic(mnemonic);
 
-        // Update refs and state
+        // Update refs, state, and singleton
         walletRef.current = wallet;
+        setWalletSingleton(wallet, info);
 
         setState((prev) => ({
           ...prev,
@@ -386,11 +456,9 @@ export function useWallet(): UseWalletReturn {
    * Lock wallet (clear from memory)
    */
   const lock = useCallback((): void => {
-    // Clear wallet instance
-    if (walletRef.current) {
-      walletRef.current.clear();
-      walletRef.current = null;
-    }
+    // Clear wallet instance and singleton
+    walletRef.current = null;
+    clearWalletSingleton();
 
     setState((prev) => ({
       ...prev,

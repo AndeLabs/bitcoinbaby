@@ -13,8 +13,11 @@ import {
   calculatePurchaseOutputs,
   NFT_SALE_CONFIG,
   getTreasuryAddress,
+  createMempoolClient,
+  TransactionBuilder,
   type NFTPriceBreakdown,
   type PurchaseValidation,
+  type BitcoinNetwork,
 } from "@bitcoinbaby/bitcoin";
 
 // =============================================================================
@@ -24,6 +27,10 @@ import {
 export interface UseNFTSaleOptions {
   buyerAddress?: string;
   buyerBalance?: bigint;
+  /** X-only public key (32 bytes) for Taproot signing */
+  xOnlyPubKey?: Uint8Array;
+  /** Bitcoin network (default: testnet4) */
+  network?: BitcoinNetwork;
 }
 
 export interface UseNFTSaleReturn {
@@ -54,7 +61,12 @@ export interface PurchaseResult {
 // =============================================================================
 
 export function useNFTSale(options: UseNFTSaleOptions = {}): UseNFTSaleReturn {
-  const { buyerAddress, buyerBalance = 0n } = options;
+  const {
+    buyerAddress,
+    buyerBalance = 0n,
+    xOnlyPubKey,
+    network = "testnet4",
+  } = options;
 
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +89,11 @@ export function useNFTSale(options: UseNFTSaleOptions = {}): UseNFTSaleReturn {
 
   /**
    * Purchase NFT
+   *
+   * Creates a PSBT for NFT purchase:
+   * - Output 0: Payment to treasury (50,000 sats)
+   * - Output 1: NFT to buyer (546 sats dust)
+   * - Output 2: Change to buyer (if any)
    */
   const purchase = useCallback(
     async (tokenId: number): Promise<PurchaseResult> => {
@@ -93,27 +110,88 @@ export function useNFTSale(options: UseNFTSaleOptions = {}): UseNFTSaleReturn {
         };
       }
 
+      if (!buyerAddress) {
+        return { success: false, error: "No buyer address" };
+      }
+
       setIsPurchasing(true);
       setError(null);
 
       try {
-        // TODO: Implement PSBT creation
-        // 1. Get buyer UTXOs (from MempoolClient)
-        // 2. Create NFT spell (createNFTGenesisSpell)
-        // 3. Build PSBT (TransactionBuilder)
-        // 4. Return PSBT hex for wallet signing
+        // 1. Get buyer UTXOs from Mempool
+        const mempool = createMempoolClient({ network });
+        const rawUtxos = await mempool.getUTXOs(buyerAddress);
 
-        // For now, show what would happen:
-        console.log("[NFT Purchase]", {
+        if (rawUtxos.length === 0) {
+          return { success: false, error: "No UTXOs available" };
+        }
+
+        // 2. Calculate outputs for NFT purchase
+        const purchaseOutputs = calculatePurchaseOutputs({
+          buyerAddress,
+          buyerUtxos: rawUtxos.map((u) => ({
+            txid: u.txid,
+            vout: u.vout,
+            value: BigInt(u.value),
+          })),
           tokenId,
-          treasury,
-          price: price.priceSats.toString(),
-          buyer: buyerAddress,
         });
 
+        // 3. Build transaction using TransactionBuilder
+        const builder = new TransactionBuilder({
+          network,
+          enableRBF: true,
+        });
+
+        // Convert raw UTXOs to TxUTXOs format
+        const txUtxos = TransactionBuilder.convertUTXOs(
+          rawUtxos,
+          buyerAddress,
+          network,
+          xOnlyPubKey,
+        );
+
+        // Select coins for the total amount needed
+        const totalNeeded =
+          Number(NFT_SALE_CONFIG.priceSats) + Number(NFT_SALE_CONFIG.dustLimit);
+        const selection = builder.selectCoins(txUtxos, totalNeeded, 1);
+
+        // Build unsigned transaction
+        const unsignedTx = builder.buildTransfer(
+          selection.inputs,
+          treasury,
+          Number(NFT_SALE_CONFIG.priceSats),
+          buyerAddress,
+        );
+
+        // Add NFT output (dust amount to buyer - this will hold the NFT charm)
+        unsignedTx.outputs.splice(1, 0, {
+          address: buyerAddress,
+          value: Number(NFT_SALE_CONFIG.dustLimit),
+        });
+
+        // Recalculate change after adding NFT output
+        const totalOutput = unsignedTx.outputs.reduce(
+          (sum, o) => sum + o.value,
+          0,
+        );
+        const changeIndex = unsignedTx.outputs.findIndex(
+          (o) =>
+            o.address === buyerAddress &&
+            o.value !== Number(NFT_SALE_CONFIG.dustLimit),
+        );
+        if (changeIndex >= 0) {
+          unsignedTx.outputs[changeIndex].value =
+            selection.totalInputValue - totalOutput - unsignedTx.fee;
+        }
+
+        // 4. Build PSBT
+        const psbt = builder.buildPSBT(unsignedTx);
+
+        // Return PSBT hex for wallet signing
         return {
-          success: false,
-          error: "PSBT building coming soon - treasury configured",
+          success: true,
+          psbt: psbt.toHex(),
         };
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Purchase failed";
@@ -123,7 +201,7 @@ export function useNFTSale(options: UseNFTSaleOptions = {}): UseNFTSaleReturn {
         setIsPurchasing(false);
       }
     },
-    [canPurchase, validation, price, buyerAddress],
+    [canPurchase, validation, buyerAddress, network, xOnlyPubKey],
   );
 
   return {

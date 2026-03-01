@@ -21,6 +21,7 @@ export {
   useMoonPhase,
   useCosmicEvents,
   useBabyCosmicStatus,
+  useBitcoinCosmic,
 } from "./useCosmic";
 
 // Mining + Cosmic integration

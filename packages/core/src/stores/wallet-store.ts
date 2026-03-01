@@ -19,6 +19,7 @@ interface WalletStore {
   wallet: WalletInfo | null;
   isConnected: boolean;
   isLoading: boolean;
+  isLocked: boolean;
   error: string | null;
 
   // Signing functions (set by wallet provider)
@@ -30,6 +31,7 @@ interface WalletStore {
   disconnect: () => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  setLocked: (locked: boolean) => void;
   updateBalance: (balance: bigint) => void;
   updateBabyTokens: (tokens: bigint) => void;
 
@@ -49,24 +51,27 @@ export const useWalletStore = create<WalletStore>((set) => ({
   wallet: null,
   isConnected: false,
   isLoading: false,
+  isLocked: true,
   error: null,
   signPsbt: null,
   broadcastTx: null,
 
-  // Set wallet (after successful connection)
+  // Set wallet (after successful connection/unlock)
   setWallet: (wallet) =>
     set({
       wallet,
       isConnected: true,
       isLoading: false,
+      isLocked: false,
       error: null,
     }),
 
-  // Disconnect wallet
+  // Disconnect/lock wallet
   disconnect: () =>
     set({
       wallet: null,
       isConnected: false,
+      isLocked: true,
       error: null,
       signPsbt: null,
       broadcastTx: null,
@@ -77,6 +82,9 @@ export const useWalletStore = create<WalletStore>((set) => ({
 
   // Error state
   setError: (error) => set({ error, isLoading: false }),
+
+  // Lock state (without full disconnect)
+  setLocked: (isLocked) => set({ isLocked }),
 
   // Update BTC balance
   updateBalance: (balance) =>

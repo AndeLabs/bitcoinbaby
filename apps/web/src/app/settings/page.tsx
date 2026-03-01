@@ -16,6 +16,7 @@ import Link from "next/link";
 import {
   useSettingsStore,
   useNetworkStore,
+  SecureStorage,
   MIN_PASSWORD_LENGTH,
   type MiningDifficulty,
   type MinerTypePreference,
@@ -173,9 +174,9 @@ function TextInput({
 function RecoveryPhraseModal({ onClose }: { onClose: () => void }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [phrase, _setPhrase] = useState<string | null>(null); // TODO: implement reveal
+  const [phrase, setPhrase] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const handleReveal = async () => {
     if (password.length < MIN_PASSWORD_LENGTH) {
@@ -186,18 +187,26 @@ function RecoveryPhraseModal({ onClose }: { onClose: () => void }) {
     setIsLoading(true);
     setError(null);
 
-    // Simulated - in real implementation, decrypt from wallet store
     try {
-      // This would call the actual wallet decryption
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      // For now, show a message since we need wallet integration
+      // Get mnemonic from secure storage using password
+      const mnemonic = await SecureStorage.getMnemonic(password);
+      setPhrase(mnemonic);
+    } catch (err) {
       setError(
-        "This feature requires wallet to be unlocked first. Go to Wallet page.",
+        err instanceof Error
+          ? err.message
+          : "Invalid password or no wallet found",
       );
-    } catch {
-      setError("Invalid password");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (phrase) {
+      await navigator.clipboard.writeText(phrase);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -252,18 +261,45 @@ function RecoveryPhraseModal({ onClose }: { onClose: () => void }) {
           </>
         ) : (
           <>
-            <div className="bg-pixel-bg-light border-4 border-black p-4 mb-4">
-              <p className="font-pixel-mono text-sm text-pixel-text leading-relaxed">
-                {phrase}
+            <div className="bg-pixel-error/20 border-2 border-pixel-error p-3 mb-4">
+              <p className="font-pixel text-[8px] text-pixel-error">
+                NEVER share this phrase with anyone! Anyone with these words can
+                steal your funds.
               </p>
             </div>
 
-            <button
-              onClick={onClose}
-              className="w-full px-4 py-2 font-pixel text-[10px] bg-pixel-primary text-black border-4 border-black shadow-[4px_4px_0_0_#000]"
-            >
-              CLOSE
-            </button>
+            <div className="bg-pixel-bg-light border-4 border-black p-4 mb-4">
+              <div className="grid grid-cols-3 gap-2">
+                {phrase.split(" ").map((word, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-1 bg-pixel-bg-dark px-2 py-1 border-2 border-pixel-border"
+                  >
+                    <span className="font-pixel text-[8px] text-pixel-text-muted">
+                      {i + 1}.
+                    </span>
+                    <span className="font-pixel-mono text-[10px] text-pixel-text">
+                      {word}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleCopy}
+                className="flex-1 px-4 py-2 font-pixel text-[10px] bg-pixel-bg-light text-pixel-text border-4 border-black hover:bg-pixel-bg-dark"
+              >
+                {copied ? "COPIED!" : "COPY"}
+              </button>
+              <button
+                onClick={onClose}
+                className="flex-1 px-4 py-2 font-pixel text-[10px] bg-pixel-primary text-black border-4 border-black shadow-[4px_4px_0_0_#000]"
+              >
+                CLOSE
+              </button>
+            </div>
           </>
         )}
       </div>
@@ -279,13 +315,19 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const [success, setSuccess] = useState(false);
+
   const handleChange = async () => {
-    if (currentPassword.length < 8) {
-      setError("Current password must be at least 8 characters");
+    if (currentPassword.length < MIN_PASSWORD_LENGTH) {
+      setError(
+        `Current password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+      );
       return;
     }
-    if (newPassword.length < 8) {
-      setError("New password must be at least 8 characters");
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      setError(
+        `New password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+      );
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -297,13 +339,14 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
     setError(null);
 
     try {
-      // This would call the actual wallet password change
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await SecureStorage.changePassword(currentPassword, newPassword);
+      setSuccess(true);
+      // Close modal after 2 seconds
+      setTimeout(() => onClose(), 2000);
+    } catch (err) {
       setError(
-        "This feature requires wallet integration. Go to Wallet page to manage.",
+        err instanceof Error ? err.message : "Failed to change password",
       );
-    } catch {
-      setError("Failed to change password");
     } finally {
       setIsLoading(false);
     }
@@ -346,21 +389,31 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
           </p>
         )}
 
-        <div className="flex gap-2">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2 font-pixel text-[10px] bg-pixel-bg-light text-pixel-text border-4 border-black hover:bg-pixel-bg-dark"
-          >
-            CANCEL
-          </button>
-          <button
-            onClick={handleChange}
-            disabled={isLoading}
-            className="flex-1 px-4 py-2 font-pixel text-[10px] bg-pixel-success text-black border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] disabled:opacity-50"
-          >
-            {isLoading ? "..." : "CHANGE"}
-          </button>
-        </div>
+        {success && (
+          <div className="bg-pixel-success/20 border-2 border-pixel-success p-3 mb-4">
+            <p className="font-pixel text-[10px] text-pixel-success">
+              Password changed successfully!
+            </p>
+          </div>
+        )}
+
+        {!success && (
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-2 font-pixel text-[10px] bg-pixel-bg-light text-pixel-text border-4 border-black hover:bg-pixel-bg-dark"
+            >
+              CANCEL
+            </button>
+            <button
+              onClick={handleChange}
+              disabled={isLoading}
+              className="flex-1 px-4 py-2 font-pixel text-[10px] bg-pixel-success text-black border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] disabled:opacity-50"
+            >
+              {isLoading ? "..." : "CHANGE"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

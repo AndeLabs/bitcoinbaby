@@ -8,9 +8,11 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   getCosmicProvider,
   calculateCosmicEnergy,
+  getBitcoinCosmicData,
   type CosmicState,
   type BabyCosmicEnergy,
   type Rarity,
+  type BitcoinCosmicData,
 } from "../cosmic";
 import type { BaseType, Bloodline, Heritage } from "../types";
 
@@ -63,10 +65,13 @@ export function useCosmicState(options: UseCosmicStateOptions = {}) {
   } = options;
 
   const [cosmicState, setCosmicState] = useState<CosmicState | null>(null);
+  const [bitcoinData, setBitcoinData] = useState<BitcoinCosmicData | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // Update cosmic state
+  // Update cosmic state (synchronous astronomical data)
   const updateCosmicState = useCallback(() => {
     try {
       const provider = getCosmicProvider();
@@ -79,7 +84,7 @@ export function useCosmicState(options: UseCosmicStateOptions = {}) {
         season: provider.getSeasonData(now, hemisphere),
         currentEvent: provider.getCurrentEvents(now)[0] || null,
         upcomingEvents: provider.getUpcomingEvents(now, 30),
-        bitcoin: null, // TODO: Integrate with Bitcoin data
+        bitcoin: bitcoinData,
       };
 
       setCosmicState(state);
@@ -89,9 +94,31 @@ export function useCosmicState(options: UseCosmicStateOptions = {}) {
     } finally {
       setIsLoading(false);
     }
-  }, [latitude, longitude, hemisphere]);
+  }, [latitude, longitude, hemisphere, bitcoinData]);
 
-  // Initial load and interval updates
+  // Fetch Bitcoin data (async, separate from astronomical data)
+  const fetchBitcoinData = useCallback(async () => {
+    try {
+      const data = await getBitcoinCosmicData();
+      if (data) {
+        setBitcoinData(data);
+      }
+    } catch (err) {
+      // Bitcoin data is optional, don't fail the whole cosmic state
+      console.warn("Failed to fetch Bitcoin data:", err);
+    }
+  }, []);
+
+  // Fetch Bitcoin data on mount and every 5 minutes (separate from cosmic interval)
+  useEffect(() => {
+    fetchBitcoinData();
+
+    // Bitcoin data updates less frequently (every 5 minutes)
+    const bitcoinInterval = setInterval(fetchBitcoinData, 5 * 60 * 1000);
+    return () => clearInterval(bitcoinInterval);
+  }, [fetchBitcoinData]);
+
+  // Initial load and interval updates for astronomical data
   useEffect(() => {
     updateCosmicState();
 
@@ -103,7 +130,8 @@ export function useCosmicState(options: UseCosmicStateOptions = {}) {
   const refresh = useCallback(() => {
     setIsLoading(true);
     updateCosmicState();
-  }, [updateCosmicState]);
+    fetchBitcoinData();
+  }, [updateCosmicState, fetchBitcoinData]);
 
   return {
     cosmicState,
@@ -280,5 +308,69 @@ export function useBabyCosmicStatus(
     formattedMultiplier,
     isLoading,
     error,
+  };
+}
+
+// =============================================================================
+// USE BITCOIN COSMIC HOOK
+// =============================================================================
+
+/**
+ * Hook to get Bitcoin network data (block height, halving countdown, difficulty)
+ * Useful for displaying Bitcoin-specific cosmic information
+ */
+export function useBitcoinCosmic() {
+  const [bitcoinData, setBitcoinData] = useState<BitcoinCosmicData | null>(
+    null,
+  );
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const data = await getBitcoinCosmicData();
+      setBitcoinData(data);
+      setError(null);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err : new Error("Failed to fetch Bitcoin data"),
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+
+    // Update every 5 minutes
+    const interval = setInterval(fetchData, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  // Halving progress (0-100%)
+  const halvingProgress = useMemo(() => {
+    if (!bitcoinData) return 0;
+    const prevHalving = bitcoinData.nextHalvingBlock - 210_000;
+    const blocksSinceLastHalving = bitcoinData.currentBlock - prevHalving;
+    return Math.min(100, (blocksSinceLastHalving / 210_000) * 100);
+  }, [bitcoinData]);
+
+  // Estimated time until halving
+  const timeUntilHalving = useMemo(() => {
+    if (!bitcoinData) return null;
+    const minutesUntil = bitcoinData.blocksUntilHalving * 10;
+    const days = Math.floor(minutesUntil / (60 * 24));
+    const hours = Math.floor((minutesUntil % (60 * 24)) / 60);
+    return { days, hours };
+  }, [bitcoinData]);
+
+  return {
+    bitcoinData,
+    halvingProgress,
+    timeUntilHalving,
+    isLoading,
+    error,
+    refresh: fetchData,
   };
 }

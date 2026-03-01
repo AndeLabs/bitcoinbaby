@@ -71,3 +71,14 @@ export {
   calculateCommunityTax,
   calculateFinalRewards,
 } from "./balance";
+
+// Bitcoin data
+export {
+  getBitcoinCosmicData,
+  estimateTimeUntilHalving,
+  getHalvingProgress,
+  formatDifficulty,
+  formatNetworkHashrate,
+  clearBitcoinCache,
+  type BitcoinCosmicData,
+} from "./bitcoin";
