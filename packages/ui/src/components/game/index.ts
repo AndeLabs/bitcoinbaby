@@ -25,3 +25,7 @@ export {
   type LeaderboardWidgetProps,
   type LeaderboardCategory,
 } from "./LeaderboardWidget";
+export {
+  TransactionConfirmModal,
+  type TransactionDetails,
+} from "./TransactionConfirmModal";

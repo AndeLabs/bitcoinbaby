@@ -17,13 +17,15 @@ import {
   NFTCard,
   NFTInfoPanel,
   HelpTooltip,
+  TransactionConfirmModal,
   type BabyNFTState,
+  type TransactionDetails,
 } from "@bitcoinbaby/ui";
 import { useNFTStore, useWalletStore, useNFTSale } from "@bitcoinbaby/core";
 import { useMintNFT } from "@/hooks/useMintNFT";
 
 type SubTab = "collection" | "mint";
-type MintState = "info" | "minting" | "revealing" | "success";
+type MintState = "info" | "confirming" | "minting" | "revealing" | "success";
 
 export function NFTsSection() {
   const [activeTab, setActiveTab] = useState<SubTab>("collection");
@@ -45,13 +47,46 @@ export function NFTsSection() {
   } = useMintNFT();
 
   // NFT Sale hook for pricing
-  const { formattedPrice } = useNFTSale({
+  const { formattedPrice, price } = useNFTSale({
     buyerAddress: wallet?.address,
     buyerBalance: 0n,
   });
 
-  // Handle mint - truly random, no preview
-  const handleMint = useCallback(async () => {
+  // Extract numeric values for transaction details
+  const priceSats = Number(price.priceSats);
+  const feeSats = 1500; // Estimated network fee
+
+  // Transaction details for confirmation
+  const transactionDetails: TransactionDetails = {
+    type: "mint",
+    title: "Mint Genesis Baby",
+    description:
+      "You are about to mint a new Genesis Baby NFT. The traits will be randomly generated - it's a surprise!",
+    costs: [
+      {
+        label: "NFT Price",
+        amount: formattedPrice,
+        sublabel: "Fixed price",
+      },
+      {
+        label: "Network Fee",
+        amount: `~${(feeSats || 1500).toLocaleString()} sats`,
+        sublabel: "Estimated",
+      },
+    ],
+    totalSats: priceSats + (feeSats || 1500),
+    formattedTotal: `${((priceSats + (feeSats || 1500)) / 100_000_000).toFixed(8)} BTC`,
+    feeEstimate: `${(feeSats || 1500).toLocaleString()} sats`,
+    additionalInfo: "Testnet4 - No real BTC will be spent",
+  };
+
+  // Handle mint button click - show confirmation first
+  const handleMintClick = useCallback(() => {
+    setMintState("confirming");
+  }, []);
+
+  // Handle confirmed mint
+  const handleConfirmedMint = useCallback(async () => {
     setMintState("minting");
 
     const result = await mint();
@@ -70,6 +105,11 @@ export function NFTsSection() {
       setMintState("info");
     }
   }, [mint, setOwnedNFTs, ownedNFTs]);
+
+  // Handle cancel confirmation
+  const handleCancelMint = useCallback(() => {
+    setMintState("info");
+  }, []);
 
   const handleMintAnother = useCallback(() => {
     setMintState("info");
@@ -258,7 +298,7 @@ export function NFTsSection() {
                 {/* Mint Button */}
                 <div className="text-center">
                   <button
-                    onClick={handleMint}
+                    onClick={handleMintClick}
                     disabled={!canMint}
                     className="font-pixel text-sm uppercase px-8 py-4 bg-pixel-success text-pixel-text-dark border-4 border-black shadow-[6px_6px_0_0_#000] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0_0_#000] transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -386,6 +426,15 @@ export function NFTsSection() {
             )}
           </div>
         )}
+
+        {/* Transaction Confirmation Modal */}
+        <TransactionConfirmModal
+          isOpen={mintState === "confirming"}
+          transaction={transactionDetails}
+          isLoading={isMinting}
+          onConfirm={handleConfirmedMint}
+          onCancel={handleCancelMint}
+        />
       </div>
     </div>
   );

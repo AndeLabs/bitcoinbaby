@@ -5,7 +5,11 @@
  */
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import {
+  persist,
+  createJSONStorage,
+  type StateStorage,
+} from "zustand/middleware";
 import type {
   BabyNFTState,
   BabyNFTInfo,
@@ -19,7 +23,37 @@ import {
   XP_REQUIREMENTS,
   EVOLUTION_COSTS,
   GENESIS_BABIES_CONFIG,
+  stringifyWithBigInt,
+  parseWithBigInt,
 } from "@bitcoinbaby/bitcoin";
+
+// =============================================================================
+// CUSTOM STORAGE (BigInt-safe)
+// =============================================================================
+
+/**
+ * Custom storage that handles BigInt serialization
+ * Required because BabyNFTState.tokensEarned is bigint
+ */
+const bigIntStorage: StateStorage = {
+  getItem: (name: string): string | null => {
+    const value = localStorage.getItem(name);
+    return value;
+  },
+  setItem: (name: string, value: string): void => {
+    // Value already serialized by zustand, but we need to handle BigInt
+    // Parse and re-serialize with BigInt support
+    try {
+      const parsed = JSON.parse(value);
+      localStorage.setItem(name, stringifyWithBigInt(parsed));
+    } catch {
+      localStorage.setItem(name, value);
+    }
+  },
+  removeItem: (name: string): void => {
+    localStorage.removeItem(name);
+  },
+};
 
 // =============================================================================
 // TYPES
@@ -220,6 +254,29 @@ export const useNFTStore = create<NFTStore>()(
     }),
     {
       name: "bitcoinbaby-nft-store",
+      storage: createJSONStorage(() => bigIntStorage, {
+        reviver: (_key, value) => {
+          // Convert tokensEarned strings back to BigInt
+          if (
+            typeof value === "string" &&
+            /^-?\d+$/.test(value) &&
+            value.length > 0
+          ) {
+            // Check if this looks like a BigInt value
+            const num = Number(value);
+            if (num > Number.MAX_SAFE_INTEGER || value.length > 15) {
+              return BigInt(value);
+            }
+          }
+          return value;
+        },
+        replacer: (_key, value) => {
+          if (typeof value === "bigint") {
+            return value.toString();
+          }
+          return value;
+        },
+      }),
       partialize: (state) => ({
         ownedNFTs: state.ownedNFTs,
         selectedNFT: state.selectedNFT,
