@@ -43,8 +43,8 @@ new_sqlite_classes = ["VirtualBalanceDO", "WithdrawPoolDO", "GameRoomDO"]
 # =============================================================================
 [[kv_namespaces]]
 binding = "CACHE"
-id = "YOUR_KV_NAMESPACE_ID"
-preview_id = "YOUR_PREVIEW_KV_NAMESPACE_ID"
+id = "c1629ef515ec48a0a2c2ef6872ea3ea3"
+preview_id = "4b529987b0fe4a18a128f5ecc9a8a2ce"
 
 # Scheduled tasks (Cron) - Consolidated to stay under free tier limit (5)
 # All tasks handled in one cron, logic in handleScheduled()
@@ -89,10 +89,10 @@ MIN_WITHDRAW_AMOUNT = "100"
 POOL_PERIOD_DAYS = "7"
 MAX_FEE_RATE_SAT_VB = "5"
 
-# Production KV namespace (use same as development or create separate)
+# Production KV namespace (shared with development - same dedup across all envs)
 [[env.production.kv_namespaces]]
 binding = "CACHE"
-id = "YOUR_PRODUCTION_KV_NAMESPACE_ID"
+id = "c1629ef515ec48a0a2c2ef6872ea3ea3"
 
 # Production cron - consolidated to single trigger
 [env.production.triggers]
