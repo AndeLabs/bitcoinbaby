@@ -20,24 +20,22 @@ import type {
 // CLIENT FACTORY
 // =============================================================================
 
-let redisClient: Redis | null = null;
-
 /**
- * Get or create Redis client instance
+ * Create Redis client instance
+ *
+ * Note: Creates a fresh client each time. In edge workers, singleton patterns
+ * can cause issues as workers are short-lived and frequently restarted.
+ * Upstash HTTP-based client is stateless, so this is safe and efficient.
  */
 export function getRedis(env: Env): Redis {
-  if (!redisClient) {
-    if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
-      throw new Error("Upstash Redis credentials not configured");
-    }
-
-    redisClient = new Redis({
-      url: env.UPSTASH_REDIS_REST_URL,
-      token: env.UPSTASH_REDIS_REST_TOKEN,
-    });
+  if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
+    throw new Error("Upstash Redis credentials not configured");
   }
 
-  return redisClient;
+  return new Redis({
+    url: env.UPSTASH_REDIS_REST_URL,
+    token: env.UPSTASH_REDIS_REST_TOKEN,
+  });
 }
 
 // =============================================================================
@@ -45,9 +43,9 @@ export function getRedis(env: Env): Redis {
 // =============================================================================
 
 /**
- * Generate Redis key for a leaderboard
+ * Generate Redis key for a leaderboard (internal)
  */
-export function leaderboardKey(
+function leaderboardKey(
   category: LeaderboardCategory,
   period: LeaderboardPeriod,
 ): string {
@@ -55,16 +53,16 @@ export function leaderboardKey(
 }
 
 /**
- * Generate Redis key for user stats
+ * Generate Redis key for user stats (internal)
  */
-export function userStatsKey(address: string): string {
+function userStatsKey(address: string): string {
   return `user:${address}:stats`;
 }
 
 /**
- * Generate current period identifier for daily/weekly reset
+ * Generate current period identifier for daily/weekly reset (internal)
  */
-export function getCurrentPeriodId(period: LeaderboardPeriod): string {
+function getCurrentPeriodId(period: LeaderboardPeriod): string {
   const now = new Date();
 
   if (period === "daily") {
@@ -285,6 +283,13 @@ export async function resetDailyLeaderboard(redis: Redis): Promise<void> {
   for (const category of categories) {
     const key = leaderboardKey(category, "daily");
 
+    // Check if key exists before archiving
+    const exists = await redis.exists(key);
+    if (!exists) {
+      console.log(`[Leaderboard] ${key} does not exist, skipping archive`);
+      continue;
+    }
+
     // Archive with date suffix before clearing
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
@@ -309,9 +314,14 @@ export async function resetWeeklyLeaderboard(redis: Redis): Promise<void> {
   for (const category of categories) {
     const key = leaderboardKey(category, "weekly");
 
+    // Check if key exists before archiving
+    const exists = await redis.exists(key);
+    if (!exists) {
+      console.log(`[Leaderboard] ${key} does not exist, skipping archive`);
+      continue;
+    }
+
     // Archive with week suffix
-    const lastWeek = new Date();
-    lastWeek.setDate(lastWeek.getDate() - 7);
     const archiveKey = `${key}:${getCurrentPeriodId("weekly")}`;
 
     await redis.rename(key, archiveKey);

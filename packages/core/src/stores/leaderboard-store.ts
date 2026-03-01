@@ -65,7 +65,7 @@ interface LeaderboardStore {
   setUserAddress: (address: string | null) => void;
   updateUserStats: (stats: Partial<UserLeaderboardStats>) => void;
   addHashes: (count: number) => void;
-  setbabyLevel: (level: number) => void;
+  setBabyLevel: (level: number) => void;
   addTokens: (amount: number) => void;
 
   // Leaderboard generation
@@ -151,7 +151,7 @@ export const useLeaderboardStore = create<LeaderboardStore>()(
           },
         })),
 
-      setbabyLevel: (level) =>
+      setBabyLevel: (level) =>
         set((s) => ({
           userStats: {
             ...s.userStats,
