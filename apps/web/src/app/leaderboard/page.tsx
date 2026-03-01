@@ -17,14 +17,15 @@ import {
   NetworkBadge,
   WalletStatusCompact,
 } from "@bitcoinbaby/ui";
-import { useNetworkStore } from "@bitcoinbaby/core";
 import {
+  useNetworkStore,
   useLeaderboard,
   CATEGORY_INFO,
   PERIOD_INFO,
-} from "../../hooks/useLeaderboard";
+  type LeaderboardCategory,
+  type LeaderboardPeriod,
+} from "@bitcoinbaby/core";
 import { useWallet } from "../../hooks/useWallet";
-import type { LeaderboardCategory, LeaderboardPeriod } from "@bitcoinbaby/core";
 
 /**
  * Tab button component
@@ -222,7 +223,7 @@ export default function LeaderboardPage() {
       </div>
 
       {/* User Rank Summary */}
-      {wallet.wallet && (
+      {wallet.wallet && leaderboard.userRank !== null && (
         <div className="max-w-4xl mx-auto mb-6">
           <UserRankSummary
             rank={leaderboard.userRank}

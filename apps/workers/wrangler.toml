@@ -41,10 +41,12 @@ new_sqlite_classes = ["VirtualBalanceDO", "WithdrawPoolDO", "GameRoomDO"]
 # Scheduled tasks (Cron) - Cloudflare uses 1-7 for days (1=Mon, 7=Sun)
 [triggers]
 crons = [
+  # Daily leaderboard reset + checks at 00:00 UTC
+  "0 0 * * *",
   # Process weekly withdraw pool every Sunday at 00:00 UTC
   "0 0 * * 7",
   # Check for low-fee opportunities every 6 hours
-  "0 0/6 * * *"
+  "0 */6 * * *"
 ]
 
 # Environment variables

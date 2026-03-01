@@ -12,7 +12,27 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import type { Env, ApiResponse, PoolType } from "./lib/types";
+import type {
+  Env,
+  ApiResponse,
+  PoolType,
+  LeaderboardCategory,
+  LeaderboardPeriod,
+  LeaderboardResponse,
+  UserRankResponse,
+} from "./lib/types";
+import {
+  getRedis,
+  getLeaderboard,
+  getLeaderboardCount,
+  getUserRank,
+  getUserScore,
+  updateAllPeriods,
+  updateUserStats,
+  getUserStats,
+  resetDailyLeaderboard,
+  resetWeeklyLeaderboard,
+} from "./lib/redis";
 
 // Re-export Durable Objects
 export { VirtualBalanceDO } from "./durable-objects/virtual-balance";
@@ -416,6 +436,241 @@ app.get("/api/game/:roomId/state", async (c) => {
 });
 
 // =============================================================================
+// LEADERBOARD API
+// =============================================================================
+
+/**
+ * GET /api/leaderboard - Get leaderboard entries
+ *
+ * Query params:
+ * - category: miners | babies | earners (default: miners)
+ * - period: daily | weekly | alltime (default: alltime)
+ * - limit: number (default: 100, max: 500)
+ * - offset: number (default: 0)
+ */
+app.get("/api/leaderboard", async (c) => {
+  const category = (c.req.query("category") || "miners") as LeaderboardCategory;
+  const period = (c.req.query("period") || "alltime") as LeaderboardPeriod;
+  const limit = Math.min(parseInt(c.req.query("limit") || "100"), 500);
+  const offset = parseInt(c.req.query("offset") || "0");
+
+  // Validate category and period
+  if (!["miners", "babies", "earners"].includes(category)) {
+    return c.json<ApiResponse>(
+      { success: false, error: "Invalid category", timestamp: Date.now() },
+      400,
+    );
+  }
+
+  if (!["daily", "weekly", "alltime"].includes(period)) {
+    return c.json<ApiResponse>(
+      { success: false, error: "Invalid period", timestamp: Date.now() },
+      400,
+    );
+  }
+
+  try {
+    const redis = getRedis(c.env);
+
+    const [entries, totalEntries] = await Promise.all([
+      getLeaderboard(redis, category, period, limit, offset),
+      getLeaderboardCount(redis, category, period),
+    ]);
+
+    const response: LeaderboardResponse = {
+      category,
+      period,
+      entries,
+      totalEntries,
+      lastUpdated: Date.now(),
+    };
+
+    return c.json<ApiResponse<LeaderboardResponse>>({
+      success: true,
+      data: response,
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    console.error("[Leaderboard] Error:", error);
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Failed to fetch leaderboard",
+        timestamp: Date.now(),
+      },
+      500,
+    );
+  }
+});
+
+/**
+ * GET /api/leaderboard/rank/:address - Get user's rank
+ *
+ * Query params:
+ * - category: miners | babies | earners (default: miners)
+ * - period: daily | weekly | alltime (default: alltime)
+ */
+app.get("/api/leaderboard/rank/:address", async (c) => {
+  const address = c.req.param("address");
+  const category = (c.req.query("category") || "miners") as LeaderboardCategory;
+  const period = (c.req.query("period") || "alltime") as LeaderboardPeriod;
+
+  if (!address || !isValidBitcoinAddress(address)) {
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Invalid Bitcoin address",
+        timestamp: Date.now(),
+      },
+      400,
+    );
+  }
+
+  try {
+    const redis = getRedis(c.env);
+
+    const [rank, score] = await Promise.all([
+      getUserRank(redis, category, period, address),
+      getUserScore(redis, category, period, address),
+    ]);
+
+    const response: UserRankResponse = {
+      address,
+      category,
+      period,
+      rank,
+      score,
+    };
+
+    return c.json<ApiResponse<UserRankResponse>>({
+      success: true,
+      data: response,
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    console.error("[Leaderboard] Rank error:", error);
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Failed to fetch rank",
+        timestamp: Date.now(),
+      },
+      500,
+    );
+  }
+});
+
+/**
+ * POST /api/leaderboard/update - Update user score
+ *
+ * Body:
+ * - address: string (Bitcoin address)
+ * - category: miners | babies | earners
+ * - score: number
+ */
+app.post("/api/leaderboard/update", async (c) => {
+  try {
+    const body = await c.req.json<{
+      address: string;
+      category: LeaderboardCategory;
+      score: number;
+    }>();
+
+    if (!body.address || !isValidBitcoinAddress(body.address)) {
+      return c.json<ApiResponse>(
+        {
+          success: false,
+          error: "Invalid Bitcoin address",
+          timestamp: Date.now(),
+        },
+        400,
+      );
+    }
+
+    if (!["miners", "babies", "earners"].includes(body.category)) {
+      return c.json<ApiResponse>(
+        { success: false, error: "Invalid category", timestamp: Date.now() },
+        400,
+      );
+    }
+
+    if (typeof body.score !== "number" || body.score < 0) {
+      return c.json<ApiResponse>(
+        { success: false, error: "Invalid score", timestamp: Date.now() },
+        400,
+      );
+    }
+
+    const redis = getRedis(c.env);
+
+    // Update all periods (daily, weekly, alltime)
+    await updateAllPeriods(redis, body.category, body.address, body.score);
+
+    // Also update user stats
+    await updateUserStats(redis, {
+      address: body.address,
+      ...(body.category === "miners" && { totalHashes: body.score }),
+      ...(body.category === "earners" && { totalTokens: body.score }),
+      ...(body.category === "babies" && { babyLevel: body.score }),
+    });
+
+    return c.json<ApiResponse>({
+      success: true,
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    console.error("[Leaderboard] Update error:", error);
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Failed to update score",
+        timestamp: Date.now(),
+      },
+      500,
+    );
+  }
+});
+
+/**
+ * GET /api/leaderboard/stats/:address - Get user stats
+ */
+app.get("/api/leaderboard/stats/:address", async (c) => {
+  const address = c.req.param("address");
+
+  if (!address || !isValidBitcoinAddress(address)) {
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Invalid Bitcoin address",
+        timestamp: Date.now(),
+      },
+      400,
+    );
+  }
+
+  try {
+    const redis = getRedis(c.env);
+    const stats = await getUserStats(redis, address);
+
+    return c.json<ApiResponse>({
+      success: true,
+      data: stats,
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    console.error("[Leaderboard] Stats error:", error);
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Failed to fetch stats",
+        timestamp: Date.now(),
+      },
+      500,
+    );
+  }
+});
+
+// =============================================================================
 // SCHEDULED TASKS (Cron)
 // =============================================================================
 
@@ -427,6 +682,38 @@ async function handleScheduled(event: ScheduledEvent, env: Env): Promise<void> {
   console.log(
     `[Scheduled] Running at hour=${hour}, dayOfWeek=${dayOfWeek}, dayOfMonth=${dayOfMonth}`,
   );
+
+  // ==========================================================================
+  // LEADERBOARD RESET
+  // ==========================================================================
+
+  // Daily leaderboard reset - every day at midnight UTC
+  if (hour === 0) {
+    console.log("[Scheduled] Resetting daily leaderboard...");
+    try {
+      const redis = getRedis(env);
+      await resetDailyLeaderboard(redis);
+      console.log("[Scheduled] Daily leaderboard reset complete");
+    } catch (error) {
+      console.error("[Scheduled] Failed to reset daily leaderboard:", error);
+    }
+  }
+
+  // Weekly leaderboard reset - Sunday at midnight UTC
+  if (dayOfWeek === 0 && hour === 0) {
+    console.log("[Scheduled] Resetting weekly leaderboard...");
+    try {
+      const redis = getRedis(env);
+      await resetWeeklyLeaderboard(redis);
+      console.log("[Scheduled] Weekly leaderboard reset complete");
+    } catch (error) {
+      console.error("[Scheduled] Failed to reset weekly leaderboard:", error);
+    }
+  }
+
+  // ==========================================================================
+  // WITHDRAW POOL PROCESSING
+  // ==========================================================================
 
   // Weekly pool - Sunday at midnight
   if (dayOfWeek === 0 && hour === 0) {

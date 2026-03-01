@@ -18,3 +18,9 @@ export {
   type LeaderboardBadge as LeaderboardTableBadge,
   type LeaderboardCategory as LeaderboardTableCategory,
 } from "./LeaderboardTable";
+export {
+  LeaderboardWidget,
+  type LeaderboardWidgetEntry,
+  type LeaderboardWidgetProps,
+  type LeaderboardCategory,
+} from "./LeaderboardWidget";

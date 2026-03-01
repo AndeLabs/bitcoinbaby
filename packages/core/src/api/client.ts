@@ -15,6 +15,11 @@ import type {
   WithdrawRequest,
   WithdrawResponse,
   GameState,
+  LeaderboardCategory,
+  LeaderboardPeriod,
+  LeaderboardResponse,
+  UserRankResponse,
+  UserStats,
 } from "./types";
 
 // =============================================================================
@@ -218,6 +223,70 @@ export class BitcoinBabyClient {
     const wsProtocol = this.baseUrl.startsWith("https") ? "wss" : "ws";
     const host = this.baseUrl.replace(/^https?:\/\//, "");
     return `${wsProtocol}://${host}/api/game/${roomId}`;
+  }
+
+  // ===========================================================================
+  // LEADERBOARD API
+  // ===========================================================================
+
+  /**
+   * Get leaderboard entries
+   */
+  async getLeaderboard(
+    category: LeaderboardCategory = "miners",
+    period: LeaderboardPeriod = "alltime",
+    limit: number = 100,
+    offset: number = 0,
+  ): Promise<ApiResponse<LeaderboardResponse>> {
+    const params = new URLSearchParams({
+      category,
+      period,
+      limit: limit.toString(),
+      offset: offset.toString(),
+    });
+    const response = await fetch(`${this.baseUrl}/api/leaderboard?${params}`);
+    return response.json() as Promise<ApiResponse<LeaderboardResponse>>;
+  }
+
+  /**
+   * Get user's rank in leaderboard
+   */
+  async getUserRank(
+    address: string,
+    category: LeaderboardCategory = "miners",
+    period: LeaderboardPeriod = "alltime",
+  ): Promise<ApiResponse<UserRankResponse>> {
+    const params = new URLSearchParams({ category, period });
+    const response = await fetch(
+      `${this.baseUrl}/api/leaderboard/rank/${address}?${params}`,
+    );
+    return response.json() as Promise<ApiResponse<UserRankResponse>>;
+  }
+
+  /**
+   * Update user's score in leaderboard
+   */
+  async updateLeaderboard(
+    address: string,
+    category: LeaderboardCategory,
+    score: number,
+  ): Promise<ApiResponse<void>> {
+    const response = await fetch(`${this.baseUrl}/api/leaderboard/update`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address, category, score }),
+    });
+    return response.json() as Promise<ApiResponse<void>>;
+  }
+
+  /**
+   * Get user stats
+   */
+  async getUserStats(address: string): Promise<ApiResponse<UserStats | null>> {
+    const response = await fetch(
+      `${this.baseUrl}/api/leaderboard/stats/${address}`,
+    );
+    return response.json() as Promise<ApiResponse<UserStats | null>>;
   }
 }
 

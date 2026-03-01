@@ -1,46 +1,54 @@
 /**
  * useLeaderboard - Hook for leaderboard data
  *
- * Fetches/generates leaderboard entries, handles filtering by time period,
- * and sorting by category. Structured for easy backend integration.
+ * Fetches leaderboard entries from the Workers API.
+ * Supports filtering by category and time period with pagination.
  */
 
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import {
-  useLeaderboardStore,
-  formatScore,
-  truncateAddress,
-  type LeaderboardEntry,
-  type LeaderboardCategory,
-  type LeaderboardPeriod,
-} from "../stores/leaderboard-store";
+import { getApiClient } from "../api/client";
+import type {
+  LeaderboardCategory,
+  LeaderboardPeriod,
+  LeaderboardEntry as ApiLeaderboardEntry,
+} from "../api/types";
+
+// Re-export types for convenience
+export type { LeaderboardCategory, LeaderboardPeriod };
+
+/**
+ * Leaderboard entry with UI-specific fields
+ */
+export interface LeaderboardEntry {
+  rank: number;
+  address: string;
+  displayName?: string;
+  score: number;
+  badge?: LeaderboardBadge;
+  isCurrentUser: boolean;
+}
+
+export type LeaderboardBadge =
+  | "whale"
+  | "diamond"
+  | "gold"
+  | "silver"
+  | "bronze"
+  | "newbie"
+  | "veteran";
 
 export interface UseLeaderboardOptions {
-  /**
-   * Initial category to display
-   */
+  /** Initial category to display */
   initialCategory?: LeaderboardCategory;
-
-  /**
-   * Initial time period
-   */
+  /** Initial time period */
   initialPeriod?: LeaderboardPeriod;
-
-  /**
-   * Number of entries per page
-   */
+  /** Number of entries per page */
   pageSize?: number;
-
-  /**
-   * User's wallet address (for highlighting)
-   */
+  /** User's wallet address (for highlighting) */
   userAddress?: string;
-
-  /**
-   * Auto-refresh interval in ms (0 to disable)
-   */
+  /** Auto-refresh interval in ms (0 to disable) */
   refreshInterval?: number;
 }
 
@@ -48,7 +56,7 @@ export interface UseLeaderboardReturn {
   // Data
   entries: LeaderboardEntry[];
   totalEntries: number;
-  userRank: number;
+  userRank: number | null;
   userScore: number;
 
   // Filters
@@ -76,6 +84,52 @@ export interface UseLeaderboardReturn {
   truncateAddress: (address: string, chars?: number) => string;
 }
 
+/**
+ * Get badge based on rank
+ */
+function getBadgeForRank(rank: number): LeaderboardBadge | undefined {
+  if (rank <= 10) return "whale";
+  if (rank <= 50) return "diamond";
+  if (rank <= 100) return "gold";
+  if (rank <= 500) return "silver";
+  if (rank <= 1000) return "bronze";
+  return undefined;
+}
+
+/**
+ * Truncate address for display
+ */
+export function truncateAddress(address: string, chars: number = 6): string {
+  if (address.length <= chars * 2 + 3) return address;
+  return `${address.slice(0, chars)}...${address.slice(-chars)}`;
+}
+
+/**
+ * Format score for display
+ */
+export function formatScore(
+  score: number,
+  category: LeaderboardCategory,
+): string {
+  if (category === "babies") {
+    return `Lv.${score}`;
+  }
+
+  if (score >= 1e12) {
+    return `${(score / 1e12).toFixed(2)}T`;
+  }
+  if (score >= 1e9) {
+    return `${(score / 1e9).toFixed(2)}B`;
+  }
+  if (score >= 1e6) {
+    return `${(score / 1e6).toFixed(2)}M`;
+  }
+  if (score >= 1e3) {
+    return `${(score / 1e3).toFixed(2)}K`;
+  }
+  return score.toLocaleString();
+}
+
 export function useLeaderboard(
   options: UseLeaderboardOptions = {},
 ): UseLeaderboardReturn {
@@ -95,33 +149,72 @@ export function useLeaderboard(
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Store
-  const store = useLeaderboardStore();
+  // Data state
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [totalEntries, setTotalEntries] = useState(0);
+  const [userRank, setUserRank] = useState<number | null>(null);
+  const [userScore, setUserScore] = useState(0);
 
-  // Set user address in store
-  useEffect(() => {
-    if (userAddress) {
-      store.setUserAddress(userAddress);
-    }
-  }, [userAddress, store]);
+  // API client
+  const client = useMemo(() => getApiClient(), []);
+
+  // Transform API entries to UI entries
+  const transformEntries = useCallback(
+    (apiEntries: ApiLeaderboardEntry[]): LeaderboardEntry[] => {
+      return apiEntries.map((entry) => ({
+        rank: entry.rank,
+        address: entry.address,
+        score: entry.score,
+        badge: getBadgeForRank(entry.rank),
+        isCurrentUser: userAddress
+          ? entry.address.toLowerCase() === userAddress.toLowerCase()
+          : false,
+      }));
+    },
+    [userAddress],
+  );
 
   // Fetch leaderboard data
-  const fetchLeaderboard = useCallback(() => {
+  const fetchLeaderboard = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // In a real implementation, this would be an API call
-      // For now, we use the store's mock data generation
-      store.getLeaderboard(category, period, page, pageSize);
-      setIsLoading(false);
+      // Fetch leaderboard
+      const response = await client.getLeaderboard(
+        category,
+        period,
+        pageSize,
+        page * pageSize,
+      );
+
+      if (response.success && response.data) {
+        setEntries(transformEntries(response.data.entries));
+        setTotalEntries(response.data.totalEntries);
+      } else {
+        setError(response.error || "Failed to load leaderboard");
+      }
+
+      // Fetch user rank if address provided
+      if (userAddress) {
+        const rankResponse = await client.getUserRank(
+          userAddress,
+          category,
+          period,
+        );
+        if (rankResponse.success && rankResponse.data) {
+          setUserRank(rankResponse.data.rank);
+          setUserScore(rankResponse.data.score);
+        }
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to load leaderboard",
       );
+    } finally {
       setIsLoading(false);
     }
-  }, [category, period, page, pageSize, store]);
+  }, [client, category, period, page, pageSize, userAddress, transformEntries]);
 
   // Initial fetch and refresh on filter change
   useEffect(() => {
@@ -144,36 +237,8 @@ export function useLeaderboard(
     setPage(0);
   }, [category, period]);
 
-  // Get current entries
-  const entries = useMemo(() => {
-    return store.getLeaderboard(category, period, page, pageSize);
-  }, [store, category, period, page, pageSize]);
-
-  // Get total entries count (for pagination)
-  const totalEntries = entries.length; // Real data count
-
   // Calculate total pages
-  const totalPages = Math.ceil(totalEntries / pageSize);
-
-  // Get user's rank
-  const userRank = useMemo(() => {
-    return store.getUserRank(category, period);
-  }, [store, category, period]);
-
-  // Get user's score
-  const userScore = useMemo(() => {
-    const stats = store.userStats;
-    switch (category) {
-      case "miners":
-        return stats.totalHashes;
-      case "babies":
-        return stats.babyLevel;
-      case "earners":
-        return stats.tokensEarned;
-      default:
-        return 0;
-    }
-  }, [store.userStats, category]);
+  const totalPages = Math.max(1, Math.ceil(totalEntries / pageSize));
 
   // Navigation helpers
   const nextPage = useCallback(() => {

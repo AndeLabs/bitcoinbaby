@@ -31,6 +31,7 @@ import {
   markProofUsedGlobally,
   STREAK_RESET_MS,
 } from "../lib/proof-validation";
+import { getRedis, updateAllPeriods, updateUserStats } from "../lib/redis";
 
 // Minimum withdraw amount (from env)
 const DEFAULT_MIN_WITHDRAW = 100n;
@@ -388,6 +389,11 @@ export class VirtualBalanceDO extends DurableObject<Env> {
     this.updateBalance(balance);
 
     // =========================================================================
+    // Update leaderboard (non-blocking, don't fail if it errors)
+    // =========================================================================
+    this.updateLeaderboardAsync(this.address, balance.totalMined);
+
+    // =========================================================================
     // Response
     // =========================================================================
     const response: ApiResponse<{
@@ -603,5 +609,40 @@ export class VirtualBalanceDO extends DurableObject<Env> {
       timestamp: Date.now(),
     };
     return Response.json(response, { status });
+  }
+
+  /**
+   * Update leaderboard asynchronously (non-blocking)
+   * Called after crediting mining rewards
+   */
+  private updateLeaderboardAsync(address: string, totalMined: bigint): void {
+    // Use waitUntil to ensure the update completes even after response is sent
+    this.ctx.waitUntil(
+      (async () => {
+        try {
+          const redis = getRedis(this.env);
+
+          // Update miners category (total tokens mined)
+          // Using Number() is safe here since totalMined won't exceed safe integer range
+          // in practice (would require mining trillions of tokens)
+          const score = Number(totalMined);
+
+          await updateAllPeriods(redis, "miners", address, score);
+
+          // Also update "earners" category with same score
+          await updateAllPeriods(redis, "earners", address, score);
+
+          // Update user stats
+          await updateUserStats(redis, {
+            address,
+            totalHashes: score, // Using totalMined as proxy for total hashes
+            totalTokens: score,
+          });
+        } catch (error) {
+          // Log but don't fail - leaderboard is non-critical
+          console.error("[VirtualBalance] Leaderboard update failed:", error);
+        }
+      })(),
+    );
   }
 }

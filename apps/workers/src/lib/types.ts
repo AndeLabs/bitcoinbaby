@@ -23,6 +23,10 @@ export interface Env {
   POOL_PERIOD_DAYS: string;
   MAX_FEE_RATE_SAT_VB: string;
 
+  // Upstash Redis
+  UPSTASH_REDIS_REST_URL: string;
+  UPSTASH_REDIS_REST_TOKEN: string;
+
   // Secrets
   SCROLLS_API_KEY?: string;
   BATCH_WALLET_SEED?: string;
@@ -258,4 +262,49 @@ export interface CharmsOperation {
   amount: bigint;
   recipient?: string;
   proof?: string;
+}
+
+// =============================================================================
+// LEADERBOARD
+// =============================================================================
+
+export type LeaderboardCategory = "miners" | "babies" | "earners";
+export type LeaderboardPeriod = "daily" | "weekly" | "alltime";
+
+export interface LeaderboardEntry {
+  /** User's Bitcoin address */
+  address: string;
+  /** Score value */
+  score: number;
+  /** Rank position (1-based) */
+  rank: number;
+  /** Cosmic bonus multiplier (optional) */
+  cosmicBonus?: number;
+  /** Last active timestamp */
+  lastActive?: number;
+}
+
+export interface LeaderboardResponse {
+  category: LeaderboardCategory;
+  period: LeaderboardPeriod;
+  entries: LeaderboardEntry[];
+  totalEntries: number;
+  lastUpdated: number;
+}
+
+export interface UserRankResponse {
+  address: string;
+  category: LeaderboardCategory;
+  period: LeaderboardPeriod;
+  rank: number | null;
+  score: number;
+}
+
+export interface UserStats {
+  address: string;
+  totalHashes: number;
+  totalTokens: number;
+  babyLevel: number;
+  cosmicBonus: number;
+  lastActive: number;
 }

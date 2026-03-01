@@ -114,6 +114,46 @@ export interface GameState {
 }
 
 // =============================================================================
+// LEADERBOARD
+// =============================================================================
+
+export type LeaderboardCategory = "miners" | "babies" | "earners";
+export type LeaderboardPeriod = "daily" | "weekly" | "alltime";
+
+export interface LeaderboardEntry {
+  address: string;
+  score: number;
+  rank: number;
+  cosmicBonus?: number;
+  lastActive?: number;
+}
+
+export interface LeaderboardResponse {
+  category: LeaderboardCategory;
+  period: LeaderboardPeriod;
+  entries: LeaderboardEntry[];
+  totalEntries: number;
+  lastUpdated: number;
+}
+
+export interface UserRankResponse {
+  address: string;
+  category: LeaderboardCategory;
+  period: LeaderboardPeriod;
+  rank: number | null;
+  score: number;
+}
+
+export interface UserStats {
+  address: string;
+  totalHashes: number;
+  totalTokens: number;
+  babyLevel: number;
+  cosmicBonus: number;
+  lastActive: number;
+}
+
+// =============================================================================
 // WEBSOCKET MESSAGES
 // =============================================================================
 

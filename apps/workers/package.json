@@ -11,6 +11,7 @@
     "tail": "wrangler tail"
   },
   "dependencies": {
+    "@upstash/redis": "^1.36.3",
     "hono": "^4.0.0",
     "yjs": "^13.6.0"
   },
