@@ -20,6 +20,8 @@ import {
   markPermanentlyFailed,
   getQueueStats,
   cleanupSyncedShares,
+  needsNonceMigration,
+  migrateDecimalNoncesToHex,
   type QueuedShare,
   type QueueStats,
 } from "./share-queue";
@@ -119,6 +121,9 @@ class SyncManager {
   start(address: string): void {
     this.address = address;
 
+    // Run migration for old shares with decimal nonces (one-time fix)
+    this.runMigrationIfNeeded();
+
     // Start sync loop
     if (!this.syncTimer) {
       this.syncTimer = setInterval(() => {
@@ -141,6 +146,43 @@ class SyncManager {
 
     // Schedule cleanup of old synced shares
     this.scheduleCleanup();
+  }
+
+  /**
+   * Run one-time migration for old shares with decimal nonces
+   * This fixes shares created before the hex nonce fix (commit c774f7c)
+   */
+  private async runMigrationIfNeeded(): Promise<void> {
+    try {
+      const needs = await needsNonceMigration();
+      if (!needs) {
+        console.log("[SyncManager] No nonce migration needed");
+        return;
+      }
+
+      console.log("[SyncManager] Running decimal→hex nonce migration...");
+      const result = await migrateDecimalNoncesToHex();
+      console.log(
+        `[SyncManager] Migration complete: ${result.fixed} shares fixed`,
+      );
+
+      // Emit event so UI can show notification
+      this.emit({
+        type: "sync_complete",
+        timestamp: Date.now(),
+        data: {
+          synced: 0,
+          failed: 0,
+          pending: result.fixed,
+          reward: "0",
+        },
+      });
+
+      // Trigger sync immediately after migration
+      this.triggerSync();
+    } catch (error) {
+      console.error("[SyncManager] Migration failed:", error);
+    }
   }
 
   /**

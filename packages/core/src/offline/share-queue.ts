@@ -477,3 +477,134 @@ export async function exportQueue(): Promise<QueuedShare[]> {
   const database = getDB();
   return database.shares.toArray();
 }
+
+/**
+ * MIGRATION: Fix old shares with decimal nonces in blockData
+ *
+ * Before the hex nonce fix (commit c774f7c), WebGPU computed hashes with hex nonces
+ * but JavaScript stored decimal nonces in blockData. This caused server validation
+ * to fail because SHA256d(challenge:6827) ≠ SHA256d(challenge:1a9b).
+ *
+ * This migration converts decimal nonces to hex in pending shares so they can sync.
+ *
+ * @returns Number of shares fixed
+ */
+export async function migrateDecimalNoncesToHex(): Promise<{
+  fixed: number;
+  skipped: number;
+  errors: number;
+}> {
+  const database = getDB();
+  const result = { fixed: 0, skipped: 0, errors: 0 };
+
+  try {
+    // Get all pending shares that might need fixing
+    const pendingShares = await database.shares
+      .where("status")
+      .anyOf(["pending", "syncing", "failed"])
+      .toArray();
+
+    console.log(
+      `[ShareQueue Migration] Checking ${pendingShares.length} shares for decimal nonces`,
+    );
+
+    for (const share of pendingShares) {
+      try {
+        // Parse blockData to get the nonce
+        // Format: "challenge:nonce" or "address:timestamp:nonce"
+        const parts = share.blockData.split(":");
+        const nonceStr = parts[parts.length - 1];
+
+        // Check if nonce is already hex (contains a-f or starts with 0x)
+        const isAlreadyHex =
+          nonceStr.startsWith("0x") || /[a-fA-F]/.test(nonceStr);
+
+        if (isAlreadyHex) {
+          // Already hex, skip
+          result.skipped++;
+          continue;
+        }
+
+        // Convert decimal to hex
+        const decimalNonce = parseInt(nonceStr, 10);
+        if (isNaN(decimalNonce)) {
+          console.warn(
+            `[ShareQueue Migration] Invalid nonce in share ${share.id}: ${nonceStr}`,
+          );
+          result.errors++;
+          continue;
+        }
+
+        const hexNonce = decimalNonce.toString(16);
+
+        // Reconstruct blockData with hex nonce
+        parts[parts.length - 1] = hexNonce;
+        const fixedBlockData = parts.join(":");
+
+        // Update the share
+        await database.shares.update(share.id!, {
+          blockData: fixedBlockData,
+          // Reset attempts to give it fresh tries
+          attempts: 0,
+          nextRetry: null,
+          error: null,
+          // If it was failed, put it back to pending
+          status: "pending",
+        });
+
+        result.fixed++;
+
+        // Log progress every 1000 shares
+        if (result.fixed % 1000 === 0) {
+          console.log(
+            `[ShareQueue Migration] Progress: ${result.fixed} shares fixed`,
+          );
+        }
+      } catch (error) {
+        console.error(
+          `[ShareQueue Migration] Error fixing share ${share.id}:`,
+          error,
+        );
+        result.errors++;
+      }
+    }
+
+    console.log(
+      `[ShareQueue Migration] Complete: ${result.fixed} fixed, ${result.skipped} skipped, ${result.errors} errors`,
+    );
+
+    return result;
+  } catch (error) {
+    console.error("[ShareQueue Migration] Failed:", error);
+    throw error;
+  }
+}
+
+/**
+ * Check if migration is needed (any pending shares with decimal nonces)
+ */
+export async function needsNonceMigration(): Promise<boolean> {
+  const database = getDB();
+
+  // Sample first 100 pending shares
+  const sample = await database.shares
+    .where("status")
+    .anyOf(["pending", "syncing", "failed"])
+    .limit(100)
+    .toArray();
+
+  for (const share of sample) {
+    const parts = share.blockData.split(":");
+    const nonceStr = parts[parts.length - 1];
+
+    // If nonce is purely decimal (no hex chars), needs migration
+    const isDecimal = /^\d+$/.test(nonceStr) && !nonceStr.startsWith("0x");
+    const hasHexChars = /[a-fA-F]/.test(nonceStr);
+
+    if (isDecimal && !hasHexChars) {
+      return true;
+    }
+  }
+
+  return false;
+}

@@ -19,6 +19,8 @@ export {
   isHashQueued,
   clearQueue,
   exportQueue,
+  migrateDecimalNoncesToHex,
+  needsNonceMigration,
   type QueuedShare,
   type QueueStats,
 } from "./share-queue";
