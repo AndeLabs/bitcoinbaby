@@ -76,16 +76,18 @@ const TECH_STACK: TechCard[] = [
   {
     id: "pouw",
     title: "Proof of Useful Work",
-    subtitle: "Mineria con Proposito",
-    icon: "⛏️",
+    subtitle: "Your Energy Trains AI",
+    icon: "🧠",
     description:
-      "A diferencia del Proof of Work tradicional, BitcoinBaby usa PoUW donde cada hash contribuye a tareas utiles como entrenamiento de modelos de IA.",
+      "Mining energy is NOT wasted on meaningless algorithms. BitcoinBaby is building a system where every hash contributes to training collective artificial intelligence. Your computing power has PURPOSE.",
     features: [
-      "Hashes SHA-256 con trabajo util",
-      "Contribucion a IA colectiva",
-      "Recompensas en $BABTC tokens",
-      "Verificacion via Merkle proofs",
+      "Mining that trains AI models",
+      "Every hash contributes to collective model",
+      "Cryptographic verification of work",
+      "Fair rewards for real contribution",
+      "System scalable to millions of users",
     ],
+    link: { label: "AI Roadmap", url: "#ai-roadmap" },
     highlight: true,
   },
   {
@@ -233,7 +235,42 @@ export default function TechnologyPage() {
           </div>
         </header>
 
-        {/* Hero Banner */}
+        {/* AI Hero Banner */}
+        <div className="mb-8 p-8 bg-gradient-to-r from-purple-900/30 to-blue-900/30 border-4 border-purple-500 shadow-[8px_8px_0_0_#000]">
+          <div className="text-center">
+            <div className="text-5xl mb-4">🧠</div>
+            <h2 className="font-pixel text-lg text-purple-400 mb-4">
+              MINING THAT TRAINS ARTIFICIAL INTELLIGENCE
+            </h2>
+            <p className="font-pixel-body text-sm text-pixel-text max-w-2xl mx-auto mb-4">
+              BitcoinBaby does not waste energy on meaningless algorithms. We
+              are building a system where{" "}
+              <span className="text-purple-400 font-semibold">
+                your computing power trains a collective AI
+              </span>
+              . Every hash has purpose.
+            </p>
+            <div className="flex justify-center gap-4 mb-4">
+              <div className="px-4 py-2 bg-pixel-bg-dark border-2 border-purple-500/50 rounded">
+                <p className="font-pixel text-[8px] text-purple-400">PHASE 1</p>
+                <p className="font-pixel-body text-xs text-pixel-text">
+                  Traditional Mining
+                </p>
+              </div>
+              <div className="font-pixel text-pixel-text-muted self-center">
+                →
+              </div>
+              <div className="px-4 py-2 bg-purple-500/20 border-2 border-purple-500 rounded">
+                <p className="font-pixel text-[8px] text-purple-400">PHASE 2</p>
+                <p className="font-pixel-body text-xs text-pixel-text">
+                  AI Training
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bitcoin Native Banner */}
         <div className="mb-12 p-8 bg-gradient-to-r from-pixel-primary/20 to-pixel-secondary/20 border-4 border-pixel-primary shadow-[8px_8px_0_0_#000]">
           <div className="text-center">
             <h2 className="font-pixel text-lg text-pixel-primary mb-4">

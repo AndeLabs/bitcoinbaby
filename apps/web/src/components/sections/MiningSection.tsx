@@ -20,12 +20,14 @@ import {
   NFTBoostPanel,
   AnimatedTokenCounter,
   HelpTooltip,
+  EngagementBonusPanel,
 } from "@bitcoinbaby/ui";
 import {
   useWalletStore,
   useNFTStore,
   formatHashrate,
   MIN_DIFFICULTY,
+  useEngagement,
 } from "@bitcoinbaby/core";
 
 // Throttle hook for smoother updates
@@ -109,6 +111,10 @@ export function MiningSection() {
     ? lastSubmission.credited
     : undefined;
 
+  // Engagement tracking for bonus multipliers
+  const { multiplier: engagementResult, state: engagementState } =
+    useEngagement();
+
   // Throttle rapidly changing values for smoother UX (prevents scroll issues)
   const displayHashrate = useThrottledValue(hashrate, 500);
   const displayEffectiveHashrate = useThrottledValue(effectiveHashrate, 500);
@@ -140,11 +146,34 @@ export function MiningSection() {
     <div className="p-4 md:p-8 bg-pixel-bg-dark">
       <div className="max-w-4xl mx-auto">
         {/* Section Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <h2 className="font-pixel text-xl text-pixel-primary">MINING</h2>
           <p className="font-pixel-body text-sm text-pixel-text-muted mt-1">
-            Earn $BABY tokens with Proof of Work
+            Earn $BABY tokens with Proof of Useful Work
           </p>
+        </div>
+
+        {/* PoUW Info Banner */}
+        <div className="mb-6 p-4 bg-gradient-to-r from-pixel-primary/10 to-pixel-secondary/10 border-4 border-pixel-primary/50">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">🧠</span>
+            <div>
+              <h3 className="font-pixel text-[10px] text-pixel-primary uppercase mb-1">
+                Proof of Useful Work
+              </h3>
+              <p className="font-pixel-body text-xs text-pixel-text leading-relaxed">
+                Your computing power is not wasted on meaningless algorithms. We
+                are building a system where mining energy{" "}
+                <span className="text-pixel-secondary font-semibold">
+                  trains artificial intelligence
+                </span>
+                . Every hash contributes to a collective AI model.
+              </p>
+              <p className="font-pixel text-[8px] text-pixel-text-muted mt-2">
+                Current phase: Traditional mining | Next phase: AI Training
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Connection Warning */}
@@ -433,6 +462,18 @@ export function MiningSection() {
             totalNFTs={totalNFTs}
             boostMultiplier={boostMultiplier}
             variant="panel"
+          />
+        </div>
+
+        {/* Engagement Bonus Panel */}
+        <div className="mb-6">
+          <EngagementBonusPanel
+            multiplier={engagementResult.multiplier}
+            breakdown={engagementResult.breakdown}
+            status={engagementResult.status}
+            streakDays={engagementState.dailyStreak}
+            playTimeMinutes={engagementState.playTimeToday}
+            babyHealth={engagementState.babyHealthScore}
           />
         </div>
 

@@ -29,9 +29,9 @@ interface MenuItem {
 const MENU_ITEMS: MenuItem[] = [
   {
     id: "technology",
-    label: "Technology",
-    description: "Charms, Scrolls, Ordinals - Our Bitcoin stack",
-    icon: "✨",
+    label: "AI & Technology",
+    description: "Proof of Useful Work - Mining that trains AI",
+    icon: "🧠",
     href: "/technology",
     highlight: true,
   },

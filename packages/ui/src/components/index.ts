@@ -41,11 +41,13 @@ export {
   NFTBoostBadge,
   AnimatedTokenCounter,
   TokenCounterBadge,
+  EngagementBonusPanel,
   type MiningStatusBadgeProps,
   type MiningStatsGridProps,
   type MiningStats,
   type MiningControlButtonProps,
   type NFTBoostPanelProps,
+  type EngagementBonusPanelProps,
 } from "./mining";
 
 // NFT Components

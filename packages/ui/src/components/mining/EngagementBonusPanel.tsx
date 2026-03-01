@@ -45,7 +45,7 @@ export interface EngagementBonusPanelProps {
 
 const TIER_STYLES = {
   inactive: {
-    label: "Inactivo",
+    label: "Inactive",
     color: "text-pixel-text-muted",
     bgColor: "bg-pixel-bg-dark/50",
     borderColor: "border-pixel-border",
@@ -57,13 +57,13 @@ const TIER_STYLES = {
     borderColor: "border-pixel-secondary/50",
   },
   engaged: {
-    label: "Activo",
+    label: "Engaged",
     color: "text-pixel-success",
     bgColor: "bg-pixel-success/10",
     borderColor: "border-pixel-success/50",
   },
   dedicated: {
-    label: "Dedicado",
+    label: "Dedicated",
     color: "text-pixel-primary",
     bgColor: "bg-pixel-primary/10",
     borderColor: "border-pixel-primary/50",
@@ -113,7 +113,7 @@ export function EngagementBonusPanel({
           {multiplier.toFixed(2)}x
         </div>
         <div className="font-pixel text-[8px] text-pixel-text-muted">
-          +{bonusPercent}% en recompensas
+          +{bonusPercent}% bonus rewards
         </div>
       </div>
 
@@ -125,32 +125,32 @@ export function EngagementBonusPanel({
           label="Baby Care"
           value={breakdown.babyCare}
           maxValue={0.5}
-          detail={`${Math.round(babyHealth)}% salud`}
-          tip={babyHealth < 70 ? "Cuida tu baby para +50%" : undefined}
+          detail={`${Math.round(babyHealth)}% health`}
+          tip={babyHealth < 70 ? "Care for your baby for +50%" : undefined}
         />
 
         {/* Daily Streak */}
         <BonusRow
           icon="🔥"
-          label="Racha Diaria"
+          label="Daily Streak"
           value={breakdown.dailyStreak}
           maxValue={0.3}
-          detail={`${streakDays} días`}
+          detail={`${streakDays} days`}
           tip={
-            streakDays < 7 ? `${7 - streakDays} días más para max` : undefined
+            streakDays < 7 ? `${7 - streakDays} more days for max` : undefined
           }
         />
 
         {/* Play Time */}
         <BonusRow
           icon="⏱️"
-          label="Tiempo Jugado"
+          label="Play Time"
           value={breakdown.playTime}
           maxValue={0.2}
-          detail={`${playTimeMinutes} min hoy`}
+          detail={`${playTimeMinutes} min today`}
           tip={
             playTimeMinutes < 30
-              ? `${30 - playTimeMinutes} min más para max`
+              ? `${30 - playTimeMinutes} more min for max`
               : undefined
           }
         />
@@ -160,7 +160,7 @@ export function EngagementBonusPanel({
       {status === "inactive" && (
         <div className="mt-3 p-2 bg-pixel-warning/10 border border-pixel-warning/30 rounded">
           <p className="font-pixel text-[6px] text-pixel-warning text-center">
-            Cuida tu baby y juega diario para ganar hasta 2x más!
+            Care for your baby and play daily to earn up to 2x more!
           </p>
         </div>
       )}
@@ -168,7 +168,7 @@ export function EngagementBonusPanel({
       {status === "dedicated" && (
         <div className="mt-3 p-2 bg-pixel-primary/10 border border-pixel-primary/30 rounded">
           <p className="font-pixel text-[6px] text-pixel-primary text-center">
-            Bonus máximo activo! Sigue así!
+            Maximum bonus active! Keep it up!
           </p>
         </div>
       )}

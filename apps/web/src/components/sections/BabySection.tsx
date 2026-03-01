@@ -88,15 +88,29 @@ function CreateBabyForm({
               </p>
             </div>
 
+            {/* PoUW Banner */}
+            <div className="p-3 bg-gradient-to-r from-pixel-primary/20 to-pixel-secondary/20 border-2 border-pixel-primary/50 rounded">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-lg">🧠</span>
+                <p className="font-pixel text-[9px] text-pixel-primary">
+                  PROOF OF USEFUL WORK
+                </p>
+              </div>
+              <p className="font-pixel-body text-[11px] text-pixel-text">
+                Your mining trains artificial intelligence. Energy is not wasted
+                on meaningless algorithms.
+              </p>
+            </div>
+
             <div className="space-y-4">
               <div className="flex items-start gap-3 p-3 bg-pixel-bg-light border-2 border-pixel-border">
                 <span className="text-2xl">⛏️</span>
                 <div>
                   <p className="font-pixel text-[10px] text-pixel-primary">
-                    MINE
+                    MINE & TRAIN AI
                   </p>
                   <p className="font-pixel-body text-xs text-pixel-text-muted">
-                    Earn XP and $BABY tokens by mining
+                    Earn $BABY while contributing to AI training
                   </p>
                 </div>
               </div>
@@ -105,10 +119,10 @@ function CreateBabyForm({
                 <span className="text-2xl">🍼</span>
                 <div>
                   <p className="font-pixel text-[10px] text-pixel-primary">
-                    CARE
+                    CARE & EARN MORE
                   </p>
                   <p className="font-pixel-body text-xs text-pixel-text-muted">
-                    Feed, play, and keep your baby happy
+                    Baby care gives you bonus rewards (+50%)
                   </p>
                 </div>
               </div>
@@ -120,7 +134,7 @@ function CreateBabyForm({
                     EVOLVE
                   </p>
                   <p className="font-pixel-body text-xs text-pixel-text-muted">
-                    Level up and unlock new abilities
+                    Level up through 21 evolution stages
                   </p>
                 </div>
               </div>
