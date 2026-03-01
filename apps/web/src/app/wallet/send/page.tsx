@@ -14,7 +14,7 @@
 
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useWallet, useBalance } from "@/hooks";
+import { useWalletConnection, useBalance } from "@/hooks";
 import { useNetworkStore } from "@bitcoinbaby/core";
 import {
   TransactionBuilder,
@@ -55,12 +55,15 @@ export default function SendPage() {
   // Network and wallet hooks
   const { network, config } = useNetworkStore();
   const {
-    wallet,
+    address,
+    publicKey,
     isLocked,
-    hasStoredWallet,
     isLoading: walletLoading,
-    getPrivateKeyForSigning,
-  } = useWallet();
+    withPrivateKey,
+  } = useWalletConnection();
+
+  // Check if wallet exists (address is set when wallet is unlocked)
+  const hasStoredWallet = Boolean(address || isLocked);
 
   // Balance hook
   const {
@@ -70,7 +73,7 @@ export default function SendPage() {
     isLoading: balanceLoading,
     refresh: refreshBalance,
   } = useBalance({
-    address: wallet?.address,
+    address: address ?? undefined,
     network,
     autoRefresh: !isLocked,
     refreshInterval: 30000,
@@ -167,8 +170,9 @@ export default function SendPage() {
   }, []);
 
   // Send transaction
+  // SECURITY: Uses withPrivateKey which automatically zeros key after use
   const handleSend = useCallback(async () => {
-    if (!wallet || !utxos || isLocked) {
+    if (!address || !utxos || isLocked) {
       setTxResult({ success: false, error: "Wallet not available" });
       setStep("result");
       return;
@@ -177,16 +181,10 @@ export default function SendPage() {
     setIsProcessing(true);
 
     try {
-      // Get private key for signing
-      const privateKey = getPrivateKeyForSigning();
-      if (!privateKey) {
-        throw new Error("Failed to get private key");
-      }
-
       // Convert UTXOs to TxUTXO format
       const txUtxos: TxUTXO[] = TransactionBuilder.convertUTXOs(
         utxos,
-        wallet.address,
+        address,
         network,
       );
 
@@ -205,7 +203,7 @@ export default function SendPage() {
         selection.inputs,
         sendState.recipient,
         sendState.amountSatoshis,
-        wallet.address, // change back to sender
+        address, // change back to sender
       );
 
       // Build PSBT
@@ -222,8 +220,8 @@ export default function SendPage() {
         });
       }
 
-      // Sign PSBT - wrap in try/finally to guarantee key cleanup
-      try {
+      // Sign PSBT using unified withPrivateKey (key zeroed automatically)
+      const result = await withPrivateKey(async (privateKey) => {
         builder.signPSBT(psbt, privateKey);
 
         // Finalize and extract transaction
@@ -233,17 +231,20 @@ export default function SendPage() {
         const mempoolClient = createMempoolClient({ network });
         const txid = await mempoolClient.broadcastTransaction(signedTx.hex);
 
+        return { txid };
+      });
+
+      if (result?.txid) {
         // Success
         setTxResult({
           success: true,
-          txid: txid,
+          txid: result.txid,
         });
 
         // Refresh balance after broadcast
         setTimeout(() => refreshBalance(), 3000);
-      } finally {
-        // CRITICAL: Always clear private key from memory
-        privateKey.fill(0);
+      } else {
+        throw new Error("Failed to sign or broadcast transaction");
       }
     } catch (error) {
       console.error("Transaction failed:", error);
@@ -256,12 +257,12 @@ export default function SendPage() {
       setStep("result");
     }
   }, [
-    wallet,
+    address,
     utxos,
     isLocked,
     network,
     sendState,
-    getPrivateKeyForSigning,
+    withPrivateKey,
     refreshBalance,
   ]);
 
@@ -442,7 +443,7 @@ export default function SendPage() {
         )}
 
         {/* Review Step */}
-        {step === "review" && wallet && (
+        {step === "review" && address && (
           <div className="bg-pixel-bg-medium border-4 border-pixel-border p-6 shadow-[8px_8px_0_0_#000]">
             <TransactionReview
               recipient={sendState.recipient}
@@ -450,7 +451,7 @@ export default function SendPage() {
               feeLevel={sendState.feeLevel}
               feeRate={sendState.feeRate}
               feeSatoshis={estimatedFee}
-              senderAddress={wallet.address}
+              senderAddress={address}
               network={network}
               onConfirm={handleSend}
               onBack={handleBack}

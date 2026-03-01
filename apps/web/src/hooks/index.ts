@@ -37,6 +37,12 @@ export {
   type UseWalletReturn,
 } from "./useWallet";
 export {
+  useWalletConnection,
+  type WalletConnectionState,
+  type WalletConnectionActions,
+  type UseWalletConnectionReturn,
+} from "./useWalletConnection";
+export {
   useMiningSubmitter,
   type MiningSubmitterState,
   type MiningSubmitterActions,

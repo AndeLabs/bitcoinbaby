@@ -23,7 +23,7 @@ import {
   type MiningProof,
 } from "@bitcoinbaby/bitcoin";
 import { useNetworkStore, type NetworkConfig } from "@bitcoinbaby/core";
-import { useWallet } from "./useWallet";
+import { useWalletConnection } from "./useWalletConnection";
 
 /**
  * Mining submitter state
@@ -138,7 +138,8 @@ export function useMiningSubmitter(
 
   // Dependencies
   const { config } = useNetworkStore();
-  const { wallet, isLocked, getPrivateKeyForSigning } = useWallet();
+  const { address, publicKey, isLocked, withPrivateKey } =
+    useWalletConnection();
 
   // Submitter instance
   const submitterRef = useRef<MiningSubmitter | null>(null);
@@ -163,7 +164,7 @@ export function useMiningSubmitter(
    * Initialize submitter when wallet/network changes
    */
   useEffect(() => {
-    if (!wallet?.address || !wallet?.publicKey) {
+    if (!address || !publicKey) {
       setState((prev) => ({
         ...prev,
         isReady: false,
@@ -177,8 +178,8 @@ export function useMiningSubmitter(
     const submitter = createMiningSubmitter({
       network: getScrollsNetwork(config),
       tokenTicker,
-      minerAddress: wallet.address,
-      minerPublicKey: wallet.publicKey, // Required for Taproot PSBT construction
+      minerAddress: address,
+      minerPublicKey: publicKey, // Required for Taproot PSBT construction
     });
 
     submitterRef.current = submitter;
@@ -193,7 +194,7 @@ export function useMiningSubmitter(
     return () => {
       submitterRef.current = null;
     };
-  }, [wallet?.address, wallet?.publicKey, config, tokenTicker]);
+  }, [address, publicKey, config, tokenTicker]);
 
   // SECURITY: Private key is now obtained fresh for each signing operation
   // and zeroed immediately after use in finally blocks
@@ -279,67 +280,59 @@ export function useMiningSubmitter(
         const result = await submitterRef.current.submitProof(proof);
 
         // If we got a PSBT back, sign and broadcast it now
-        // SECURITY: Private key obtained fresh and zeroed in finally block
+        // SECURITY: Uses withPrivateKey which automatically zeros key after use
         if (result.success && result.psbt && !result.txid && !isLocked) {
-          const privateKey = getPrivateKeyForSigning();
-          if (privateKey) {
-            try {
-              const broadcastResult =
-                await submitterRef.current.signAndBroadcast(
-                  result.psbt,
-                  privateKey,
-                );
+          const broadcastResult = await withPrivateKey(async (privateKey) => {
+            return submitterRef.current!.signAndBroadcast(
+              result.psbt!,
+              privateKey,
+            );
+          });
 
-              if (broadcastResult.success && broadcastResult.txid) {
-                // Update the submission with txid
-                if (result.submission) {
-                  result.submission.txid = broadcastResult.txid;
-                  result.submission.status = "confirmed";
-                  result.submission.confirmedAt = Date.now();
-                }
-
-                // Refresh to get updated state
-                await refresh();
-
-                // Return updated result
-                setState((prev) => ({
-                  ...prev,
-                  pendingSubmissions:
-                    submitterRef.current?.getPendingSubmissions() ?? [],
-                  pendingRewards:
-                    submitterRef.current?.getTotalPendingRewards() ?? BigInt(0),
-                  confirmedRewards:
-                    submitterRef.current?.getTotalConfirmedRewards() ??
-                    BigInt(0),
-                  isSubmitting: false,
-                  error: null,
-                }));
-
-                return {
-                  ...result,
-                  txid: broadcastResult.txid,
-                };
-              } else {
-                // Broadcast failed
-                console.error(
-                  "[MiningSubmitter] Broadcast failed:",
-                  broadcastResult.error,
-                );
-                setState((prev) => ({
-                  ...prev,
-                  isSubmitting: false,
-                  error: broadcastResult.error ?? "Broadcast failed",
-                }));
-                return {
-                  ...result,
-                  success: false,
-                  error: broadcastResult.error,
-                };
-              }
-            } finally {
-              // Clear private key from memory
-              privateKey.fill(0);
+          if (broadcastResult?.success && broadcastResult.txid) {
+            // Update the submission with txid
+            if (result.submission) {
+              result.submission.txid = broadcastResult.txid;
+              result.submission.status = "confirmed";
+              result.submission.confirmedAt = Date.now();
             }
+
+            // Refresh to get updated state
+            await refresh();
+
+            // Return updated result
+            setState((prev) => ({
+              ...prev,
+              pendingSubmissions:
+                submitterRef.current?.getPendingSubmissions() ?? [],
+              pendingRewards:
+                submitterRef.current?.getTotalPendingRewards() ?? BigInt(0),
+              confirmedRewards:
+                submitterRef.current?.getTotalConfirmedRewards() ?? BigInt(0),
+              isSubmitting: false,
+              error: null,
+            }));
+
+            return {
+              ...result,
+              txid: broadcastResult.txid,
+            };
+          } else if (broadcastResult) {
+            // Broadcast failed
+            console.error(
+              "[MiningSubmitter] Broadcast failed:",
+              broadcastResult.error,
+            );
+            setState((prev) => ({
+              ...prev,
+              isSubmitting: false,
+              error: broadcastResult.error ?? "Broadcast failed",
+            }));
+            return {
+              ...result,
+              success: false,
+              error: broadcastResult.error,
+            };
           }
         }
 
@@ -368,11 +361,12 @@ export function useMiningSubmitter(
         throw error;
       }
     },
-    [state.canMine, isLocked, getPrivateKeyForSigning, refresh],
+    [state.canMine, isLocked, withPrivateKey, refresh],
   );
 
   /**
    * Sign and broadcast a pending PSBT
+   * SECURITY: Uses withPrivateKey which automatically zeros key after use
    */
   const signAndBroadcast = useCallback(
     async (
@@ -386,29 +380,22 @@ export function useMiningSubmitter(
         return { success: false, error: "Wallet is locked" };
       }
 
-      const privateKey = getPrivateKeyForSigning();
-      if (!privateKey) {
+      const result = await withPrivateKey(async (privateKey) => {
+        return submitterRef.current!.signAndBroadcast(psbtBase64, privateKey);
+      });
+
+      if (!result) {
         return { success: false, error: "Could not get private key" };
       }
 
-      try {
-        const result = await submitterRef.current.signAndBroadcast(
-          psbtBase64,
-          privateKey,
-        );
-
-        // Refresh after broadcast
-        if (result.success) {
-          await refresh();
-        }
-
-        return result;
-      } finally {
-        // Clear private key from memory
-        privateKey.fill(0);
+      // Refresh after broadcast
+      if (result.success) {
+        await refresh();
       }
+
+      return result;
     },
-    [isLocked, getPrivateKeyForSigning, refresh],
+    [isLocked, withPrivateKey, refresh],
   );
 
   /**

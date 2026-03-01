@@ -12,7 +12,7 @@ import { PixelCard, PixelButton } from "@bitcoinbaby/ui";
 import type { PoolType, WithdrawRequest } from "@bitcoinbaby/core";
 import { useVirtualBalance } from "../../hooks/useVirtualBalance";
 import { useWithdrawPool, formatPoolType } from "../../hooks/useWithdrawPool";
-import { useWallet } from "../../hooks/useWallet";
+import { useWalletConnection } from "../../hooks/useWalletConnection";
 import { WithdrawPoolCard } from "./WithdrawPoolCard";
 
 /**
@@ -52,7 +52,7 @@ function StatusBadge({ status }: { status: WithdrawRequest["status"] }) {
 }
 
 export function WithdrawSection() {
-  const { wallet } = useWallet();
+  const { address } = useWalletConnection();
   const [destinationAddress, setDestinationAddress] = useState("");
   const [activeTab, setActiveTab] = useState<"pools" | "requests">("pools");
 
@@ -68,7 +68,7 @@ export function WithdrawSection() {
     isLoading: balanceLoading,
     error: balanceError,
     refresh: refreshBalance,
-  } = useVirtualBalance({ address: wallet?.address });
+  } = useVirtualBalance({ address: address ?? undefined });
 
   // Withdrawal pools
   const {
@@ -79,14 +79,14 @@ export function WithdrawSection() {
     createWithdrawRequest,
     cancelRequest,
     refresh: refreshPools,
-  } = useWithdrawPool({ address: wallet?.address });
+  } = useWithdrawPool({ address: address ?? undefined });
 
   // Handle withdrawal
   const handleWithdraw = async (
     poolType: PoolType,
     amount: bigint,
   ): Promise<{ success: boolean; error?: string }> => {
-    const toAddress = destinationAddress || wallet?.address;
+    const toAddress = destinationAddress || address;
 
     if (!toAddress) {
       return { success: false, error: "No destination address" };
@@ -116,7 +116,7 @@ export function WithdrawSection() {
     await Promise.all([refreshBalance(), refreshPools()]);
   };
 
-  if (!wallet?.address) {
+  if (!address) {
     return (
       <PixelCard>
         <div className="p-6 text-center">
@@ -220,7 +220,7 @@ export function WithdrawSection() {
             type="text"
             value={destinationAddress}
             onChange={(e) => setDestinationAddress(e.target.value)}
-            placeholder={wallet.address}
+            placeholder={address ?? ""}
             className="w-full px-3 py-2 bg-pixel-bg-dark border border-pixel-primary/30 rounded font-mono text-sm focus:border-pixel-primary outline-none"
           />
           <p className="text-xs text-gray-400 mt-1">
