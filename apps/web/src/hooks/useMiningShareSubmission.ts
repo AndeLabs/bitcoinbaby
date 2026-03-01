@@ -57,9 +57,11 @@ export interface UseMiningShareSubmissionOptions {
 }
 
 export interface UseMiningShareSubmissionReturn {
+  /** Number of shares found this session (from miner) */
+  sessionShares: number;
   /** Number of shares pending submission */
   pendingShares: number;
-  /** Total shares submitted this session */
+  /** Total shares submitted (synced to API) */
   submittedShares: number;
   /** Whether currently submitting */
   isSubmitting: boolean;
@@ -121,19 +123,28 @@ export function useMiningShareSubmission(
 
   // Initialize SyncManager and load persisted queue stats
   useEffect(() => {
-    if (!address) return;
+    if (!address) {
+      console.debug("[ShareSubmission] No address available, waiting...");
+      return;
+    }
 
+    console.debug(
+      "[ShareSubmission] Starting SyncManager for:",
+      address.slice(0, 12),
+    );
     const syncManager = syncManagerRef.current;
     syncManager.start(address);
 
     // Load initial stats from IndexedDB
     getQueueStats(address).then((stats) => {
+      console.debug("[ShareSubmission] Queue stats:", stats);
       setPendingShares(stats.pending + stats.syncing);
       setSubmittedShares(stats.synced);
     });
 
     // Subscribe to sync events
     const unsubscribe = syncManager.subscribe((event: SyncEvent) => {
+      console.debug("[ShareSubmission] Sync event:", event.type, event.data);
       switch (event.type) {
         case "sync_start":
           setIsSubmitting(true);
@@ -152,7 +163,17 @@ export function useMiningShareSubmission(
           }
           break;
         case "sync_error":
+          console.error("[ShareSubmission] Sync error:", event.data?.error);
           setIsSubmitting(false);
+          break;
+        case "health_fail":
+          console.warn(
+            "[ShareSubmission] API health check failed:",
+            event.data?.error,
+          );
+          break;
+        case "health_ok":
+          console.debug("[ShareSubmission] API health restored");
           break;
       }
     });
@@ -286,6 +307,7 @@ export function useMiningShareSubmission(
   }, []);
 
   return {
+    sessionShares: mining.shares, // Shares found this session (from miner)
     pendingShares,
     submittedShares,
     isSubmitting,

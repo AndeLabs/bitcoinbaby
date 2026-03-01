@@ -97,7 +97,9 @@ export function MiningSection() {
 
   // Unified share submission (auto-submits shares)
   const {
+    sessionShares,
     submittedShares,
+    pendingShares,
     isSubmitting,
     notifications,
     canSubmitToBlockchain,
@@ -295,16 +297,20 @@ export function MiningSection() {
                   Session Shares
                 </span>
                 <HelpTooltip
-                  content="Valid mining proofs submitted this session. Each share earns you $BABY tokens based on difficulty."
+                  content="Valid mining proofs found this session. Each share earns you $BABY tokens based on difficulty."
                   title="Mining Shares"
                   size="sm"
                 />
               </div>
               <div className="font-pixel text-lg text-pixel-secondary">
-                {submittedShares}
+                {sessionShares}
               </div>
               <div className="font-pixel text-[8px] text-pixel-text-muted">
-                {isSubmitting ? "Submitting..." : "Submitted this session"}
+                {isSubmitting
+                  ? "Syncing..."
+                  : pendingShares > 0
+                    ? `${pendingShares} pending sync`
+                    : `${submittedShares} synced`}
               </div>
             </div>
 
