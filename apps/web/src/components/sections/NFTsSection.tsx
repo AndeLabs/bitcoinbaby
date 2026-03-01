@@ -23,12 +23,13 @@ import {
   type TransactionDetails,
 } from "@bitcoinbaby/ui";
 import {
-  useNFTStore,
   useWalletStore,
   useNFTSale,
   usePendingTxStore,
+  useNFTStore,
 } from "@bitcoinbaby/core";
 import { useMintNFT } from "@/hooks/useMintNFT";
+import { useNFTSync, useInvalidateNFTs } from "@/hooks/useNFTSync";
 
 type SubTab = "collection" | "mint";
 type MintState = "info" | "confirming" | "minting" | "revealing" | "success";
@@ -38,7 +39,17 @@ export function NFTsSection() {
   const [mintState, setMintState] = useState<MintState>("info");
   const [evolvingIds, setEvolvingIds] = useState<Set<number>>(new Set());
 
-  const { ownedNFTs, isLoading, setOwnedNFTs } = useNFTStore();
+  // NFT Sync with TanStack Query
+  const {
+    nfts: ownedNFTs,
+    isLoading,
+    isFetching,
+    refresh: refreshNFTs,
+    lastSynced,
+    error: syncError,
+  } = useNFTSync();
+  const invalidateNFTs = useInvalidateNFTs();
+  const { setOwnedNFTs } = useNFTStore();
   const wallet = useWalletStore((s) => s.wallet);
 
   // Pending transactions
@@ -112,13 +123,17 @@ export function NFTsSection() {
       // Wait for reveal animation
       await new Promise((r) => setTimeout(r, 2000));
 
-      // Add to collection
+      // Optimistic update: Add to collection immediately
       setOwnedNFTs([result.nft, ...ownedNFTs]);
+
+      // Invalidate cache to trigger background refetch from blockchain
+      invalidateNFTs();
+
       setMintState("success");
     } else {
       setMintState("info");
     }
-  }, [mint, setOwnedNFTs, ownedNFTs]);
+  }, [mint, setOwnedNFTs, ownedNFTs, invalidateNFTs]);
 
   // Handle cancel confirmation
   const handleCancelMint = useCallback(() => {
@@ -153,16 +168,44 @@ export function NFTsSection() {
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
         <div className="mb-6">
-          <div className="flex items-center gap-2 mb-2">
-            <h2 className="font-pixel text-xl md:text-2xl text-pixel-primary">
-              GENESIS BABIES
-            </h2>
-            <HelpTooltip
-              content="Genesis Babies are NFTs that boost your mining rewards. Each NFT has unique traits and rarity levels."
-              title="NFT Collection"
-              description="Higher rarity = Higher mining boost. Level up your NFTs by burning $BABY tokens."
-              size="md"
-            />
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <h2 className="font-pixel text-xl md:text-2xl text-pixel-primary">
+                GENESIS BABIES
+              </h2>
+              <HelpTooltip
+                content="Genesis Babies are NFTs that boost your mining rewards. Each NFT has unique traits and rarity levels."
+                title="NFT Collection"
+                description="Higher rarity = Higher mining boost. Level up your NFTs by burning $BABY tokens."
+                size="md"
+              />
+            </div>
+
+            {/* Sync Status */}
+            <div className="flex items-center gap-2">
+              {isFetching && (
+                <span className="font-pixel text-[7px] text-pixel-secondary animate-pulse">
+                  Syncing...
+                </span>
+              )}
+              {syncError && (
+                <span className="font-pixel text-[7px] text-pixel-error">
+                  Sync failed
+                </span>
+              )}
+              <button
+                onClick={() => refreshNFTs()}
+                disabled={isFetching}
+                className="font-pixel text-[7px] text-pixel-text-muted hover:text-pixel-primary transition-colors disabled:opacity-50"
+                title={
+                  lastSynced
+                    ? `Last synced: ${new Date(lastSynced).toLocaleTimeString()}`
+                    : "Never synced"
+                }
+              >
+                ↻ Refresh
+              </button>
+            </div>
           </div>
           <p className="font-pixel-body text-sm text-pixel-text-muted">
             Mint NFTs to boost your mining rewards

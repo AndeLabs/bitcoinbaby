@@ -16,6 +16,7 @@ import {
 } from "react";
 import { usePlatform } from "@/hooks";
 import { MiningProvider } from "./MiningProvider";
+import { QueryProvider } from "./QueryProvider";
 
 interface RootProviderProps {
   children: ReactNode;
@@ -89,7 +90,11 @@ export function RootProvider({ children }: RootProviderProps) {
     );
   }
 
-  return <MiningProvider>{children}</MiningProvider>;
+  return (
+    <QueryProvider>
+      <MiningProvider>{children}</MiningProvider>
+    </QueryProvider>
+  );
 }
 
 /**
