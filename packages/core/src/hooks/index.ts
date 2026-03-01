@@ -116,6 +116,16 @@ export {
 // Balance hook (virtual balance from Workers)
 export { useBalance } from "./use-api";
 
+// Unified balance hook (combines all balance sources)
+export {
+  useUnifiedBalance,
+  type UnifiedBalanceOptions,
+  type BTCBalanceInfo,
+  type TokenBalanceInfo,
+  type VirtualBalanceInfo,
+  type UseUnifiedBalanceReturn,
+} from "./useUnifiedBalance";
+
 // Pool status hook (withdrawal pools)
 export { usePoolStatus } from "./use-api";
 

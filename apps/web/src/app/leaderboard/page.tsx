@@ -20,6 +20,7 @@ import {
 import {
   useNetworkStore,
   useLeaderboard,
+  useCosmicMiningMultiplier,
   CATEGORY_INFO,
   PERIOD_INFO,
   type LeaderboardCategory,
@@ -114,6 +115,9 @@ export default function LeaderboardPage() {
   // Wallet hook for user address
   const wallet = useWallet();
   const { network } = useNetworkStore();
+
+  // Cosmic status for user's mining bonus
+  const cosmic = useCosmicMiningMultiplier();
 
   // Leaderboard hook
   const leaderboard = useLeaderboard({
@@ -231,6 +235,8 @@ export default function LeaderboardPage() {
             score={leaderboard.userScore}
             category={leaderboard.category}
             formatScore={leaderboard.formatScore}
+            cosmicStatus={cosmic.status}
+            cosmicMultiplier={cosmic.multiplier}
           />
         </div>
       )}

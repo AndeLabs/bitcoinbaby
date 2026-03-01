@@ -649,6 +649,64 @@ export class MiningSubmitter {
   }
 
   /**
+   * Wait for mining TX confirmation and complete the mint flow
+   *
+   * This is a convenience method that:
+   * 1. Polls for mining TX confirmation
+   * 2. Gets Merkle proof
+   * 3. Creates mint spell PSBT
+   *
+   * @param miningTxid - TXID of the signed and broadcast mining TX
+   * @param miningTxHex - Raw hex of the mining TX
+   * @param proof - Original mining proof
+   * @param options - App ID and VK options
+   * @param pollInterval - Polling interval in ms (default 30s)
+   * @param maxAttempts - Max polling attempts (default 20 = 10 minutes)
+   */
+  async waitForMiningTxAndComplete(
+    miningTxid: string,
+    miningTxHex: string,
+    proof: MiningProof,
+    options: {
+      appId?: string;
+      appVk?: string;
+      pollInterval?: number;
+      maxAttempts?: number;
+    } = {},
+  ): Promise<SubmissionResultV10> {
+    const pollInterval = options.pollInterval ?? 30000;
+    const maxAttempts = options.maxAttempts ?? 20;
+
+    // Poll for confirmation
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const { confirmed, confirmations } =
+        await this.checkConfirmation(miningTxid);
+
+      if (confirmed && confirmations >= 1) {
+        // Mining TX confirmed, now complete the flow
+        return this.submitProofV10(proof, {
+          appId: options.appId,
+          appVk: options.appVk,
+          existingMiningTxid: miningTxid,
+          existingMiningTxHex: miningTxHex,
+        });
+      }
+
+      // Wait before next attempt
+      if (attempt < maxAttempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      }
+    }
+
+    return {
+      success: false,
+      phase: "confirmation_timeout",
+      error: `Mining TX not confirmed after ${maxAttempts} attempts`,
+      miningTxid,
+    };
+  }
+
+  /**
    * Build mining TX with OP_RETURN
    *
    * The OP_RETURN contains: challenge (txid:vout) + nonce + hash
@@ -893,6 +951,7 @@ export interface SubmissionResultV10 {
     | "merkle_proof"
     | "mint_tx_build"
     | "mint_tx_ready"
+    | "confirmation_timeout"
     | "unknown";
   error?: string;
   message?: string;

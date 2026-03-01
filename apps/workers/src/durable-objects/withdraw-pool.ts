@@ -50,6 +50,13 @@ const POOL_CONFIG = {
 export class WithdrawPoolDO extends DurableObject<Env> {
   private sql: SqlStorage;
 
+  // OPTIMIZATION: Cache pool stats to reduce COUNT queries
+  private poolStatsCache: Map<
+    PoolType,
+    { count: number; total: bigint; cachedAt: number }
+  > = new Map();
+  private static readonly STATS_CACHE_TTL_MS = 30_000; // 30 second cache
+
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
@@ -174,16 +181,40 @@ export class WithdrawPoolDO extends DurableObject<Env> {
 
   /**
    * GET /pool/status - Get pool status
+   * OPTIMIZATION: Uses cached stats to reduce COUNT queries
    */
   private handleGetPoolStatus(poolType: PoolType): Response {
-    const pending = this.sql
-      .exec(
-        `SELECT COUNT(*) as count, COALESCE(SUM(CAST(amount AS INTEGER)), 0) as total
-         FROM withdraw_requests
-         WHERE pool_type = ? AND status = 'pending'`,
-        poolType,
-      )
-      .toArray()[0];
+    const now = Date.now();
+    const cached = this.poolStatsCache.get(poolType);
+
+    let pendingCount: number;
+    let pendingTotal: bigint;
+
+    // Use cache if fresh
+    if (cached && now - cached.cachedAt < WithdrawPoolDO.STATS_CACHE_TTL_MS) {
+      pendingCount = cached.count;
+      pendingTotal = cached.total;
+    } else {
+      // Refresh from DB
+      const pending = this.sql
+        .exec(
+          `SELECT COUNT(*) as count, COALESCE(SUM(CAST(amount AS INTEGER)), 0) as total
+           FROM withdraw_requests
+           WHERE pool_type = ? AND status = 'pending'`,
+          poolType,
+        )
+        .toArray()[0];
+
+      pendingCount = pending.count as number;
+      pendingTotal = BigInt((pending.total as number) || 0);
+
+      // Update cache
+      this.poolStatsCache.set(poolType, {
+        count: pendingCount,
+        total: pendingTotal,
+        cachedAt: now,
+      });
+    }
 
     const nextProcessingTime = this.getNextProcessingTime(poolType);
     const feeRate = 5; // TODO: Fetch real fee rate
@@ -197,16 +228,13 @@ export class WithdrawPoolDO extends DurableObject<Env> {
         poolType,
         name: poolConfig.name,
         description: poolConfig.description,
-        pendingRequests: pending.count as number,
-        totalAmount: (pending.total || 0).toString(),
+        pendingRequests: pendingCount,
+        totalAmount: pendingTotal.toString(),
         nextProcessingTime: new Date(nextProcessingTime).toISOString(),
         currentFeeRate: feeRate,
-        estimatedFeePerUser: this.estimateFeePerUser(
-          pending.count as number,
-          feeRate,
-        ),
+        estimatedFeePerUser: this.estimateFeePerUser(pendingCount, feeRate),
       },
-      timestamp: Date.now(),
+      timestamp: now,
     };
 
     return Response.json(response);
@@ -323,6 +351,9 @@ export class WithdrawPoolDO extends DurableObject<Env> {
       now,
       now,
     );
+
+    // Invalidate stats cache for this pool
+    this.poolStatsCache.delete(poolType);
 
     // Get position in queue
     const position = this.sql

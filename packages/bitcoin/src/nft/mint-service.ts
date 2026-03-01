@@ -24,7 +24,9 @@ import {
   type BaseType,
   type RarityTier,
   getTraitsFromDNA,
+  createNFTGenesisSpell,
 } from "../charms/nft";
+import type { SpellV2 } from "../charms/types";
 import {
   NFT_SALE_CONFIG,
   getTreasuryAddress,
@@ -318,43 +320,27 @@ export class NFTMintService {
   }
 
   /**
-   * Create mint spell data
+   * Create mint spell data using proper Charms V2 format
    */
-  private createMintSpell(
-    nft: BabyNFTState,
-    recipient: string,
-  ): Record<string, unknown> {
-    return {
-      version: 10,
-      app: `n/${GENESIS_BABIES_TESTNET4.appId}/${GENESIS_BABIES_TESTNET4.appVk}`,
-      inputs: [],
-      outputs: [
-        {
-          new: {
-            n: {
-              [GENESIS_BABIES_TESTNET4.appId]: {
-                tokenId: nft.tokenId,
-                dna: nft.dna,
-                bloodline: nft.bloodline,
-                baseType: nft.baseType,
-                rarityTier: nft.rarityTier,
-                level: 1,
-                xp: 0,
-                totalXp: 0,
-                workCount: 0,
-                evolutionCount: 0,
-              },
-            },
-          },
-        },
-      ],
-    };
+  private createMintSpell(nft: BabyNFTState, recipient: string): SpellV2 {
+    // Use the correct spell format from charms/nft.ts
+    return createNFTGenesisSpell({
+      appId: GENESIS_BABIES_TESTNET4.appId,
+      appVk: GENESIS_BABIES_TESTNET4.appVk,
+      dna: nft.dna,
+      bloodline: nft.bloodline,
+      baseType: nft.baseType,
+      genesisBlock: 0, // Will be set on confirmation
+      rarityTier: nft.rarityTier,
+      tokenId: nft.tokenId,
+      ownerAddress: recipient,
+    });
   }
 
   /**
    * Create OP_RETURN script for spell
    */
-  private createSpellOpReturn(spell: Record<string, unknown>): Buffer {
+  private createSpellOpReturn(spell: SpellV2): Buffer {
     const spellJson = JSON.stringify(spell);
     const spellBytes = Buffer.from(spellJson, "utf8");
 

@@ -241,6 +241,11 @@ const GLOSSARY: GlossaryItem[] = [
       "La primera y mas grande criptomoneda del mundo, creada en 2009 por Satoshi Nakamoto.",
   },
   {
+    term: "BitcoinOS",
+    definition:
+      "Sistema operativo para Bitcoin que habilita aplicaciones avanzadas como Charms. Creador del protocolo Charms.",
+  },
+  {
     term: "Blockchain",
     definition:
       "Un libro contable digital distribuido que registra todas las transacciones de forma inmutable.",
@@ -248,7 +253,12 @@ const GLOSSARY: GlossaryItem[] = [
   {
     term: "Charms",
     definition:
-      "Un protocolo para crear y transferir tokens en Bitcoin de forma nativa, sin necesidad de otra blockchain.",
+      "Metaprotocolo de BitcoinOS para tokens y NFTs programables en Bitcoin. Usa ZK proofs para validacion client-side.",
+  },
+  {
+    term: "Charms Explorer",
+    definition:
+      "Explorador web (explorer.charms.dev) para ver tokens y NFTs creados con el protocolo Charms.",
   },
   {
     term: "Decay",
@@ -286,9 +296,19 @@ const GLOSSARY: GlossaryItem[] = [
       "La red principal de Bitcoin donde las transacciones tienen valor real.",
   },
   {
+    term: "Merkle Proof",
+    definition:
+      "Prueba criptografica que demuestra que una transaccion esta incluida en un bloque de Bitcoin.",
+  },
+  {
     term: "Mnemonic",
     definition:
       "Frase de 12 o 24 palabras que representa tu clave privada de forma legible.",
+  },
+  {
+    term: "Ordinals",
+    definition:
+      "Protocolo para inscribir datos (imagenes, HTML) permanentemente en Bitcoin. Usado para NFTs visuales.",
   },
   {
     term: "P2TR",
@@ -299,6 +319,16 @@ const GLOSSARY: GlossaryItem[] = [
     term: "PoUW",
     definition:
       "Proof of Useful Work. Mineria que contribuye a tareas computacionales utiles.",
+  },
+  {
+    term: "Scrolls",
+    definition:
+      "Servicio de Charms para co-firmar transacciones con spells validos. API en scrolls.charms.dev.",
+  },
+  {
+    term: "Spell",
+    definition:
+      "Mensaje especial en transacciones Charms que define operaciones de tokens (mint, transfer, burn).",
   },
   {
     term: "PSBT",
@@ -349,6 +379,16 @@ const GLOSSARY: GlossaryItem[] = [
     term: "XP",
     definition:
       "Experience Points. Puntos de experiencia que hacen crecer a tu baby.",
+  },
+  {
+    term: "zkVM",
+    definition:
+      "Zero-Knowledge Virtual Machine. Permite verificar computaciones sin revelar datos privados.",
+  },
+  {
+    term: "ZK Proof",
+    definition:
+      "Zero-Knowledge Proof. Prueba criptografica que valida algo sin revelar informacion sensible.",
   },
 ];
 

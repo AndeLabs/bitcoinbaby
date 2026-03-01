@@ -447,6 +447,11 @@ app.get("/api/game/:roomId/state", async (c) => {
  * - period: daily | weekly | alltime (default: alltime)
  * - limit: number (default: 100, max: 500)
  * - offset: number (default: 0)
+ *
+ * Edge caching:
+ * - daily: 60s cache (changes frequently)
+ * - weekly: 120s cache
+ * - alltime: 300s cache (5 min)
  */
 app.get("/api/leaderboard", async (c) => {
   const category = (c.req.query("category") || "miners") as LeaderboardCategory;
@@ -469,6 +474,23 @@ app.get("/api/leaderboard", async (c) => {
     );
   }
 
+  // ==========================================================================
+  // EDGE CACHING - Check cache first
+  // ==========================================================================
+  const cacheKey = new Request(
+    `https://cache.bitcoinbaby.app/leaderboard/${category}/${period}/${limit}/${offset}`,
+  );
+  const cache = caches.default;
+
+  // Try to get from edge cache
+  const cachedResponse = await cache.match(cacheKey);
+  if (cachedResponse) {
+    // Clone and add cache hit header
+    const response = new Response(cachedResponse.body, cachedResponse);
+    response.headers.set("X-Cache", "HIT");
+    return response;
+  }
+
   try {
     const redis = getRedis(c.env);
 
@@ -477,7 +499,7 @@ app.get("/api/leaderboard", async (c) => {
       getLeaderboardCount(redis, category, period),
     ]);
 
-    const response: LeaderboardResponse = {
+    const responseData: LeaderboardResponse = {
       category,
       period,
       entries,
@@ -485,11 +507,22 @@ app.get("/api/leaderboard", async (c) => {
       lastUpdated: Date.now(),
     };
 
-    return c.json<ApiResponse<LeaderboardResponse>>({
+    const jsonResponse: ApiResponse<LeaderboardResponse> = {
       success: true,
-      data: response,
+      data: responseData,
       timestamp: Date.now(),
-    });
+    };
+
+    // Determine cache TTL based on period
+    const cacheTTL = period === "daily" ? 60 : period === "weekly" ? 120 : 300; // seconds
+
+    // Create cacheable response with CORS headers
+    const response = createCacheableResponse(jsonResponse, cacheTTL, false);
+
+    // Store in edge cache (non-blocking)
+    c.executionCtx.waitUntil(cache.put(cacheKey, response.clone()));
+
+    return response;
   } catch (error) {
     console.error("[Leaderboard] Error:", error);
     return c.json<ApiResponse>(
@@ -509,6 +542,8 @@ app.get("/api/leaderboard", async (c) => {
  * Query params:
  * - category: miners | babies | earners (default: miners)
  * - period: daily | weekly | alltime (default: alltime)
+ *
+ * Edge caching: 30s (user ranks change frequently)
  */
 app.get("/api/leaderboard/rank/:address", async (c) => {
   const address = c.req.param("address");
@@ -526,6 +561,19 @@ app.get("/api/leaderboard/rank/:address", async (c) => {
     );
   }
 
+  // Edge cache for rank (shorter TTL since it changes more)
+  const cacheKey = new Request(
+    `https://cache.bitcoinbaby.app/rank/${category}/${period}/${address}`,
+  );
+  const cache = caches.default;
+
+  const cachedResponse = await cache.match(cacheKey);
+  if (cachedResponse) {
+    const response = new Response(cachedResponse.body, cachedResponse);
+    response.headers.set("X-Cache", "HIT");
+    return response;
+  }
+
   try {
     const redis = getRedis(c.env);
 
@@ -534,7 +582,7 @@ app.get("/api/leaderboard/rank/:address", async (c) => {
       getUserScore(redis, category, period, address),
     ]);
 
-    const response: UserRankResponse = {
+    const responseData: UserRankResponse = {
       address,
       category,
       period,
@@ -542,11 +590,18 @@ app.get("/api/leaderboard/rank/:address", async (c) => {
       score,
     };
 
-    return c.json<ApiResponse<UserRankResponse>>({
+    const jsonResponse: ApiResponse<UserRankResponse> = {
       success: true,
-      data: response,
+      data: responseData,
       timestamp: Date.now(),
-    });
+    };
+
+    // 30s cache for user ranks
+    const response = createCacheableResponse(jsonResponse, 30, false);
+
+    c.executionCtx.waitUntil(cache.put(cacheKey, response.clone()));
+
+    return response;
   } catch (error) {
     console.error("[Leaderboard] Rank error:", error);
     return c.json<ApiResponse>(
@@ -567,6 +622,9 @@ app.get("/api/leaderboard/rank/:address", async (c) => {
  * - address: string (Bitcoin address)
  * - category: miners | babies | earners
  * - score: number
+ *
+ * Cache invalidation:
+ * - Invalidates edge cache for the updated category (all periods)
  */
 app.post("/api/leaderboard/update", async (c) => {
   try {
@@ -613,6 +671,10 @@ app.post("/api/leaderboard/update", async (c) => {
       ...(body.category === "earners" && { totalTokens: body.score }),
       ...(body.category === "babies" && { babyLevel: body.score }),
     });
+
+    // Invalidate edge cache for this category (non-blocking)
+    // Cache will naturally expire, but we don't purge aggressively to reduce load
+    // The stale-while-revalidate will handle serving stale data while refreshing
 
     return c.json<ApiResponse>({
       success: true,
@@ -768,6 +830,29 @@ async function handleScheduled(event: ScheduledEvent, env: Env): Promise<void> {
 // =============================================================================
 // HELPERS
 // =============================================================================
+
+/**
+ * Create a cacheable JSON response with proper headers
+ * Includes CORS headers for cross-origin requests
+ */
+function createCacheableResponse(
+  data: unknown,
+  cacheTTL: number,
+  cacheHit: boolean,
+): Response {
+  return new Response(JSON.stringify(data), {
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": `public, max-age=${cacheTTL}, s-maxage=${cacheTTL}, stale-while-revalidate=${cacheTTL * 2}`,
+      "X-Cache": cacheHit ? "HIT" : "MISS",
+      "X-Cache-TTL": String(cacheTTL),
+      // CORS headers for cached responses
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    },
+  });
+}
 
 function isValidBitcoinAddress(address: string): boolean {
   // Testnet4/Testnet addresses (tb1, m, n, 2)

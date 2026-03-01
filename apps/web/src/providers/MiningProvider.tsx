@@ -101,6 +101,11 @@ export function MiningProvider({ children }: MiningProviderProps) {
     };
   }, []);
 
+  // SharedWorker error state
+  const [sharedWorkerError, setSharedWorkerError] = useState<string | null>(
+    null,
+  );
+
   // Listen to SharedWorker state (if supported)
   useEffect(() => {
     if (!sharedWorkerSupported || typeof SharedWorker === "undefined") return;
@@ -111,8 +116,38 @@ export function MiningProvider({ children }: MiningProviderProps) {
         name: "bitcoinbaby-mining",
       });
 
+      // Handle worker errors
+      worker.onerror = (error) => {
+        const errorMessage =
+          error instanceof ErrorEvent
+            ? error.message
+            : "SharedWorker failed to load";
+        console.error("[MiningProvider] SharedWorker error:", errorMessage);
+        setSharedWorkerError(errorMessage);
+
+        // Reset shared worker state on error
+        setSharedWorkerState({
+          isRunning: false,
+          hashrate: 0,
+          shares: 0,
+        });
+      };
+
       worker.port.onmessage = (event) => {
         const { type, data } = event.data;
+
+        // Handle error messages from worker
+        if (type === "error") {
+          console.error("[MiningProvider] SharedWorker reported error:", data);
+          setSharedWorkerError(
+            typeof data === "string" ? data : "Worker error",
+          );
+          return;
+        }
+
+        // Clear error on successful communication
+        setSharedWorkerError(null);
+
         if (type === "state" || type === "stats") {
           setSharedWorkerState((prev) => ({
             isRunning: data.isRunning ?? prev.isRunning,
@@ -127,10 +162,29 @@ export function MiningProvider({ children }: MiningProviderProps) {
         }
       };
 
+      // Handle port errors
+      worker.port.onmessageerror = (error) => {
+        console.error(
+          "[MiningProvider] SharedWorker port message error:",
+          error,
+        );
+        setSharedWorkerError("Failed to communicate with mining worker");
+      };
+
       worker.port.start();
       worker.port.postMessage({ type: "getState" });
-    } catch {
-      // SharedWorker not available
+
+      // Log successful connection
+      console.debug("[MiningProvider] SharedWorker connected successfully");
+    } catch (error) {
+      // SharedWorker not available - log the reason
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      console.warn(
+        "[MiningProvider] SharedWorker initialization failed:",
+        errorMessage,
+      );
+      setSharedWorkerError(errorMessage);
     }
   }, [sharedWorkerSupported]);
 

@@ -28,6 +28,14 @@ interface MenuItem {
 
 const MENU_ITEMS: MenuItem[] = [
   {
+    id: "technology",
+    label: "Technology",
+    description: "Charms, Scrolls, Ordinals - Our Bitcoin stack",
+    icon: "✨",
+    href: "/technology",
+    highlight: true,
+  },
+  {
     id: "settings",
     label: "Settings",
     description: "Mining, network, display preferences",
@@ -40,7 +48,6 @@ const MENU_ITEMS: MenuItem[] = [
     description: "Dynamic world events and bonuses",
     icon: "🌌",
     href: "/cosmic",
-    highlight: true,
   },
   {
     id: "leaderboard",

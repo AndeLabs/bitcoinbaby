@@ -21,7 +21,7 @@ export type { CoreBabyNFTState };
 // =============================================================================
 // EXTENDED UI TYPES
 // These extend the on-chain types for visualization purposes only.
-// Note: "scholar" and "merchant" bloodlines, and "elemental" and "spirit"
+// Note: "scholar" and "merchant" bloodlines, and "shaman", "elemental", "dragon"
 // base types are UI-only extensions for special visual effects.
 // =============================================================================
 
@@ -35,7 +35,7 @@ export type Bloodline = CoreBloodline | "scholar" | "merchant";
  * Extended BaseType for UI visualization
  * Includes canonical base types + UI-only visual variants
  */
-export type BaseType = CoreBaseType | "elemental" | "spirit";
+export type BaseType = CoreBaseType | "shaman" | "elemental" | "dragon";
 
 /**
  * UI-extended NFT state that supports both canonical and extended types

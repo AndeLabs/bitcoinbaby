@@ -449,6 +449,31 @@ export const LeaderboardPagination: FC<PaginationProps> = ({
 };
 
 /**
+ * Cosmic status type
+ */
+export type CosmicStatus = "thriving" | "normal" | "struggling" | "critical";
+
+/**
+ * Get cosmic status display
+ */
+function getCosmicStatusDisplay(status: CosmicStatus): {
+  icon: string;
+  label: string;
+  color: string;
+} {
+  const displays: Record<
+    CosmicStatus,
+    { icon: string; label: string; color: string }
+  > = {
+    thriving: { icon: "*", label: "Thriving", color: "text-pixel-success" },
+    normal: { icon: "~", label: "Normal", color: "text-pixel-text-muted" },
+    struggling: { icon: "!", label: "Struggling", color: "text-pixel-warning" },
+    critical: { icon: "X", label: "Critical", color: "text-pixel-error" },
+  };
+  return displays[status];
+}
+
+/**
  * User rank summary card
  */
 interface UserRankSummaryProps {
@@ -456,6 +481,10 @@ interface UserRankSummaryProps {
   totalPlayers: number;
   score: number;
   category: LeaderboardCategory;
+  /** Cosmic status for bonus indicator */
+  cosmicStatus?: CosmicStatus;
+  /** Cosmic multiplier (e.g., 1.5 for +50%) */
+  cosmicMultiplier?: number;
   formatScore?: (score: number, category: LeaderboardCategory) => string;
   className?: string;
 }
@@ -465,11 +494,21 @@ export const UserRankSummary: FC<UserRankSummaryProps> = ({
   totalPlayers,
   score,
   category,
+  cosmicStatus,
+  cosmicMultiplier,
   formatScore = defaultFormatScore,
   className,
 }) => {
   const percentile =
     rank > 0 ? Math.round(((totalPlayers - rank + 1) / totalPlayers) * 100) : 0;
+
+  const cosmicDisplay = cosmicStatus
+    ? getCosmicStatusDisplay(cosmicStatus)
+    : null;
+  const cosmicBonusPercent =
+    cosmicMultiplier && cosmicMultiplier !== 1
+      ? Math.round((cosmicMultiplier - 1) * 100)
+      : null;
 
   return (
     <div
@@ -505,6 +544,25 @@ export const UserRankSummary: FC<UserRankSummaryProps> = ({
             </div>
             <div className="font-pixel text-lg text-pixel-secondary">
               {percentile}%
+            </div>
+          </div>
+        )}
+
+        {/* Cosmic Status Indicator */}
+        {cosmicDisplay && cosmicBonusPercent !== null && (
+          <div className="text-right">
+            <div className="font-pixel text-xs text-pixel-text-muted mb-1">
+              COSMIC
+            </div>
+            <div
+              className={clsx("font-pixel text-lg", cosmicDisplay.color)}
+              title={`${cosmicDisplay.label}: ${cosmicBonusPercent > 0 ? "+" : ""}${cosmicBonusPercent}% mining bonus`}
+            >
+              [{cosmicDisplay.icon}]
+              <span className="text-xs ml-1">
+                {cosmicBonusPercent > 0 ? "+" : ""}
+                {cosmicBonusPercent}%
+              </span>
             </div>
           </div>
         )}

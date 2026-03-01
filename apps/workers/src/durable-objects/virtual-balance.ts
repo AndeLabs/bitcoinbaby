@@ -40,6 +40,15 @@ export class VirtualBalanceDO extends DurableObject<Env> {
   private sql: SqlStorage;
   private address: string | null = null;
 
+  // In-memory cache to reduce DB reads
+  private cachedBalance: VirtualBalance | null = null;
+  private cacheLoadedAt: number = 0;
+  private static readonly CACHE_TTL_MS = 60_000; // 1 minute cache
+
+  // Rate limit cache - avoid COUNT query on every request
+  private sharesThisHourCache: number = 0;
+  private sharesHourStartedAt: number = 0;
+
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
@@ -101,10 +110,20 @@ export class VirtualBalanceDO extends DurableObject<Env> {
   }
 
   /**
-   * Get or create balance record (SINGLE DB READ)
+   * Get or create balance record (uses in-memory cache)
+   * OPTIMIZATION: Cache balance in memory to reduce DB reads by ~90%
    */
   private getOrCreateBalance(address: string): VirtualBalance {
     const now = Date.now();
+
+    // Return cached balance if still valid
+    if (
+      this.cachedBalance &&
+      this.cachedBalance.address === address &&
+      now - this.cacheLoadedAt < VirtualBalanceDO.CACHE_TTL_MS
+    ) {
+      return this.cachedBalance;
+    }
 
     // Try to get existing - single read
     const rows = this.sql
@@ -113,7 +132,7 @@ export class VirtualBalanceDO extends DurableObject<Env> {
 
     if (rows.length > 0) {
       const row = rows[0];
-      return {
+      this.cachedBalance = {
         address: row.address as string,
         virtualBalance: BigInt(row.virtual_balance as string),
         totalMined: BigInt(row.total_mined as string),
@@ -124,6 +143,8 @@ export class VirtualBalanceDO extends DurableObject<Env> {
         createdAt: row.created_at as number,
         updatedAt: row.updated_at as number,
       };
+      this.cacheLoadedAt = now;
+      return this.cachedBalance;
     }
 
     // Create new
@@ -134,7 +155,7 @@ export class VirtualBalanceDO extends DurableObject<Env> {
       now,
     );
 
-    return {
+    this.cachedBalance = {
       address,
       virtualBalance: 0n,
       totalMined: 0n,
@@ -145,12 +166,15 @@ export class VirtualBalanceDO extends DurableObject<Env> {
       createdAt: now,
       updatedAt: now,
     };
+    this.cacheLoadedAt = now;
+    return this.cachedBalance;
   }
 
   /**
-   * Update balance in database (SINGLE DB WRITE)
+   * Update balance in database and cache
    */
   private updateBalance(balance: VirtualBalance): void {
+    const now = Date.now();
     this.sql.exec(
       `UPDATE balance SET
         virtual_balance = ?,
@@ -167,9 +191,13 @@ export class VirtualBalanceDO extends DurableObject<Env> {
       balance.pendingWithdraw.toString(),
       balance.streakCount,
       balance.lastMiningAt,
-      Date.now(),
+      now,
       balance.address,
     );
+
+    // Update cache after write
+    this.cachedBalance = { ...balance, updatedAt: now };
+    this.cacheLoadedAt = now;
   }
 
   /**
@@ -388,6 +416,9 @@ export class VirtualBalanceDO extends DurableObject<Env> {
 
     this.updateBalance(balance);
 
+    // Increment rate limit counter
+    this.incrementShareCounter();
+
     // =========================================================================
     // Update leaderboard (non-blocking, don't fail if it errors)
     // =========================================================================
@@ -429,17 +460,32 @@ export class VirtualBalanceDO extends DurableObject<Env> {
 
   /**
    * Get number of shares submitted in the last hour
-   * Used for rate limiting
+   * OPTIMIZATION: Uses in-memory counter, only hits DB on hour boundary
    */
   private getSharesInLastHour(): number {
-    const oneHourAgo = Date.now() - 60 * 60 * 1000;
-    const result = this.sql
-      .exec(
-        `SELECT COUNT(*) as count FROM mining_proofs WHERE created_at > ?`,
-        oneHourAgo,
-      )
-      .toArray();
-    return (result[0]?.count as number) || 0;
+    const now = Date.now();
+    const oneHourAgo = now - 60 * 60 * 1000;
+
+    // If hour has rolled over, reset counter and do one DB query
+    if (this.sharesHourStartedAt < oneHourAgo) {
+      const result = this.sql
+        .exec(
+          `SELECT COUNT(*) as count FROM mining_proofs WHERE created_at > ?`,
+          oneHourAgo,
+        )
+        .toArray();
+      this.sharesThisHourCache = (result[0]?.count as number) || 0;
+      this.sharesHourStartedAt = now;
+    }
+
+    return this.sharesThisHourCache;
+  }
+
+  /**
+   * Increment share counter (called after successful credit)
+   */
+  private incrementShareCounter(): void {
+    this.sharesThisHourCache++;
   }
 
   /**

@@ -29,6 +29,9 @@ export class GameRoomDO extends DurableObject<Env> {
   private connections: Map<string, Connection> = new Map();
   private saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  // OPTIMIZATION: Track if state is already loaded to prevent repeated DB reads
+  private stateLoaded: boolean = false;
+
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
@@ -77,9 +80,13 @@ export class GameRoomDO extends DurableObject<Env> {
 
   /**
    * Load Yjs state from storage
+   * OPTIMIZATION: Only load once per DO instance
    */
   private loadState(): void {
     if (!this.roomId) return;
+
+    // Skip if already loaded for this room
+    if (this.stateLoaded) return;
 
     const rows = this.sql
       .exec("SELECT yjs_state FROM game_state WHERE room_id = ?", this.roomId)
@@ -93,6 +100,8 @@ export class GameRoomDO extends DurableObject<Env> {
       // Initialize default game state
       this.initializeDefaultState();
     }
+
+    this.stateLoaded = true;
   }
 
   /**
@@ -186,18 +195,21 @@ export class GameRoomDO extends DurableObject<Env> {
 
   /**
    * Log sync action
+   * OPTIMIZATION: Disabled to reduce rows_write
+   * Uncomment for debugging if needed
    */
-  private logSyncAction(clientId: string, action: string): void {
-    if (!this.roomId) return;
-
-    this.sql.exec(
-      `INSERT INTO sync_log (room_id, client_id, action, timestamp)
-       VALUES (?, ?, ?, ?)`,
-      this.roomId,
-      clientId,
-      action,
-      Date.now(),
-    );
+  private logSyncAction(_clientId: string, _action: string): void {
+    // Disabled to reduce DB writes and stay under free tier limits
+    // Only enable for debugging:
+    // if (!this.roomId) return;
+    // this.sql.exec(
+    //   `INSERT INTO sync_log (room_id, client_id, action, timestamp)
+    //    VALUES (?, ?, ?, ?)`,
+    //   this.roomId,
+    //   _clientId,
+    //   _action,
+    //   Date.now(),
+    // );
   }
 
   /**

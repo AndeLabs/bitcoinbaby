@@ -54,7 +54,14 @@ export function MiningSection() {
   const [uptime, setUptime] = useState(0);
 
   // Virtual balance from Workers API (primary balance tracking)
-  const { virtualBalance, totalMined, onChainBalance } = useVirtualBalance({
+  const {
+    virtualBalance,
+    totalMined,
+    onChainBalance,
+    isLoading: virtualBalanceLoading,
+    error: virtualBalanceError,
+    workersApiAvailable,
+  } = useVirtualBalance({
     address: wallet?.address,
   });
 
@@ -150,11 +157,48 @@ export function MiningSection() {
           </div>
         )}
 
+        {/* Virtual Balance Error Alert */}
+        {virtualBalanceError && (
+          <div className="mb-4 p-3 bg-pixel-error/20 border-4 border-pixel-error">
+            <div className="flex items-center gap-2">
+              <span className="font-pixel text-sm text-pixel-error">⚠</span>
+              <div>
+                <p className="font-pixel text-[9px] text-pixel-error uppercase">
+                  Balance Sync Error
+                </p>
+                <p className="font-pixel-body text-xs text-pixel-text-muted mt-1">
+                  {virtualBalanceError}. Mining rewards are still being tracked
+                  locally.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Workers API Warning */}
+        {wallet && !workersApiAvailable && !virtualBalanceLoading && (
+          <div className="mb-4 p-3 bg-pixel-warning/20 border-4 border-pixel-warning">
+            <div className="flex items-center gap-2">
+              <span className="font-pixel text-sm text-pixel-warning">⚠</span>
+              <div>
+                <p className="font-pixel text-[9px] text-pixel-warning uppercase">
+                  Offline Mode
+                </p>
+                <p className="font-pixel-body text-xs text-pixel-text-muted mt-1">
+                  Cannot connect to balance server. Mining locally only.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Balance Panel */}
         {wallet && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             {/* Virtual Balance (Primary) - Animated Counter */}
-            <div className="bg-pixel-bg-medium border-4 border-pixel-success p-4">
+            <div
+              className={`bg-pixel-bg-medium border-4 p-4 ${virtualBalanceError ? "border-pixel-warning" : "border-pixel-success"}`}
+            >
               <div className="flex items-center gap-1 mb-2">
                 <span className="font-pixel text-[7px] text-pixel-text-muted uppercase">
                   $BABY Balance
@@ -165,16 +209,28 @@ export function MiningSection() {
                   size="sm"
                 />
               </div>
-              <AnimatedTokenCounter
-                value={virtualBalance}
-                recentReward={recentReward}
-                size="lg"
-                showParticles={true}
-                showGlow={true}
-                className="text-pixel-success"
-              />
+              {virtualBalanceLoading ? (
+                <div className="font-pixel text-lg text-pixel-text-muted animate-pulse">
+                  ---
+                </div>
+              ) : (
+                <AnimatedTokenCounter
+                  value={virtualBalance}
+                  recentReward={recentReward}
+                  size="lg"
+                  showParticles={true}
+                  showGlow={true}
+                  className={
+                    virtualBalanceError
+                      ? "text-pixel-warning"
+                      : "text-pixel-success"
+                  }
+                />
+              )}
               <div className="font-pixel text-[8px] text-pixel-text-muted mt-1">
-                Available to withdraw
+                {virtualBalanceError
+                  ? "Last known balance"
+                  : "Available to withdraw"}
               </div>
             </div>
 

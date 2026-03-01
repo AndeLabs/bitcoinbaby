@@ -38,14 +38,11 @@ new_sqlite_classes = ["VirtualBalanceDO", "WithdrawPoolDO", "GameRoomDO"]
 # id = "REPLACE_WITH_KV_ID"
 # preview_id = "REPLACE_WITH_PREVIEW_KV_ID"
 
-# Scheduled tasks (Cron) - Cloudflare uses 1-7 for days (1=Mon, 7=Sun)
+# Scheduled tasks (Cron) - Consolidated to stay under free tier limit (5)
+# All tasks handled in one cron, logic in handleScheduled()
 [triggers]
 crons = [
-  # Daily leaderboard reset + checks at 00:00 UTC
-  "0 0 * * *",
-  # Process weekly withdraw pool every Sunday at 00:00 UTC
-  "0 0 * * 7",
-  # Check for low-fee opportunities every 6 hours
+  # Single cron every 6 hours - handles daily/weekly resets and fee checks
   "0 */6 * * *"
 ]
 
@@ -83,6 +80,10 @@ ENVIRONMENT = "production"
 MIN_WITHDRAW_AMOUNT = "100"
 POOL_PERIOD_DAYS = "7"
 MAX_FEE_RATE_SAT_VB = "5"
+
+# Production cron - consolidated to single trigger
+[env.production.triggers]
+crons = ["0 */6 * * *"]
 
 # Secrets (set via wrangler secret put)
 # SCROLLS_API_KEY - API key for Charms Scrolls

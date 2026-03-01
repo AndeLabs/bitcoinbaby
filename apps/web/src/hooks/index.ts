@@ -6,18 +6,6 @@
 // =============================================================================
 
 // Blockchain hooks
-/**
- * @deprecated Use `useGlobalMining` from `@bitcoinbaby/core` for persistent mining.
- * This local hook is kept for backwards compatibility only.
- */
-/**
- * @deprecated Use `useGlobalMining` from `@bitcoinbaby/core` for persistent mining.
- */
-export {
-  useMining,
-  type MiningState,
-  type UseMiningOptions,
-} from "./useMining";
 // Note: This is the app-specific CharmsService wrapper, different from
 // the simpler hooks in @bitcoinbaby/core/hooks/useCharms
 export {

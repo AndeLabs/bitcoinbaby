@@ -41,8 +41,9 @@ export {
   getRarityGlowFilter,
 } from "./types";
 
-// Base Type Sprites (7 types: Human, Robot, Mystic, Alien, Shaman, Elemental, Dragon)
+// Base Type Sprites (8 types: Human, Animal, Robot, Mystic, Alien, Shaman, Elemental, Dragon)
 export { HumanSprite } from "./HumanSprite";
+export { AnimalSprite } from "./AnimalSprite";
 export { RobotSprite } from "./RobotSprite";
 export { MysticSprite } from "./MysticSprite";
 export { AlienSprite } from "./AlienSprite";

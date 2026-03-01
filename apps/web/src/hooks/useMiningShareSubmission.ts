@@ -251,9 +251,10 @@ export function useMiningShareSubmission(
             reward,
           });
         } else if (duplicate) {
-          console.log(
-            "[ShareSubmission] Duplicate share:",
-            share.hash.slice(0, 16),
+          // Debug only - duplicates are expected during normal operation
+          console.debug(
+            "[ShareSubmission] Duplicate share ignored:",
+            share.hash.slice(0, 8),
           );
         }
       })

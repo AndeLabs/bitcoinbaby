@@ -15,6 +15,7 @@ import {
   useEffect,
   Suspense,
   startTransition,
+  useRef,
 } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
@@ -57,6 +58,129 @@ async function resetAllData() {
 }
 import { AppHeader } from "./AppHeader";
 import { TabNavigation, type TabType } from "./TabNavigation";
+
+// Reset confirmation modal component
+function ResetConfirmationModal({
+  isOpen,
+  onConfirm,
+  onCancel,
+}: {
+  isOpen: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const [confirmText, setConfirmText] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Focus input when modal opens
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  // Reset input when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setConfirmText("");
+    }
+  }, [isOpen]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      onCancel();
+    }
+  };
+
+  const canConfirm = confirmText.toLowerCase() === "reset";
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reset-modal-title"
+      onKeyDown={handleKeyDown}
+    >
+      <div className="bg-pixel-bg-dark border-4 border-pixel-error p-6 shadow-[8px_8px_0_0_#000] max-w-md mx-4">
+        {/* Warning Icon */}
+        <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center bg-pixel-error/20 border-4 border-pixel-error">
+          <span className="font-pixel text-2xl text-pixel-error">!</span>
+        </div>
+
+        <h3
+          id="reset-modal-title"
+          className="font-pixel text-pixel-error text-sm text-center mb-4"
+        >
+          RESET ALL DATA?
+        </h3>
+
+        <div className="space-y-3 mb-6">
+          <p className="font-pixel-body text-sm text-pixel-text text-center">
+            This will permanently delete:
+          </p>
+          <ul className="space-y-1 font-pixel text-[8px] text-pixel-text-muted">
+            <li className="flex items-center gap-2">
+              <span className="text-pixel-error">X</span> Your wallet data
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-pixel-error">X</span> Mining progress
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-pixel-error">X</span> Baby evolution state
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-pixel-error">X</span> All local settings
+            </li>
+          </ul>
+          <p className="font-pixel text-[8px] text-pixel-warning text-center mt-4">
+            Make sure you have your recovery phrase saved!
+          </p>
+        </div>
+
+        {/* Confirmation input */}
+        <div className="mb-4">
+          <label
+            htmlFor="reset-confirm-input"
+            className="font-pixel text-[8px] text-pixel-text-muted block mb-2"
+          >
+            Type RESET to confirm:
+          </label>
+          <input
+            ref={inputRef}
+            id="reset-confirm-input"
+            type="text"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder="Type RESET"
+            className="w-full px-3 py-2 font-pixel text-xs bg-pixel-bg-light border-2 border-pixel-border text-pixel-text uppercase"
+            autoComplete="off"
+          />
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 px-4 py-3 font-pixel text-[10px] uppercase bg-pixel-bg-light text-pixel-text border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!canConfirm}
+            className="flex-1 px-4 py-3 font-pixel text-[10px] uppercase bg-pixel-error text-white border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Delete All
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Lazy load sections for better performance
 import dynamic from "next/dynamic";
@@ -101,6 +225,14 @@ function AppShellInner() {
   // Get tab from URL or default to "baby"
   const urlTab = searchParams.get("tab") as TabType | null;
   const [activeTab, setActiveTab] = useState<TabType>(urlTab || "baby");
+
+  // Reset confirmation modal state
+  const [showResetModal, setShowResetModal] = useState(false);
+
+  const handleResetConfirm = useCallback(() => {
+    setShowResetModal(false);
+    resetAllData();
+  }, []);
 
   // Sync URL with tab
   const handleTabChange = useCallback(
@@ -160,17 +292,20 @@ function AppShellInner() {
             BitcoinBaby v0.1.0 - Testnet4
           </p>
           <button
-            onClick={() => {
-              if (confirm("Delete ALL data and start fresh?")) {
-                resetAllData();
-              }
-            }}
+            onClick={() => setShowResetModal(true)}
             className="font-pixel text-[6px] text-pixel-error hover:text-pixel-error/80 uppercase"
           >
             Reset All
           </button>
         </div>
       </footer>
+
+      {/* Reset Confirmation Modal */}
+      <ResetConfirmationModal
+        isOpen={showResetModal}
+        onConfirm={handleResetConfirm}
+        onCancel={() => setShowResetModal(false)}
+      />
     </div>
   );
 }

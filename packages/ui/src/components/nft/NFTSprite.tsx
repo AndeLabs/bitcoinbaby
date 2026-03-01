@@ -56,12 +56,13 @@ interface NFTSpriteProps {
 const mapBaseType = (baseType: BaseType): GenesisBaseType => {
   const mapping: Record<BaseType, GenesisBaseType> = {
     human: "human",
-    animal: "dragon", // Legacy animal → dragon
+    animal: "animal",
     robot: "robot",
     mystic: "mystic",
     alien: "alien",
-    elemental: "elemental", // Elemental → elemental
-    spirit: "shaman", // Spirit → shaman
+    shaman: "shaman",
+    elemental: "elemental",
+    dragon: "dragon",
   };
   return mapping[baseType] || "human";
 };

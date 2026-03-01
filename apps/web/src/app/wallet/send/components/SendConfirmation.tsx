@@ -6,6 +6,8 @@
  * Success/error feedback after broadcast with txid link.
  */
 
+import { useState, useCallback } from "react";
+
 interface SendConfirmationProps {
   status: "success" | "error";
   txid?: string;
@@ -27,6 +29,23 @@ export function SendConfirmation({
   onSendAnother,
   onViewWallet,
 }: SendConfirmationProps) {
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">(
+    "idle",
+  );
+
+  const handleCopyTxid = useCallback(async () => {
+    if (!txid) return;
+
+    try {
+      await navigator.clipboard.writeText(txid);
+      setCopyStatus("copied");
+      setTimeout(() => setCopyStatus("idle"), 2000);
+    } catch (error) {
+      console.error("Failed to copy TXID:", error);
+      setCopyStatus("error");
+      setTimeout(() => setCopyStatus("idle"), 2000);
+    }
+  }, [txid]);
   const formatBtc = (sats: number): string => {
     return (sats / 100_000_000).toFixed(8);
   };
@@ -95,10 +114,20 @@ export function SendConfirmation({
         {/* Copy TXID button */}
         <button
           type="button"
-          onClick={() => navigator.clipboard.writeText(txid)}
-          className="w-full py-3 font-pixel text-[10px] text-pixel-text bg-pixel-bg-light border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
+          onClick={handleCopyTxid}
+          className={`w-full py-3 font-pixel text-[10px] border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all ${
+            copyStatus === "copied"
+              ? "bg-pixel-success text-black"
+              : copyStatus === "error"
+                ? "bg-pixel-error text-white"
+                : "bg-pixel-bg-light text-pixel-text"
+          }`}
         >
-          COPY TRANSACTION ID
+          {copyStatus === "copied"
+            ? "COPIED!"
+            : copyStatus === "error"
+              ? "COPY FAILED"
+              : "COPY TRANSACTION ID"}
         </button>
 
         {/* Action buttons */}

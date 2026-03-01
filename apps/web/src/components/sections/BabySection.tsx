@@ -13,6 +13,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   useGlobalMining,
   useGameLoop,
@@ -28,8 +29,11 @@ import {
   DeathModal,
   MiningStatusBadge,
   HelpTooltip,
+  LeaderboardWidget,
   type GameAction,
 } from "@bitcoinbaby/ui";
+import { useLeaderboard } from "@bitcoinbaby/core";
+import { useWallet } from "@/hooks/useWallet";
 import { Button, Input, Card, CardHeader, CardContent } from "@bitcoinbaby/ui";
 import type { GameEvent } from "@bitcoinbaby/core";
 import type { TabType } from "@/components/app/TabNavigation";
@@ -178,6 +182,20 @@ function CreateBabyForm({
 // =============================================================================
 
 export function BabySection({ setActiveTab }: BabySectionProps) {
+  // Router for navigation
+  const router = useRouter();
+
+  // Wallet for user address
+  const wallet = useWallet();
+
+  // Leaderboard data for mini-widget
+  const leaderboard = useLeaderboard({
+    initialCategory: "miners",
+    initialPeriod: "alltime",
+    pageSize: 3,
+    userAddress: wallet.wallet?.address,
+  });
+
   // Game state
   const [evolutionData, setEvolutionData] = useState<{
     isOpen: boolean;
@@ -399,6 +417,27 @@ export function BabySection({ setActiveTab }: BabySectionProps) {
                 shares={mining.shares}
                 nftBoost={mining.nftBoost > 0 ? 1 + mining.nftBoost / 100 : 1}
                 onClick={goToMining}
+              />
+
+              {/* Mini Leaderboard Widget */}
+              <LeaderboardWidget
+                entries={leaderboard.entries.map((e) => ({
+                  address: e.address,
+                  score: e.score,
+                  rank: e.rank,
+                  isCurrentUser: e.isCurrentUser,
+                }))}
+                category="miners"
+                userRank={
+                  leaderboard.userRank
+                    ? {
+                        rank: leaderboard.userRank,
+                        score: leaderboard.userScore,
+                      }
+                    : null
+                }
+                isLoading={leaderboard.isLoading}
+                onViewMore={() => router.push("/leaderboard")}
               />
 
               {/* Quick Tips */}

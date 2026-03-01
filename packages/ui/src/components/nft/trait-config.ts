@@ -544,51 +544,127 @@ export const BASE_TYPE_CONFIGS: Record<BaseType, TraitVisualConfig> = {
       { type: "circle", cx: 10, cy: 3.5, r: 0.4, fill: "#ffffff" },
     ],
   },
-  // Spirit - ethereal ghostly appearance
-  spirit: {
-    name: "Spirit Baby",
+  // Shaman - spiritual nature connection
+  shaman: {
+    name: "Shaman Baby",
     palette: {
-      primary: "#e0b0ff",
-      secondary: "#dda0dd",
-      accent: "#ffffff",
-      outline: "#9370db",
-      background: "#0a0a14",
-      glow: "#e0b0ff",
+      primary: "#059669",
+      secondary: "#34d399",
+      accent: "#fbbf24",
+      outline: "#047857",
+      background: "#0a1410",
+      glow: "#34d399",
     },
     effects: {
       aura: true,
-      auraColor: "#e0b0ff",
+      auraColor: "#34d399",
       particles: true,
-      particleColor: "#ffffff",
-      glowIntensity: 0.6,
+      particleColor: "#fbbf24",
+      glowIntensity: 0.5,
     },
     features: [
+      // Body - organic shape
       {
         type: "ellipse",
         x: 8,
-        y: 8,
+        y: 9,
         width: 7,
-        height: 10,
+        height: 8,
         fill: "primary",
-        opacity: 0.8,
         stroke: "outline",
         strokeWidth: 0.5,
       },
+      // Head
+      {
+        type: "circle",
+        cx: 8,
+        cy: 5,
+        r: 4,
+        fill: "primary",
+        stroke: "outline",
+        strokeWidth: 0.5,
+      },
+      // Spirit eyes (glowing)
+      { type: "circle", cx: 6, cy: 4.5, r: 1, fill: "accent" },
+      { type: "circle", cx: 10, cy: 4.5, r: 1, fill: "accent" },
+      { type: "circle", cx: 6.3, cy: 4.2, r: 0.3, fill: "#ffffff" },
+      { type: "circle", cx: 10.3, cy: 4.2, r: 0.3, fill: "#ffffff" },
+      // Nature markings
+      {
+        type: "path",
+        d: "M6 7 Q8 8 10 7",
+        fill: "none",
+        stroke: "secondary",
+        strokeWidth: 0.4,
+      },
+    ],
+  },
+
+  // Dragon - powerful mythical creature
+  dragon: {
+    name: "Dragon Baby",
+    palette: {
+      primary: "#dc2626",
+      secondary: "#ef4444",
+      accent: "#fbbf24",
+      outline: "#7f1d1d",
+      background: "#1a0505",
+      glow: "#ef4444",
+    },
+    effects: {
+      aura: true,
+      auraColor: "#ef4444",
+      particles: true,
+      particleColor: "#fbbf24",
+      glowIntensity: 0.7,
+    },
+    features: [
+      // Body - dragon scales
       {
         type: "ellipse",
         x: 8,
-        y: 5,
-        width: 6,
-        height: 5,
+        y: 10,
+        width: 8,
+        height: 8,
         fill: "primary",
-        opacity: 0.9,
         stroke: "outline",
         strokeWidth: 0.5,
       },
-      { type: "circle", cx: 6, cy: 4, r: 1, fill: "#ffffff", opacity: 0.9 },
-      { type: "circle", cx: 10, cy: 4, r: 1, fill: "#ffffff", opacity: 0.9 },
-      { type: "circle", cx: 6, cy: 4, r: 0.4, fill: "accent" },
-      { type: "circle", cx: 10, cy: 4, r: 0.4, fill: "accent" },
+      // Head
+      {
+        type: "circle",
+        cx: 8,
+        cy: 5,
+        r: 4.5,
+        fill: "primary",
+        stroke: "outline",
+        strokeWidth: 0.5,
+      },
+      // Horns
+      {
+        type: "polygon",
+        points: "4,2 5,4 3,4",
+        fill: "secondary",
+        stroke: "outline",
+        strokeWidth: 0.3,
+      },
+      {
+        type: "polygon",
+        points: "12,2 11,4 13,4",
+        fill: "secondary",
+        stroke: "outline",
+        strokeWidth: 0.3,
+      },
+      // Fierce eyes
+      { type: "ellipse", x: 6, y: 4.5, width: 2, height: 1.5, fill: "accent" },
+      { type: "ellipse", x: 10, y: 4.5, width: 2, height: 1.5, fill: "accent" },
+      { type: "circle", cx: 6, cy: 4.5, r: 0.4, fill: "#1a1a1a" },
+      { type: "circle", cx: 10, cy: 4.5, r: 0.4, fill: "#1a1a1a" },
+      // Snout
+      { type: "ellipse", x: 8, y: 7, width: 3, height: 2, fill: "secondary" },
+      // Nostrils
+      { type: "circle", cx: 7, cy: 7, r: 0.3, fill: "outline" },
+      { type: "circle", cx: 9, cy: 7, r: 0.3, fill: "outline" },
     ],
   },
 };

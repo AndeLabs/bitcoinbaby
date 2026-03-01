@@ -21,6 +21,7 @@ import {
   getRarityGlowFilter,
 } from "./types";
 import { HumanSprite } from "./HumanSprite";
+import { AnimalSprite } from "./AnimalSprite";
 import { RobotSprite } from "./RobotSprite";
 import { MysticSprite } from "./MysticSprite";
 import { AlienSprite } from "./AlienSprite";
@@ -57,6 +58,7 @@ interface GenesisBabySpriteProps {
 export function generateRandomTraits(): GenesisBabyTraits {
   const baseTypes: BaseType[] = [
     "human",
+    "animal",
     "robot",
     "mystic",
     "alien",
@@ -114,6 +116,7 @@ export function generateRandomTraits(): GenesisBabyTraits {
 export function traitsFromHash(hash: string): GenesisBabyTraits {
   const baseTypes: BaseType[] = [
     "human",
+    "animal",
     "robot",
     "mystic",
     "alien",
@@ -180,6 +183,8 @@ export const GenesisBabySprite: FC<GenesisBabySpriteProps> = ({
     switch (traits.baseType) {
       case "human":
         return HumanSprite;
+      case "animal":
+        return AnimalSprite;
       case "robot":
         return RobotSprite;
       case "mystic":

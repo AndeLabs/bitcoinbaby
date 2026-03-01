@@ -81,6 +81,8 @@ export interface BABTCMetadata {
   url: string;
 }
 
+import { BABTC_LOGO_DATA_URI } from "./logo";
+
 /**
  * Default metadata for $BABTC
  */
@@ -88,7 +90,7 @@ export const BABTC_METADATA: BABTCMetadata = {
   decimals: 8,
   description:
     "Proof-of-Useful-Work token. Mine by training AI, raise your BitcoinBaby, earn $BABTC.",
-  image: "data:image/png;base64,", // TODO: Add pixel art logo
+  image: BABTC_LOGO_DATA_URI,
   name: "BitcoinBaby",
   supply_limit: 21_000_000_000,
   ticker: "BABTC",

@@ -91,25 +91,50 @@ function UnlockModal({
     }
   };
 
+  // Handle escape key to close modal
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape" && !isLoading) {
+      onCancel();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="unlock-modal-title"
+      onKeyDown={handleKeyDown}
+    >
       <div className="bg-pixel-bg-dark border-4 border-black p-6 shadow-[8px_8px_0_0_#000] max-w-sm mx-4">
-        <h3 className="font-pixel text-pixel-primary text-sm mb-4">
+        <h3
+          id="unlock-modal-title"
+          className="font-pixel text-pixel-primary text-sm mb-4"
+        >
           UNLOCK WALLET
         </h3>
 
         <form onSubmit={handleSubmit}>
+          <label htmlFor="unlock-password" className="sr-only">
+            Password
+          </label>
           <input
+            id="unlock-password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Enter your password"
             className="w-full px-3 py-2 mb-4 font-pixel text-xs bg-pixel-bg-light border-2 border-black text-pixel-text"
             autoFocus
+            aria-describedby={error ? "unlock-error" : undefined}
           />
 
           {error && (
-            <p className="font-pixel text-[8px] text-pixel-error mb-4">
+            <p
+              id="unlock-error"
+              role="alert"
+              className="font-pixel text-[8px] text-pixel-error mb-4"
+            >
               {error}
             </p>
           )}

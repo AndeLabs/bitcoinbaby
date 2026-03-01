@@ -108,8 +108,26 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="min-h-screen bg-pixel-bg-dark text-pixel-text antialiased">
-        {/* Scanline overlay for CRT effect - hidden on mobile */}
-        <div className="pointer-events-none fixed inset-0 z-50 bg-[repeating-linear-gradient(0deg,rgba(0,0,0,0.1),rgba(0,0,0,0.1)_1px,transparent_1px,transparent_2px)] opacity-30 hidden md:block" />
+        {/* CRT scanline effect - subtle overlay for retro feel */}
+        {/* Uses reduced opacity for readability, only visible on larger screens */}
+        <div
+          className="pointer-events-none fixed inset-0 z-50 hidden md:block"
+          aria-hidden="true"
+          style={{
+            background:
+              "repeating-linear-gradient(0deg, rgba(0,0,0,0.08) 0px, rgba(0,0,0,0.08) 1px, transparent 1px, transparent 3px)",
+            mixBlendMode: "multiply",
+          }}
+        />
+        {/* Subtle vignette for depth */}
+        <div
+          className="pointer-events-none fixed inset-0 z-40 hidden lg:block"
+          aria-hidden="true"
+          style={{
+            background:
+              "radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.15) 100%)",
+          }}
+        />
 
         <RootProvider>
           {/* Main content with safe areas */}

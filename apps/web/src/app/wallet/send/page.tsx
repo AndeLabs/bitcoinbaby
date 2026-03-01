@@ -227,10 +227,19 @@ export default function SendPage() {
         // Finalize and extract transaction
         const signedTx = builder.finalizePSBT(psbt);
 
-        // Broadcast transaction
+        // Broadcast transaction with timeout
         const mempoolClient = createMempoolClient({ network });
-        const txid = await mempoolClient.broadcastTransaction(signedTx.hex);
+        const broadcastPromise = mempoolClient.broadcastTransaction(
+          signedTx.hex,
+        );
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("BROADCAST_TIMEOUT")),
+            30000, // 30 second timeout
+          ),
+        );
 
+        const txid = await Promise.race([broadcastPromise, timeoutPromise]);
         return { txid };
       });
 
@@ -248,9 +257,33 @@ export default function SendPage() {
       }
     } catch (error) {
       console.error("Transaction failed:", error);
+
+      // Classify error for better UX
+      let errorMessage: string;
+      if (error instanceof Error) {
+        if (error.message === "BROADCAST_TIMEOUT") {
+          errorMessage =
+            "Network timeout. Transaction may still be pending. Check explorer.";
+        } else if (
+          error.message.includes("fetch") ||
+          error.message.includes("network")
+        ) {
+          errorMessage =
+            "Network error. Please check your connection and try again.";
+        } else if (error.message.includes("insufficient")) {
+          errorMessage = "Insufficient funds for this transaction.";
+        } else if (error.message.includes("dust")) {
+          errorMessage = "Amount too small. Minimum is 546 satoshis.";
+        } else {
+          errorMessage = error.message;
+        }
+      } else {
+        errorMessage = "Unknown error occurred";
+      }
+
       setTxResult({
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: errorMessage,
       });
     } finally {
       setIsProcessing(false);
@@ -366,7 +399,7 @@ export default function SendPage() {
 
         {/* Input Step */}
         {step === "input" && !walletLoading && !balanceLoading && (
-          <div className="bg-pixel-bg-medium border-4 border-pixel-border p-6 shadow-[8px_8px_0_0_#000] space-y-6">
+          <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4 sm:p-6 shadow-[4px_4px_0_0_#000] sm:shadow-[8px_8px_0_0_#000] space-y-4 sm:space-y-6">
             {/* Balance display */}
             <div className="bg-pixel-bg-dark p-4 border-2 border-pixel-border">
               <div className="flex items-center justify-between mb-1">
@@ -444,7 +477,7 @@ export default function SendPage() {
 
         {/* Review Step */}
         {step === "review" && address && (
-          <div className="bg-pixel-bg-medium border-4 border-pixel-border p-6 shadow-[8px_8px_0_0_#000]">
+          <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4 sm:p-6 shadow-[4px_4px_0_0_#000] sm:shadow-[8px_8px_0_0_#000]">
             <TransactionReview
               recipient={sendState.recipient}
               amountSatoshis={sendState.amountSatoshis}
@@ -462,7 +495,7 @@ export default function SendPage() {
 
         {/* Result Step */}
         {step === "result" && txResult && (
-          <div className="bg-pixel-bg-medium border-4 border-pixel-border p-6 shadow-[8px_8px_0_0_#000]">
+          <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4 sm:p-6 shadow-[4px_4px_0_0_#000] sm:shadow-[8px_8px_0_0_#000]">
             <SendConfirmation
               status={txResult.success ? "success" : "error"}
               txid={txResult.txid}
@@ -477,7 +510,7 @@ export default function SendPage() {
         )}
 
         {/* Security info */}
-        <div className="mt-8 p-4 bg-pixel-bg-light border-4 border-dashed border-pixel-border">
+        <div className="mt-6 sm:mt-8 p-3 sm:p-4 bg-pixel-bg-light border-4 border-dashed border-pixel-border">
           <h3 className="font-pixel text-xs text-pixel-secondary mb-3">
             TRANSACTION INFO
           </h3>

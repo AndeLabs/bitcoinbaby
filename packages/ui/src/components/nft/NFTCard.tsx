@@ -77,8 +77,9 @@ const BASE_TYPE_COLORS: Record<BaseType, { body: string; label: string }> = {
   robot: { body: "#7dd3fc", label: "Robot" },
   mystic: { body: "#c4b5fd", label: "Mystic" },
   alien: { body: "#6ee7b7", label: "Alien" },
+  shaman: { body: "#34d399", label: "Shaman" },
   elemental: { body: "#fb923c", label: "Elemental" },
-  spirit: { body: "#e879f9", label: "Spirit" },
+  dragon: { body: "#ef4444", label: "Dragon" },
 };
 
 // =============================================================================

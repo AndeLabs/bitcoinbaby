@@ -17,6 +17,7 @@ export {
   type LeaderboardEntry as LeaderboardTableEntry,
   type LeaderboardBadge as LeaderboardTableBadge,
   type LeaderboardCategory as LeaderboardTableCategory,
+  type CosmicStatus,
 } from "./LeaderboardTable";
 export {
   LeaderboardWidget,

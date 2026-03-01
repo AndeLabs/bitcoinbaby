@@ -353,6 +353,15 @@ class SyncManager {
 
       if (response.success) {
         await markSynced(share.id!);
+
+        // Update leaderboard (non-blocking - fire and forget)
+        // This should not fail the mining flow if leaderboard update fails
+        this.updateLeaderboardNonBlocking(
+          share.address,
+          share.difficulty,
+          share.reward,
+        );
+
         return { success: true, reward: share.reward };
       } else {
         // Check if it's a duplicate (already synced)
@@ -497,6 +506,58 @@ class SyncManager {
    */
   forceSync(): void {
     this.triggerSync();
+  }
+
+  /**
+   * Update leaderboard in a non-blocking way
+   * This is fire-and-forget - errors are logged but don't affect mining
+   *
+   * @param address - User's Bitcoin address
+   * @param hashesIncrement - Number of hashes to add (difficulty represents hash count)
+   * @param tokensEarned - Tokens earned from this share (as string)
+   */
+  private updateLeaderboardNonBlocking(
+    address: string,
+    hashesIncrement: number,
+    tokensEarned: string,
+  ): void {
+    // Use production API endpoint directly
+    const apiUrl = "https://bitcoinbaby-api-prod.andeanlabs-58f.workers.dev";
+
+    // Fire and forget - wrap in try-catch and don't await
+    Promise.all([
+      // Update miners leaderboard (total hashes)
+      fetch(`${apiUrl}/api/leaderboard/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address,
+          category: "miners",
+          score: hashesIncrement,
+        }),
+      }).catch((err) => {
+        console.warn("[SyncManager] Failed to update miners leaderboard:", err);
+      }),
+
+      // Update earners leaderboard (tokens earned)
+      fetch(`${apiUrl}/api/leaderboard/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address,
+          category: "earners",
+          score: Number(tokensEarned),
+        }),
+      }).catch((err) => {
+        console.warn(
+          "[SyncManager] Failed to update earners leaderboard:",
+          err,
+        );
+      }),
+    ]).catch((err) => {
+      // This should never happen since individual promises catch their errors
+      console.warn("[SyncManager] Leaderboard update failed:", err);
+    });
   }
 }
 

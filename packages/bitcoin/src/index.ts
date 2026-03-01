@@ -329,3 +329,52 @@ export {
   hasAvailableWallet,
   getBestProvider,
 } from "./providers";
+
+// Inscription System (Genesis Babies NFTs on Bitcoin)
+export {
+  // PNG Exporter
+  exportSVGtoPNG,
+  exportSpriteSheet,
+  svgToCanvas,
+  generateManifest,
+  type PNGExportOptions,
+  type ExportResult,
+  type SpriteComponent,
+  type SpriteManifest,
+  // Sprite Library
+  GENESIS_BABIES_LIBRARY,
+  parseDNA as parseInscriptionDNA,
+  getRarityFromScore,
+  getBaseTypeFromIndex,
+  getBloodlineFromIndex,
+  buildSpriteLibrary,
+  generateLibraryInscription,
+  type SpriteLibrary,
+  type SpriteCategory,
+  type SpriteComponentDef,
+  type ColorPaletteDef,
+  type LayerRule,
+  type DNAMapping,
+  type BuildResult,
+  type BuildStats,
+  // On-Chain Renderer
+  generateOnChainRenderer,
+  minifyRenderer,
+  generateRendererInscription,
+  generateNFTMetadata,
+  generateMinimalNFTInscription,
+  // Inscription Builder
+  createInscriptionEnvelope,
+  estimateInscriptionFee,
+  estimateCostUSD,
+  generateInscriptionPlan,
+  generateNFTInscriptionData,
+  buildCommitTransaction,
+  buildRevealTransaction,
+  getDeploymentSummary,
+  INSCRIPTION_ORDER,
+  type InscriptionData,
+  type InscriptionResult,
+  type InscriptionConfig,
+  type BatchInscriptionPlan,
+} from "./inscription";

@@ -217,11 +217,21 @@ export function FeeSelector({
         </div>
       )}
 
-      {/* Fee estimate info */}
+      {/* Fee estimate warning - prominent display */}
       {!feeEstimates && (
-        <p className="font-pixel text-[6px] text-pixel-error">
-          Using default fee rates. Network estimates unavailable.
-        </p>
+        <div className="mt-3 p-3 bg-pixel-warning/20 border-2 border-pixel-warning animate-pulse">
+          <div className="flex items-center gap-2">
+            <span className="font-pixel text-[10px] text-pixel-warning">⚠</span>
+            <div>
+              <p className="font-pixel text-[8px] text-pixel-warning">
+                NETWORK FEES UNAVAILABLE
+              </p>
+              <p className="font-pixel text-[6px] text-pixel-text-muted mt-1">
+                Using default rates. Actual fees may differ.
+              </p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

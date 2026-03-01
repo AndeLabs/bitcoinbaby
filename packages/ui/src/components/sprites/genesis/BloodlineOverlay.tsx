@@ -111,20 +111,20 @@ export const BloodlineOverlay: FC<BloodlineOverlayProps> = ({
     const c = getRoyalColors();
     return (
       <>
-        {/* Elaborate Crown */}
+        {/* Elaborate Crown - Fixed coordinates to stay within viewBox 0-32 */}
         <rect x="9" y="1" width="14" height="3" fill={c.gold} />
         <rect x="10" y="0" width="12" height="1" fill={c.gold_dark} />
-        {/* Crown points */}
-        <rect x="10" y="-2" width="2" height="3" fill={c.gold} />
-        <rect x="14" y="-3" width="2" height="4" fill={c.gold} />
-        <rect x="15" y="-4" width="2" height="2" fill={c.gold_light} />
-        <rect x="20" y="-2" width="2" height="3" fill={c.gold} />
+        {/* Crown points - shifted to positive coordinates */}
+        <rect x="10" y="0" width="2" height="2" fill={c.gold} />
+        <rect x="14" y="0" width="2" height="2" fill={c.gold} />
+        <rect x="15" y="0" width="2" height="1" fill={c.gold_light} />
+        <rect x="20" y="0" width="2" height="2" fill={c.gold} />
         {/* Crown jewels */}
-        <rect x="10" y="-1" width="1" height="1" fill={c.ruby} />
-        <rect x="11" y="-1" width="1" height="1" fill="#ffffff" opacity="0.5" />
-        <rect x="15" y="-2" width="2" height="1" fill={c.sapphire} />
-        <rect x="15" y="-3" width="1" height="1" fill="#ffffff" opacity="0.4" />
-        <rect x="21" y="-1" width="1" height="1" fill={c.ruby} />
+        <rect x="10" y="1" width="1" height="1" fill={c.ruby} />
+        <rect x="11" y="1" width="1" height="1" fill="#ffffff" opacity="0.5" />
+        <rect x="15" y="0" width="2" height="1" fill={c.sapphire} />
+        <rect x="16" y="0" width="1" height="1" fill="#ffffff" opacity="0.4" />
+        <rect x="21" y="1" width="1" height="1" fill={c.ruby} />
         {/* Crown band detail */}
         <rect x="10" y="1" width="12" height="1" fill={c.gold_dark} />
         <rect x="12" y="2" width="1" height="1" fill={c.emerald} />
