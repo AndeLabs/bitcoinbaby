@@ -299,6 +299,9 @@ export class CharmsClient {
     const charms: ExtractedCharm[] = [];
     const network = this.network === "main" ? "mainnet" : "testnet4";
 
+    let processedCount = 0;
+    let errorCount = 0;
+
     for (const txInfo of txHistory.slice(0, 50)) {
       try {
         const txHex = await this.getRawTransaction(txInfo.txid);
@@ -311,6 +314,8 @@ export class CharmsClient {
           network,
         );
 
+        processedCount++;
+
         // Convert CharmObj to ExtractedCharm
         for (const charm of extracted) {
           // Filter by appId if specified
@@ -320,11 +325,23 @@ export class CharmsClient {
 
           charms.push(this.convertCharmObjToExtracted(charm, txInfo.txid));
         }
-      } catch {
-        // Skip invalid txs (may not contain charms)
+      } catch (error) {
+        errorCount++;
+        // Log first few errors for debugging (not all to avoid spam)
+        if (errorCount <= 3) {
+          console.warn(
+            `[CharmsClient] Failed to extract charm from tx ${txInfo.txid.slice(0, 8)}:`,
+            error instanceof Error ? error.message : error,
+          );
+        }
+        // Continue to next tx - this one may not contain charms
         continue;
       }
     }
+
+    console.log(
+      `[CharmsClient] Extracted ${charms.length} charms from ${processedCount} txs (${errorCount} errors)`,
+    );
 
     return charms;
   }

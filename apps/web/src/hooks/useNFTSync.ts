@@ -137,6 +137,7 @@ export function useNFTSync(): UseNFTSyncReturn {
 
   /**
    * Refetch when NFT transactions confirm
+   * Uses multiple retry attempts with exponential backoff to handle API indexing delays
    */
   useEffect(() => {
     const confirmedNFTTx = pendingTransactions.find(
@@ -148,10 +149,53 @@ export function useNFTSync(): UseNFTSyncReturn {
 
     if (confirmedNFTTx) {
       lastConfirmedTxRef.current = confirmedNFTTx.txid;
-      // Wait for blockchain to index, then refetch
-      setTimeout(() => {
-        refetch();
-      }, 5000);
+
+      // Retry with exponential backoff: 15s, 30s, 60s, 120s
+      // Mempool API can take time to index new transactions
+      const retryDelays = [15000, 30000, 60000, 120000];
+      let attempt = 0;
+
+      const attemptRefetch = async () => {
+        console.log(
+          `[NFTSync] Attempt ${attempt + 1}/${retryDelays.length} to fetch NFT after confirmation`,
+        );
+
+        try {
+          const result = await refetch();
+          const nfts = result.data || [];
+
+          // Check if we found any NFTs
+          if (nfts.length > 0) {
+            console.log(
+              `[NFTSync] Found ${nfts.length} NFTs after confirmation`,
+            );
+            return; // Success - stop retrying
+          }
+
+          // No NFTs found yet, schedule next attempt
+          attempt++;
+          if (attempt < retryDelays.length) {
+            console.log(
+              `[NFTSync] No NFTs found, retrying in ${retryDelays[attempt] / 1000}s`,
+            );
+            setTimeout(attemptRefetch, retryDelays[attempt]);
+          } else {
+            console.warn(
+              `[NFTSync] Failed to find NFT after ${retryDelays.length} attempts`,
+            );
+          }
+        } catch (error) {
+          console.error(`[NFTSync] Refetch failed:`, error);
+          // Schedule retry on error
+          attempt++;
+          if (attempt < retryDelays.length) {
+            setTimeout(attemptRefetch, retryDelays[attempt]);
+          }
+        }
+      };
+
+      // Start first attempt after initial delay
+      setTimeout(attemptRefetch, retryDelays[0]);
     }
   }, [pendingTransactions, refetch]);
 

@@ -188,23 +188,28 @@ export function NFTsSection() {
                   Syncing...
                 </span>
               )}
-              {syncError && (
-                <span className="font-pixel text-[7px] text-pixel-error">
-                  Sync failed
-                </span>
+              {syncError && !isFetching && (
+                <button
+                  onClick={() => refreshNFTs()}
+                  className="font-pixel text-[8px] text-pixel-error hover:text-pixel-primary bg-pixel-error/20 hover:bg-pixel-primary/20 px-2 py-1 rounded transition-colors"
+                >
+                  Sync failed - Click to retry
+                </button>
               )}
-              <button
-                onClick={() => refreshNFTs()}
-                disabled={isFetching}
-                className="font-pixel text-[7px] text-pixel-text-muted hover:text-pixel-primary transition-colors disabled:opacity-50"
-                title={
-                  lastSynced
-                    ? `Last synced: ${new Date(lastSynced).toLocaleTimeString()}`
-                    : "Never synced"
-                }
-              >
-                ↻ Refresh
-              </button>
+              {!syncError && (
+                <button
+                  onClick={() => refreshNFTs()}
+                  disabled={isFetching}
+                  className="font-pixel text-[7px] text-pixel-text-muted hover:text-pixel-primary transition-colors disabled:opacity-50"
+                  title={
+                    lastSynced
+                      ? `Last synced: ${new Date(lastSynced).toLocaleTimeString()}`
+                      : "Never synced"
+                  }
+                >
+                  ↻ Refresh
+                </button>
+              )}
             </div>
           </div>
           <p className="font-pixel-body text-sm text-pixel-text-muted">
