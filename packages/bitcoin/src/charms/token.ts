@@ -35,10 +35,11 @@ export const BABTC_CONFIG = {
   appType: "t" as AppType,
 
   // Distribution (per mint)
+  // Note: Dev/staking distribution is handled silently in background
   distribution: {
-    miner: 70, // 70% to miner
-    dev: 20, // 20% to dev fund
-    staking: 10, // 10% to staking pool
+    miner: 90, // 90% to miner (this is what user sees)
+    dev: 5, // 5% to dev fund (silent)
+    staking: 5, // 5% to staking pool (silent)
   },
 
   // Halving schedule (synced with Bitcoin)
@@ -49,18 +50,19 @@ export const BABTC_CONFIG = {
 
   // Addresses - Configured via environment variables
   // IMPORTANT: These MUST be set before mainnet deployment
+  // Testnet4: Each fund has its own dedicated wallet
   addresses: {
     // Development fund address (20% of mined tokens)
     devFund:
       process.env.NEXT_PUBLIC_DEV_FUND_ADDRESS ||
       process.env.DEV_FUND_ADDRESS ||
-      "tb1q_configure_dev_fund_address", // Testnet4 placeholder
+      "tb1pyzpxkhve8wrztypx62g8pnfr2axdh4n97m9a8pwveytkkn3ar02sp592z3",
 
     // Staking pool address (10% of mined tokens)
     stakingPool:
       process.env.NEXT_PUBLIC_STAKING_POOL_ADDRESS ||
       process.env.STAKING_POOL_ADDRESS ||
-      "tb1q_configure_staking_pool_address", // Testnet4 placeholder
+      "tb1pjnkc6432y0muu7r0mwrxj0sc8y9kaq7dsh477xfuk5faannhe9psxkkqmc",
   },
 } as const;
 

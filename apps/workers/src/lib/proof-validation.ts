@@ -87,12 +87,35 @@ export async function validateMiningProof(
     }
   }
 
-  // 4. Recalculate hash = double SHA256(blockData)
-  // NOTE: blockData already includes the nonce (format: block:address:nonce)
+  // 4. SECURITY: Verify nonce in blockData matches proof.nonce
+  // blockData format: "block:address:nonce" or "block:address:nonceHex"
+  // This prevents reusing the same work with different nonce claims
+  const blockDataParts = proof.blockData.split(":");
+  if (blockDataParts.length < 3) {
+    return { valid: false, reason: "Invalid blockData format" };
+  }
+  const embeddedNonceStr = blockDataParts[blockDataParts.length - 1];
+  // Support both decimal and hex nonce formats
+  // WebGPU sends lowercase hex (e.g., "1a2b"), CPU sends decimal
+  // Detect hex by: starts with 0x OR contains hex letters a-f
+  const isHex =
+    embeddedNonceStr.startsWith("0x") || /[a-fA-F]/.test(embeddedNonceStr);
+  const embeddedNonce = isHex
+    ? parseInt(embeddedNonceStr.replace("0x", ""), 16)
+    : parseInt(embeddedNonceStr, 10);
+
+  if (isNaN(embeddedNonce) || embeddedNonce !== proof.nonce) {
+    return {
+      valid: false,
+      reason: `Nonce mismatch: blockData contains ${embeddedNonceStr}, proof claims ${proof.nonce}`,
+    };
+  }
+
+  // 5. Recalculate hash = double SHA256(blockData)
   // The miner uses double SHA256 (Bitcoin standard hash256)
   const calculatedHash = await hash256Hex(proof.blockData);
 
-  // 5. Verify hash matches (case-insensitive)
+  // 6. Verify hash matches (case-insensitive)
   if (calculatedHash.toLowerCase() !== proof.hash.toLowerCase()) {
     return {
       valid: false,
@@ -100,7 +123,7 @@ export async function validateMiningProof(
     };
   }
 
-  // 6. Verify hash meets difficulty (count leading zero bits)
+  // 7. Verify hash meets difficulty (count leading zero bits)
   const leadingZeros = countLeadingZeroBits(calculatedHash);
   if (leadingZeros < proof.difficulty) {
     return {
@@ -109,7 +132,7 @@ export async function validateMiningProof(
     };
   }
 
-  // 7. Calculate reward server-side (NEVER trust client)
+  // 8. Calculate reward server-side (NEVER trust client)
   const calculatedReward = calculateShareReward(proof.difficulty);
 
   return {

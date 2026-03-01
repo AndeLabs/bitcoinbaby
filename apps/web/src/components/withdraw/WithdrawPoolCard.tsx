@@ -8,7 +8,12 @@
  */
 
 import { useState } from "react";
-import { PixelCard, PixelButton } from "@bitcoinbaby/ui";
+import {
+  PixelCard,
+  PixelButton,
+  TransactionConfirmModal,
+  createWithdrawTransaction,
+} from "@bitcoinbaby/ui";
 import type { PoolType, PoolStatusResponse } from "@bitcoinbaby/core";
 import { formatPoolType } from "../../hooks/useWithdrawPool";
 
@@ -22,6 +27,8 @@ interface WithdrawPoolCardProps {
   ) => Promise<{ success: boolean; error?: string }>;
   isSubmitting?: boolean;
   minAmount?: bigint;
+  /** Destination address for display in confirmation modal */
+  destinationAddress?: string;
 }
 
 export function WithdrawPoolCard({
@@ -31,12 +38,16 @@ export function WithdrawPoolCard({
   onWithdraw,
   isSubmitting = false,
   minAmount = 100n,
+  destinationAddress,
 }: WithdrawPoolCardProps) {
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingAmount, setPendingAmount] = useState<bigint>(0n);
 
-  const handleWithdraw = async () => {
+  // Validate and show confirmation modal
+  const handleWithdraw = () => {
     setError(null);
 
     const withdrawAmount = BigInt(amount || "0");
@@ -51,13 +62,29 @@ export function WithdrawPoolCard({
       return;
     }
 
-    const result = await onWithdraw(poolType, withdrawAmount);
+    // Store pending amount and show confirmation modal
+    setPendingAmount(withdrawAmount);
+    setShowConfirmModal(true);
+  };
+
+  // Execute withdrawal after user confirms
+  const handleConfirmWithdraw = async () => {
+    setShowConfirmModal(false);
+
+    const result = await onWithdraw(poolType, pendingAmount);
 
     if (!result.success) {
       setError(result.error ?? "Withdrawal failed");
     } else {
       setAmount("");
+      setPendingAmount(0n);
     }
+  };
+
+  // Cancel confirmation
+  const handleCancelConfirm = () => {
+    setShowConfirmModal(false);
+    setPendingAmount(0n);
   };
 
   const handleMaxClick = () => {
@@ -215,6 +242,19 @@ export function WithdrawPoolCard({
           </PixelButton>
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      <TransactionConfirmModal
+        isOpen={showConfirmModal}
+        transaction={createWithdrawTransaction({
+          amount: pendingAmount,
+          toAddress: destinationAddress ?? "Your wallet",
+          poolType: formatPoolType(poolType),
+        })}
+        isLoading={isSubmitting}
+        onConfirm={handleConfirmWithdraw}
+        onCancel={handleCancelConfirm}
+      />
     </PixelCard>
   );
 }

@@ -303,7 +303,10 @@ class MiningManager {
       await this.orchestrator.start(blockData);
 
       // Start auto-saving state
+      // FIX: Stop any existing auto-save first to prevent memory leak
+      // if start() is called multiple times quickly
       if (this.persistence) {
+        this.persistence.stopAutoSave(); // Clear any existing interval
         this.persistence.startAutoSave(() => ({
           lastNonce: 0, // Would need orchestrator to expose this
           totalHashes: this.state.totalHashes,

@@ -14,6 +14,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useMiningWithNFTs, useVirtualBalance } from "@/hooks";
 import { useMiningShareSubmission } from "@/hooks/useMiningShareSubmission";
+import { WithdrawButton } from "@/components/withdraw";
 import {
   MiningStatsGrid,
   MiningControlButton,
@@ -333,6 +334,18 @@ export function MiningSection() {
                 Withdrawn to Bitcoin
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Withdraw Button - Shows when user has virtual balance */}
+        {wallet && virtualBalance > 0n && (
+          <div className="mb-6 flex justify-center">
+            <WithdrawButton
+              virtualBalance={virtualBalance}
+              isLoading={virtualBalanceLoading}
+              size="md"
+              showBalance={true}
+            />
           </div>
         )}
 

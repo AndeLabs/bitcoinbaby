@@ -57,6 +57,12 @@ export interface QueueStats {
   totalReward: bigint;
 }
 
+export interface QueueError {
+  type: "quota_exceeded" | "database_error" | "unknown";
+  message: string;
+  recoverable: boolean;
+}
+
 // =============================================================================
 // DATABASE
 // =============================================================================
@@ -90,38 +96,203 @@ function getDB(): ShareQueueDB {
 // =============================================================================
 
 /**
+ * Check if an error is a quota exceeded error
+ */
+function isQuotaExceededError(error: unknown): boolean {
+  if (error instanceof DOMException) {
+    // Standard quota exceeded error names
+    return (
+      error.name === "QuotaExceededError" ||
+      error.name === "NS_ERROR_DOM_QUOTA_REACHED" || // Firefox
+      error.code === 22 // Legacy code for quota exceeded
+    );
+  }
+  // Dexie wraps errors, check message
+  if (error instanceof Error) {
+    return (
+      error.message.includes("QuotaExceeded") ||
+      error.message.includes("quota") ||
+      error.message.includes("storage")
+    );
+  }
+  return false;
+}
+
+/**
+ * Check if an error is a constraint violation (duplicate key)
+ * This handles race condition when two concurrent calls try to add same hash
+ */
+function isConstraintError(error: unknown): boolean {
+  if (error instanceof DOMException) {
+    return error.name === "ConstraintError";
+  }
+  // Dexie wraps errors, check message
+  if (error instanceof Error) {
+    return (
+      error.message.includes("ConstraintError") ||
+      error.message.includes("uniqueness") ||
+      error.message.includes("unique constraint") ||
+      error.message.includes("Key already exists")
+    );
+  }
+  return false;
+}
+
+/**
+ * Attempt to free up space by cleaning old synced shares
+ * Returns true if space was freed
+ */
+async function freeUpSpace(): Promise<boolean> {
+  try {
+    // First, try cleaning up very old synced shares (older than 1 day)
+    const deletedRecent = await cleanupSyncedShares(1);
+    if (deletedRecent > 0) {
+      console.log(
+        `[ShareQueue] Freed space by deleting ${deletedRecent} old synced shares`,
+      );
+      return true;
+    }
+
+    // If that didn't help, clean all synced shares
+    const database = getDB();
+    const syncedShares = await database.shares
+      .where("status")
+      .equals("synced")
+      .toArray();
+
+    if (syncedShares.length > 0) {
+      const ids = syncedShares.map((s) => s.id!);
+      await database.shares.bulkDelete(ids);
+      console.log(
+        `[ShareQueue] Emergency cleanup: deleted ${ids.length} synced shares`,
+      );
+      return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Add a share to the queue
  * Automatically deduplicates by hash
+ * Handles quota exceeded errors by attempting to free space
  */
 export async function queueShare(
   share: Omit<
     QueuedShare,
     "id" | "status" | "attempts" | "lastAttempt" | "error" | "nextRetry"
   >,
-): Promise<{ queued: boolean; duplicate: boolean; id?: number }> {
+): Promise<{
+  queued: boolean;
+  duplicate: boolean;
+  id?: number;
+  error?: QueueError;
+}> {
   const database = getDB();
 
   // Check for duplicate (same hash)
-  const existing = await database.shares
-    .where("hash")
-    .equals(share.hash)
-    .first();
+  try {
+    const existing = await database.shares
+      .where("hash")
+      .equals(share.hash)
+      .first();
 
-  if (existing) {
-    return { queued: false, duplicate: true, id: existing.id };
+    if (existing) {
+      return { queued: false, duplicate: true, id: existing.id };
+    }
+  } catch (error) {
+    console.error("[ShareQueue] Error checking duplicate:", error);
+    // Continue to try adding anyway
   }
 
-  // Add to queue
-  const id = await database.shares.add({
-    ...share,
-    status: "pending",
-    attempts: 0,
-    lastAttempt: null,
-    error: null,
-    nextRetry: null,
-  });
+  // Try to add to queue
+  const addShare = async (): Promise<number> => {
+    return database.shares.add({
+      ...share,
+      status: "pending",
+      attempts: 0,
+      lastAttempt: null,
+      error: null,
+      nextRetry: null,
+    });
+  };
 
-  return { queued: true, duplicate: false, id };
+  try {
+    const id = await addShare();
+    return { queued: true, duplicate: false, id };
+  } catch (error) {
+    // FIX: Handle constraint error (race condition - duplicate was added concurrently)
+    // The &hash unique constraint catches this even if the initial check passed
+    if (isConstraintError(error)) {
+      // Another concurrent call added the same hash - this is a duplicate
+      const existing = await database.shares
+        .where("hash")
+        .equals(share.hash)
+        .first();
+      return { queued: false, duplicate: true, id: existing?.id };
+    }
+
+    // Handle quota exceeded error
+    if (isQuotaExceededError(error)) {
+      console.warn("[ShareQueue] Quota exceeded, attempting to free space...");
+
+      // Try to free up space
+      const freedSpace = await freeUpSpace();
+      if (freedSpace) {
+        // Retry adding the share
+        try {
+          const id = await addShare();
+          console.log(
+            "[ShareQueue] Successfully queued share after freeing space",
+          );
+          return { queued: true, duplicate: false, id };
+        } catch (retryError) {
+          // Still failed after freeing space
+          console.error(
+            "[ShareQueue] Still failed after freeing space:",
+            retryError,
+          );
+          return {
+            queued: false,
+            duplicate: false,
+            error: {
+              type: "quota_exceeded",
+              message:
+                "Storage quota exceeded. Please sync pending shares or clear browser data.",
+              recoverable: false,
+            },
+          };
+        }
+      }
+
+      // Couldn't free space
+      return {
+        queued: false,
+        duplicate: false,
+        error: {
+          type: "quota_exceeded",
+          message: "Storage quota exceeded. Please sync pending shares.",
+          recoverable: true, // User can trigger sync
+        },
+      };
+    }
+
+    // Other database errors
+    console.error("[ShareQueue] Database error:", error);
+    return {
+      queued: false,
+      duplicate: false,
+      error: {
+        type: "database_error",
+        message:
+          error instanceof Error ? error.message : "Unknown database error",
+        recoverable: false,
+      },
+    };
+  }
 }
 
 /**

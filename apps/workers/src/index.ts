@@ -737,13 +737,16 @@ app.get("/api/leaderboard/rank/:address", async (c) => {
 /**
  * POST /api/leaderboard/update - Update user score
  *
- * INTERNAL ENDPOINT: Called by SyncManager after successful mining credit.
- * Rate limited to prevent abuse.
+ * DEPRECATED: This endpoint is now handled internally by VirtualBalanceDO.
+ * Kept for backwards compatibility but heavily restricted.
+ *
+ * SECURITY: Rate limited by both IP and address to prevent manipulation.
+ * The VirtualBalanceDO.updateLeaderboardAsync() is the authoritative source.
  *
  * Body:
  * - address: string (Bitcoin address)
  * - category: miners | babies | earners
- * - score: number
+ * - score: number (increment, not absolute - to prevent manipulation)
  *
  * Cache invalidation:
  * - Invalidates edge cache for the updated category (all periods)
@@ -751,8 +754,8 @@ app.get("/api/leaderboard/rank/:address", async (c) => {
 app.post("/api/leaderboard/update", async (c) => {
   try {
     // =========================================================================
-    // RATE LIMITING: Prevent leaderboard spam
-    // Uses edge cache to track requests per address
+    // RATE LIMITING: Strict limits to prevent leaderboard manipulation
+    // Uses edge cache to track requests per IP AND per address
     // =========================================================================
     const clientIP = c.req.header("CF-Connecting-IP") || "unknown";
     const rateLimitKey = new Request(
@@ -829,13 +832,61 @@ app.post("/api/leaderboard/update", async (c) => {
       );
     }
 
+    // =========================================================================
+    // SECURITY: Per-address rate limiting (prevents score inflation from multiple IPs)
+    // =========================================================================
+    const addressRateLimitKey = new Request(
+      `https://ratelimit.internal/leaderboard-address/${body.address}`,
+    );
+    const addressRateLimit = await cache.match(addressRateLimitKey);
+    if (addressRateLimit) {
+      const addrCount = parseInt(
+        addressRateLimit.headers.get("X-Count") || "0",
+      );
+      // Strict limit: 120 updates per minute per address (2 per second max)
+      if (addrCount >= 120) {
+        return c.json<ApiResponse>(
+          {
+            success: false,
+            error: "Address rate limit exceeded",
+            timestamp: Date.now(),
+          },
+          429,
+        );
+      }
+      c.executionCtx.waitUntil(
+        cache.put(
+          addressRateLimitKey,
+          new Response("", {
+            headers: {
+              "X-Count": String(addrCount + 1),
+              "Cache-Control": "max-age=60",
+            },
+          }),
+        ),
+      );
+    } else {
+      c.executionCtx.waitUntil(
+        cache.put(
+          addressRateLimitKey,
+          new Response("", {
+            headers: { "X-Count": "1", "Cache-Control": "max-age=60" },
+          }),
+        ),
+      );
+    }
+
     // Sanity check: Prevent unreasonably large scores (anti-abuse)
-    const MAX_SCORE_INCREMENT = 1_000_000_000; // 1 billion max per update
+    // Max share reward is ~500 tokens (D32 with streak), so 10K per update is very generous
+    const MAX_SCORE_INCREMENT = 10_000;
     if (body.score > MAX_SCORE_INCREMENT) {
+      console.warn(
+        `[Leaderboard] Suspicious score: ${body.address} tried to add ${body.score}`,
+      );
       return c.json<ApiResponse>(
         {
           success: false,
-          error: "Score exceeds maximum",
+          error: "Score increment too large",
           timestamp: Date.now(),
         },
         400,
@@ -844,7 +895,7 @@ app.post("/api/leaderboard/update", async (c) => {
 
     const redis = getRedis(c.env);
 
-    // Update all periods (daily, weekly, alltime)
+    // Update all periods (daily, weekly, alltime) - uses ZINCRBY for increments
     await updateAllPeriods(redis, body.category, body.address, body.score);
 
     // Also update user stats

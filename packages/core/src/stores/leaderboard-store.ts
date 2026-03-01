@@ -1,12 +1,13 @@
 /**
  * Leaderboard Store
  *
- * Manages leaderboard state with local user stats.
- * Ready for backend integration - currently shows only real user data.
+ * Manages leaderboard state with real API integration.
+ * Uses Upstash Redis via Cloudflare Workers for real-time leaderboards.
  */
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { getApiClient } from "../api/client";
 
 /**
  * Leaderboard entry for a player
@@ -53,13 +54,20 @@ export interface UserLeaderboardStats {
 }
 
 interface LeaderboardStore {
-  // User's stats
+  // User's local stats (for immediate UI feedback)
   userStats: UserLeaderboardStats;
   userAddress: string | null;
 
-  // Cached leaderboard data
+  // Cached leaderboard data from API
   cachedLeaderboards: Record<string, LeaderboardEntry[]>;
   lastFetch: Record<string, number>;
+
+  // Loading and error states
+  isLoading: boolean;
+  error: string | null;
+
+  // User rank cache
+  userRanks: Record<string, number | null>;
 
   // Actions
   setUserAddress: (address: string | null) => void;
@@ -68,7 +76,22 @@ interface LeaderboardStore {
   setBabyLevel: (level: number) => void;
   addTokens: (amount: number) => void;
 
-  // Leaderboard generation
+  // Async API methods
+  fetchLeaderboard: (
+    category: LeaderboardCategory,
+    period: LeaderboardPeriod,
+    limit?: number,
+    offset?: number,
+  ) => Promise<LeaderboardEntry[]>;
+
+  fetchUserRank: (
+    category: LeaderboardCategory,
+    period: LeaderboardPeriod,
+  ) => Promise<number | null>;
+
+  submitScore: (category: LeaderboardCategory, score: number) => Promise<void>;
+
+  // Sync getters (for cached data)
   getLeaderboard: (
     category: LeaderboardCategory,
     period: LeaderboardPeriod,
@@ -79,13 +102,13 @@ interface LeaderboardStore {
   getUserRank: (
     category: LeaderboardCategory,
     period: LeaderboardPeriod,
-  ) => number;
+  ) => number | null;
 
-  // Mock data helpers
-  generateLeaderboard: (
+  // Cache helpers
+  isCacheStale: (
     category: LeaderboardCategory,
     period: LeaderboardPeriod,
-  ) => LeaderboardEntry[];
+  ) => boolean;
 
   // Reset
   reset: () => void;
@@ -107,12 +130,8 @@ function getBadgeForRank(rank: number): LeaderboardBadge | undefined {
   return undefined;
 }
 
-// Period multipliers for score calculation
-const periodMultipliers: Record<LeaderboardPeriod, number> = {
-  daily: 0.01,
-  weekly: 0.1,
-  alltime: 1,
-};
+// Cache TTL (5 minutes)
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
 // Initial stats
 const initialStats: UserLeaderboardStats = {
@@ -130,6 +149,9 @@ export const useLeaderboardStore = create<LeaderboardStore>()(
       userAddress: null,
       cachedLeaderboards: {},
       lastFetch: {},
+      isLoading: false,
+      error: null,
+      userRanks: {},
 
       setUserAddress: (address) => set({ userAddress: address }),
 
@@ -169,99 +191,134 @@ export const useLeaderboardStore = create<LeaderboardStore>()(
           },
         })),
 
-      getLeaderboard: (category, period, page = 0, pageSize = 10) => {
+      // Fetch leaderboard from API
+      fetchLeaderboard: async (category, period, limit = 100, offset = 0) => {
         const key = `${category}-${period}`;
-        const state = get();
+        set({ isLoading: true, error: null });
 
-        // Generate if not cached or stale (5 min cache)
-        const now = Date.now();
-        const cacheTime = state.lastFetch[key] || 0;
-        const isStale = now - cacheTime > 5 * 60 * 1000;
+        try {
+          const client = getApiClient();
+          const response = await client.getLeaderboard(
+            category,
+            period,
+            limit,
+            offset,
+          );
 
-        if (!state.cachedLeaderboards[key] || isStale) {
-          const leaderboard = state.generateLeaderboard(category, period);
+          if (!response.success || !response.data) {
+            throw new Error(response.error || "Failed to fetch leaderboard");
+          }
+
+          const { userAddress } = get();
+          const entries: LeaderboardEntry[] = response.data.entries.map(
+            (entry) => ({
+              rank: entry.rank,
+              address: entry.address,
+              score: entry.score,
+              badge: getBadgeForRank(entry.rank),
+              isCurrentUser:
+                userAddress !== null &&
+                entry.address.toLowerCase() === userAddress.toLowerCase(),
+            }),
+          );
+
           set((s) => ({
             cachedLeaderboards: {
               ...s.cachedLeaderboards,
-              [key]: leaderboard,
-            },
-            lastFetch: {
-              ...s.lastFetch,
-              [key]: now,
-            },
-          }));
-          return leaderboard.slice(page * pageSize, (page + 1) * pageSize);
-        }
-
-        return state.cachedLeaderboards[key].slice(
-          page * pageSize,
-          (page + 1) * pageSize,
-        );
-      },
-
-      getUserRank: (category, period) => {
-        const state = get();
-        const key = `${category}-${period}`;
-
-        // Ensure leaderboard is generated
-        if (!state.cachedLeaderboards[key]) {
-          const leaderboard = state.generateLeaderboard(category, period);
-          set((s) => ({
-            cachedLeaderboards: {
-              ...s.cachedLeaderboards,
-              [key]: leaderboard,
+              [key]: entries,
             },
             lastFetch: {
               ...s.lastFetch,
               [key]: Date.now(),
             },
+            isLoading: false,
           }));
-        }
 
-        const leaderboard = get().cachedLeaderboards[key];
-        const userEntry = leaderboard.find((e) => e.isCurrentUser);
-        return userEntry?.rank ?? -1;
+          return entries;
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Unknown error";
+          set({ error: message, isLoading: false });
+          // Return cached data if available
+          return get().cachedLeaderboards[key] || [];
+        }
       },
 
-      generateLeaderboard: (category, period) => {
-        const state = get();
-        const multiplier = periodMultipliers[period];
+      // Fetch user rank from API
+      fetchUserRank: async (category, period) => {
+        const { userAddress } = get();
+        if (!userAddress) return null;
 
-        // Only show real user data - no mock players
-        // Backend integration will populate real leaderboard data
-        const entries: LeaderboardEntry[] = [];
+        const rankKey = `${category}-${period}`;
 
-        // Add user entry if they have an address and stats
-        if (state.userAddress) {
-          let userScore: number;
-          switch (category) {
-            case "miners":
-              userScore = Math.floor(state.userStats.totalHashes * multiplier);
-              break;
-            case "babies":
-              userScore = state.userStats.babyLevel;
-              break;
-            case "earners":
-              userScore = Math.floor(state.userStats.tokensEarned * multiplier);
-              break;
-            default:
-              userScore = 0;
+        try {
+          const client = getApiClient();
+          const response = await client.getUserRank(
+            userAddress,
+            category,
+            period,
+          );
+
+          if (!response.success || !response.data) {
+            return null;
           }
 
-          // Only show if user has activity
-          if (userScore > 0) {
-            entries.push({
-              rank: 1,
-              address: state.userAddress,
-              displayName: undefined,
-              score: userScore,
-              badge: getBadgeForRank(1),
-              isCurrentUser: true,
-            });
-          }
+          const rank = response.data.rank;
+          set((s) => ({
+            userRanks: {
+              ...s.userRanks,
+              [rankKey]: rank,
+            },
+          }));
+
+          return rank;
+        } catch {
+          return get().userRanks[rankKey] ?? null;
         }
+      },
 
-        return entries;
+      // Submit score to leaderboard
+      submitScore: async (category, score) => {
+        const { userAddress } = get();
+        if (!userAddress) return;
+
+        try {
+          const client = getApiClient();
+          await client.updateLeaderboard(userAddress, category, score);
+
+          // Invalidate cache for this category
+          const periods: LeaderboardPeriod[] = ["daily", "weekly", "alltime"];
+          set((s) => {
+            const newLastFetch = { ...s.lastFetch };
+            for (const period of periods) {
+              delete newLastFetch[`${category}-${period}`];
+            }
+            return { lastFetch: newLastFetch };
+          });
+        } catch (error) {
+          console.error("[Leaderboard] Failed to submit score:", error);
+        }
+      },
+
+      // Sync getter for cached leaderboard
+      getLeaderboard: (category, period, page = 0, pageSize = 10) => {
+        const key = `${category}-${period}`;
+        const state = get();
+        const entries = state.cachedLeaderboards[key] || [];
+        return entries.slice(page * pageSize, (page + 1) * pageSize);
+      },
+
+      // Sync getter for cached user rank
+      getUserRank: (category, period) => {
+        const rankKey = `${category}-${period}`;
+        return get().userRanks[rankKey] ?? null;
+      },
+
+      // Check if cache is stale
+      isCacheStale: (category, period) => {
+        const key = `${category}-${period}`;
+        const lastFetch = get().lastFetch[key] || 0;
+        return Date.now() - lastFetch > CACHE_TTL_MS;
       },
 
       reset: () =>
@@ -270,6 +327,9 @@ export const useLeaderboardStore = create<LeaderboardStore>()(
           userAddress: null,
           cachedLeaderboards: {},
           lastFetch: {},
+          userRanks: {},
+          isLoading: false,
+          error: null,
         }),
     }),
     {
@@ -278,6 +338,7 @@ export const useLeaderboardStore = create<LeaderboardStore>()(
       partialize: (state) => ({
         userStats: state.userStats,
         userAddress: state.userAddress,
+        // Don't persist API data - fetch fresh on load
       }),
     },
   ),

@@ -35,6 +35,7 @@ export class MiningOrchestrator {
   private isRunning = false;
   private isStarting = false; // Prevents concurrent start() calls
   private startCancelled = false; // Tracks if stop() was called during start()
+  private isHandlingError = false; // Prevents race condition in handleMinerError
   private capabilities: DeviceCapabilities | null = null;
   private cleanupFunctions: (() => void)[] = [];
   private currentBlockData?: string; // Store for fallback recovery
@@ -230,6 +231,7 @@ export class MiningOrchestrator {
     // Cancel any in-progress start
     this.startCancelled = true;
     this.isStarting = false;
+    this.isHandlingError = false; // Reset error handling flag
 
     this.stop();
 
@@ -245,42 +247,86 @@ export class MiningOrchestrator {
   /**
    * Handle miner errors with automatic fallback to CPU
    * This ensures mining continues even if GPU fails
+   *
+   * FIX: Added race condition protection to prevent issues when stop() is
+   * called during the async fallback operation.
    */
   private async handleMinerError(error: Error): Promise<void> {
-    console.error("[Orchestrator] Miner error:", error.message);
+    // Prevent concurrent error handling and check if still running
+    if (this.isHandlingError || !this.isRunning) {
+      console.log(
+        "[Orchestrator] Skipping error handling (not running or already handling)",
+      );
+      return;
+    }
+    this.isHandlingError = true;
 
-    // Notify listeners of the error
-    this.events.onError?.(error);
+    try {
+      console.error("[Orchestrator] Miner error:", error.message);
 
-    // If current miner is WebGPU and CPU fallback is enabled, switch to CPU
-    if (
-      this.activeMiner?.type === "webgpu" &&
-      this.config.fallbackToCPU &&
-      this.capabilities?.workers
-    ) {
-      console.log("[Orchestrator] Falling back to CPU mining...");
+      // Notify listeners of the error
+      this.events.onError?.(error);
 
-      // Stop the failed GPU miner
-      this.activeMiner.terminate();
+      // If current miner is WebGPU and CPU fallback is enabled, switch to CPU
+      if (
+        this.activeMiner?.type === "webgpu" &&
+        this.config.fallbackToCPU &&
+        this.capabilities?.workers
+      ) {
+        console.log("[Orchestrator] Falling back to CPU mining...");
 
-      // Create and start CPU miner
-      this.activeMiner = this.createCPUMiner();
-      try {
-        await this.activeMiner.start(this.currentBlockData);
-        this.events.onStatusChange?.("running");
-        console.log("[Orchestrator] CPU fallback successful");
-      } catch (cpuError) {
-        console.error("[Orchestrator] CPU fallback failed:", cpuError);
+        // Stop the failed GPU miner
+        this.activeMiner.terminate();
+
+        // Check if stop() was called during terminate
+        if (!this.isRunning) {
+          console.log("[Orchestrator] Stop called during fallback, aborting");
+          return;
+        }
+
+        // Create and start CPU miner
+        this.activeMiner = this.createCPUMiner();
+
+        // Check again before async start
+        if (!this.isRunning) {
+          console.log("[Orchestrator] Stop called before CPU start, aborting");
+          this.activeMiner.terminate();
+          this.activeMiner = null;
+          return;
+        }
+
+        try {
+          await this.activeMiner.start(this.currentBlockData);
+
+          // Check if stop was called during start
+          if (!this.isRunning) {
+            console.log(
+              "[Orchestrator] Stop called during CPU start, stopping",
+            );
+            this.activeMiner.stop();
+            return;
+          }
+
+          this.events.onStatusChange?.("running");
+          console.log("[Orchestrator] CPU fallback successful");
+        } catch (cpuError) {
+          console.error("[Orchestrator] CPU fallback failed:", cpuError);
+          this.isRunning = false;
+          this.activeMiner = null;
+          this.events.onStatusChange?.("stopped");
+          this.events.onError?.(
+            cpuError instanceof Error
+              ? cpuError
+              : new Error("CPU mining failed"),
+          );
+        }
+      } else {
+        // No fallback available, stop mining
         this.isRunning = false;
         this.events.onStatusChange?.("stopped");
-        this.events.onError?.(
-          cpuError instanceof Error ? cpuError : new Error("CPU mining failed"),
-        );
       }
-    } else {
-      // No fallback available, stop mining
-      this.isRunning = false;
-      this.events.onStatusChange?.("stopped");
+    } finally {
+      this.isHandlingError = false;
     }
   }
 

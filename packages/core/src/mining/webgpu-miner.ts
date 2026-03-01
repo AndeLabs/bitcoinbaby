@@ -187,8 +187,13 @@ export class WebGPUMiner implements Miner {
 
   /**
    * Prepare challenge buffer and shader
+   * FIX: Clean up ALL buffers first to prevent GPU memory leak on restart
    */
   private async prepareChallenge(challenge: string): Promise<void> {
+    // Clean up all existing buffers before creating new ones
+    // This prevents GPU memory leak if prepareChallenge is called multiple times
+    this.cleanupBuffers();
+
     const device = this.device!;
 
     // Encode challenge as UTF-8 bytes
@@ -212,8 +217,7 @@ export class WebGPUMiner implements Miner {
       challengeU32[wordIdx] |= paddedBytes[i] << byteShift;
     }
 
-    // Recreate challenge buffer
-    this.challengeBuffer?.destroy();
+    // Create challenge buffer (cleanupBuffers already destroyed the old one)
     this.challengeBuffer = device.createBuffer({
       label: "challenge",
       size: Math.max(paddedLen, 4),
@@ -386,12 +390,14 @@ export class WebGPUMiner implements Miner {
             .join("");
 
           const foundNonce = Number(result.bestNonce & 0xffffffffn);
+          // CRITICAL: GPU encodes nonce as lowercase hex - must match for server validation
+          const nonceHex = foundNonce.toString(16);
           this.onWorkFound?.({
             hash: hashHex,
             nonce: foundNonce,
             difficulty: result.bestLeadingZeros,
             timestamp: Date.now(),
-            blockData: `${this.challenge}:${foundNonce}`, // Include for server validation
+            blockData: `${this.challenge}:${nonceHex}`, // Must be hex to match GPU hash
           });
         }
       } catch (err) {

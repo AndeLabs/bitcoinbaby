@@ -15,6 +15,7 @@ export class CPUMiner implements Miner {
   private throttle = 100;
   private running = false;
   private paused = false;
+  private isInitializing = false; // Prevents race condition in initWorkers
   private totalHashes = 0;
   private minerAddress = "";
   private workerCount: number;
@@ -57,11 +58,14 @@ export class CPUMiner implements Miner {
    * Initialize the Web Workers (one per CPU core)
    */
   private initWorkers(): void {
-    if (this.workers.length > 0) return;
+    // FIX: Prevent race condition when start() is called multiple times rapidly
+    if (this.workers.length > 0 || this.isInitializing) return;
+    this.isInitializing = true;
 
     // Check if we're in a browser environment
     if (typeof window === "undefined" || typeof Worker === "undefined") {
       console.warn("Web Workers not available, using fallback");
+      this.isInitializing = false;
       return;
     }
 
@@ -88,6 +92,8 @@ export class CPUMiner implements Miner {
       const errorObj =
         error instanceof Error ? error : new Error("Failed to create workers");
       this.onError?.(errorObj);
+    } finally {
+      this.isInitializing = false;
     }
   }
 
@@ -157,6 +163,7 @@ export class CPUMiner implements Miner {
     this.workers = [];
     this.workerHashrates.clear();
     this.workerTotalHashes.clear();
+    this.isInitializing = false; // Reset so workers can be re-initialized
 
     if (this.workerUrl) {
       URL.revokeObjectURL(this.workerUrl);

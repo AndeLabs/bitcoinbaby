@@ -3,25 +3,33 @@
  *
  * Inspired by eCash's developer reward model.
  * Implements a triple distribution system for $BABY tokens.
+ *
+ * IMPORTANT: Distribution percentages are defined in @bitcoinbaby/bitcoin
+ * as the single source of truth. This file re-exports with game-specific naming.
  */
 
 import type { BabyStage } from "./constants";
 import { MINING_BONUS } from "./constants";
+import { BABTC_CONFIG } from "@bitcoinbaby/bitcoin";
 
 /**
  * Token distribution percentages
- * Inspired by eCash: 58% miners, 32% devs, 10% stakers
- * Adapted for BitcoinBaby gameplay
+ * SOURCE OF TRUTH: @bitcoinbaby/bitcoin (BABTC_CONFIG.distribution)
+ *
+ * These are re-exported with game-specific naming for backwards compatibility.
+ * miner → PLAYER_SHARE
+ * dev → DEV_FUND_SHARE
+ * staking → COMMUNITY_SHARE (staking pool funds community events)
  */
 export const TOKEN_DISTRIBUTION = {
-  // Percentage to player (miner)
-  PLAYER_SHARE: 70,
+  // Percentage to player (miner) - from BABTC_CONFIG
+  PLAYER_SHARE: BABTC_CONFIG.distribution.miner,
 
-  // Percentage to dev fund (for game improvements)
-  DEV_FUND_SHARE: 20,
+  // Percentage to dev fund (for game improvements) - from BABTC_CONFIG
+  DEV_FUND_SHARE: BABTC_CONFIG.distribution.dev,
 
-  // Percentage to community treasury (events, prizes)
-  COMMUNITY_SHARE: 10,
+  // Percentage to community treasury (events, prizes) - from BABTC_CONFIG
+  COMMUNITY_SHARE: BABTC_CONFIG.distribution.staking,
 } as const;
 
 /**

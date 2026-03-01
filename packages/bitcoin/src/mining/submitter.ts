@@ -42,6 +42,7 @@ import {
   BABTC_CONFIG,
   type TokenMintParamsV10,
 } from "../charms/token";
+import { BABTC_TESTNET4 as BABTC_DEPLOYED } from "../config/deployment";
 
 export interface MiningSubmitterOptions {
   network?: ScrollsNetwork;
@@ -591,8 +592,8 @@ export class MiningSubmitter {
       }
 
       // Step 5: Create V10 mint spell
-      const appId = options.appId ?? BABTC_CONFIG_V10_PLACEHOLDER.appId;
-      const appVk = options.appVk ?? BABTC_CONFIG_V10_PLACEHOLDER.appVk;
+      const appId = options.appId ?? BABTC_DEPLOYED.appId;
+      const appVk = options.appVk ?? BABTC_DEPLOYED.appVk;
 
       const reward = this.calculateReward(proof.difficulty);
 
@@ -970,16 +971,8 @@ export interface SubmissionResultV10 {
   submissionId?: string;
 }
 
-/**
- * BABTC Testnet4 Deployment Config
- *
- * Genesis UTXO: b3deba0743aeffd0e455ce442b1693107090341381e3d8bcc5f586667c3e8a81:0
- * Deployed: 2026-02-18
- */
-const BABTC_CONFIG_V10_PLACEHOLDER = {
-  appId: "87b5ecfbfa392550b0a221e20f28a9453ed212a343551a2a43387d0cd183681b",
-  appVk: "ab70796e62562b5245cf746d7ecf4b95b86df582921ae42ec2ceea25612807c6",
-};
+// BABTC deployment config imported from ../config/deployment.ts
+// Single source of truth for appId and appVk
 
 // Minimum sats for spell outputs (from Charms protocol)
 const MIN_SPELL_OUTPUT_SATS = 700;

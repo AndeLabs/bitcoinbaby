@@ -27,5 +27,8 @@ export {
 } from "./LeaderboardWidget";
 export {
   TransactionConfirmModal,
+  createWithdrawTransaction,
+  createSendTransaction,
+  createMintNFTTransaction,
   type TransactionDetails,
 } from "./TransactionConfirmModal";

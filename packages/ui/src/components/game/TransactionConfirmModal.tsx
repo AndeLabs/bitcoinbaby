@@ -12,11 +12,20 @@ import { PixelIcon } from "../sprites";
 
 export interface TransactionDetails {
   /** Type of transaction */
-  type: "mint" | "transfer" | "evolve" | "custom";
+  type:
+    | "mint"
+    | "transfer"
+    | "evolve"
+    | "withdraw"
+    | "send"
+    | "stake"
+    | "custom";
   /** Title for the modal */
   title: string;
   /** Description of what will happen */
   description: string;
+  /** Step-by-step explanation (optional) */
+  steps?: string[];
   /** Cost breakdown */
   costs: {
     label: string;
@@ -31,8 +40,14 @@ export interface TransactionDetails {
   feeEstimate?: string;
   /** Recipient address (for transfers) */
   recipient?: string;
+  /** Source (for withdrawals) */
+  source?: string;
+  /** Estimated processing time */
+  estimatedTime?: string;
   /** Additional info to display */
   additionalInfo?: string;
+  /** Warning message */
+  warning?: string;
 }
 
 interface TransactionConfirmModalProps {
@@ -61,9 +76,14 @@ export const TransactionConfirmModal: FC<TransactionConfirmModalProps> = ({
       case "mint":
         return "star";
       case "transfer":
+      case "send":
         return "bolt";
       case "evolve":
         return "sparkle";
+      case "withdraw":
+        return "coin";
+      case "stake":
+        return "heart";
       default:
         return "coin";
     }
@@ -112,6 +132,28 @@ export const TransactionConfirmModal: FC<TransactionConfirmModalProps> = ({
             {transaction.description}
           </p>
 
+          {/* Steps - What will happen */}
+          {transaction.steps && transaction.steps.length > 0 && (
+            <div className="bg-pixel-bg-medium/50 border-2 border-pixel-border p-3">
+              <span className="font-pixel text-[8px] text-pixel-text-muted uppercase block mb-2">
+                What will happen:
+              </span>
+              <ol className="space-y-1">
+                {transaction.steps.map((step, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-2 text-[10px] text-pixel-text"
+                  >
+                    <span className="font-pixel text-pixel-success flex-shrink-0">
+                      {i + 1}.
+                    </span>
+                    <span className="font-pixel-body">{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
           {/* Cost Breakdown */}
           <div className="bg-pixel-bg-medium border-2 border-pixel-border p-3 space-y-2">
             {transaction.costs.map((cost, i) => (
@@ -155,15 +197,55 @@ export const TransactionConfirmModal: FC<TransactionConfirmModalProps> = ({
             </div>
           </div>
 
-          {/* Recipient (if applicable) */}
-          {transaction.recipient && (
-            <div className="bg-pixel-bg-medium border-2 border-pixel-border p-3">
-              <span className="font-pixel text-[8px] text-pixel-text-muted uppercase block mb-1">
-                Recipient
+          {/* Source & Recipient */}
+          {(transaction.source || transaction.recipient) && (
+            <div className="space-y-2">
+              {transaction.source && (
+                <div className="bg-pixel-bg-medium border-2 border-pixel-border p-3">
+                  <span className="font-pixel text-[8px] text-pixel-text-muted uppercase block mb-1">
+                    From
+                  </span>
+                  <span className="font-pixel-body text-[10px] text-pixel-text break-all">
+                    {transaction.source}
+                  </span>
+                </div>
+              )}
+              {transaction.source && transaction.recipient && (
+                <div className="flex justify-center">
+                  <span className="text-lg">⬇️</span>
+                </div>
+              )}
+              {transaction.recipient && (
+                <div className="bg-pixel-bg-medium border-2 border-pixel-border p-3">
+                  <span className="font-pixel text-[8px] text-pixel-text-muted uppercase block mb-1">
+                    To
+                  </span>
+                  <span className="font-pixel-body text-[10px] text-pixel-text break-all">
+                    {transaction.recipient}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Estimated Time */}
+          {transaction.estimatedTime && (
+            <div className="flex justify-between items-center p-2 bg-pixel-bg-medium/30 rounded">
+              <span className="font-pixel text-[8px] text-pixel-text-muted">
+                Estimated Time
               </span>
-              <span className="font-pixel-body text-[10px] text-pixel-text break-all">
-                {transaction.recipient}
+              <span className="font-pixel text-[9px] text-pixel-secondary">
+                {transaction.estimatedTime}
               </span>
+            </div>
+          )}
+
+          {/* Warning */}
+          {transaction.warning && (
+            <div className="p-3 bg-pixel-error/10 border-2 border-pixel-error">
+              <p className="font-pixel text-[8px] text-pixel-error">
+                ⚠️ {transaction.warning}
+              </p>
             </div>
           )}
 
@@ -219,5 +301,127 @@ export const TransactionConfirmModal: FC<TransactionConfirmModalProps> = ({
     </div>
   );
 };
+
+// =============================================================================
+// HELPER FUNCTIONS TO CREATE TRANSACTION DETAILS
+// =============================================================================
+
+/**
+ * Create withdrawal transaction details
+ */
+export function createWithdrawTransaction(params: {
+  amount: bigint;
+  toAddress: string;
+  poolType: string;
+  estimatedTime?: string;
+}): TransactionDetails {
+  const formattedAmount = params.amount.toLocaleString();
+
+  return {
+    type: "withdraw",
+    title: "Confirm Withdrawal",
+    description: "Convert your virtual $BABY tokens to real on-chain tokens",
+    steps: [
+      "Your virtual balance will be reduced by this amount",
+      `Request added to ${params.poolType} withdrawal pool`,
+      "When the pool processes, tokens are minted on Bitcoin",
+      "Real $BABY tokens will be sent to your wallet",
+    ],
+    costs: [{ label: "Withdrawal Amount", amount: `${formattedAmount} $BABY` }],
+    totalSats: 0,
+    formattedTotal: `${formattedAmount} $BABY`,
+    source: "Virtual Balance",
+    recipient: params.toAddress,
+    estimatedTime:
+      params.estimatedTime ?? getPoolEstimatedTime(params.poolType),
+    additionalInfo: `Pool: ${params.poolType}. Withdrawals are batched to minimize Bitcoin fees.`,
+  };
+}
+
+/**
+ * Get estimated time for pool type
+ */
+function getPoolEstimatedTime(poolType: string): string {
+  switch (poolType.toLowerCase()) {
+    case "immediate":
+      return "~1 hour";
+    case "low_fee":
+      return "~24 hours";
+    case "weekly":
+      return "Up to 7 days";
+    case "monthly":
+      return "Up to 30 days";
+    default:
+      return "Varies by pool";
+  }
+}
+
+/**
+ * Create send transaction details
+ */
+export function createSendTransaction(params: {
+  amount: string;
+  token: string;
+  fromAddress: string;
+  toAddress: string;
+  networkFee?: string;
+}): TransactionDetails {
+  return {
+    type: "send",
+    title: "Confirm Send",
+    description: `Send ${params.token} to another address`,
+    steps: [
+      "Transaction will be signed with your wallet",
+      "Broadcast to Bitcoin network",
+      "Recipient receives tokens after confirmation (~10-30 min)",
+    ],
+    costs: [
+      { label: "Send Amount", amount: `${params.amount} ${params.token}` },
+    ],
+    totalSats: 0,
+    formattedTotal: `${params.amount} ${params.token}`,
+    feeEstimate: params.networkFee,
+    source: params.fromAddress,
+    recipient: params.toAddress,
+    estimatedTime: "~10-30 minutes",
+  };
+}
+
+/**
+ * Create NFT mint transaction details
+ */
+export function createMintNFTTransaction(params: {
+  nftName: string;
+  price: number;
+  toAddress: string;
+  networkFee?: number;
+}): TransactionDetails {
+  const totalSats = params.price + (params.networkFee ?? 2000);
+
+  return {
+    type: "mint",
+    title: "Confirm NFT Mint",
+    description: `Mint a new ${params.nftName}`,
+    steps: [
+      "Payment sent to treasury",
+      "NFT inscribed on Bitcoin",
+      "NFT sent to your wallet",
+      "Mining boost activated automatically",
+    ],
+    costs: [
+      { label: "NFT Price", amount: `${params.price.toLocaleString()} sats` },
+      {
+        label: "Network Fee",
+        amount: `~${(params.networkFee ?? 2000).toLocaleString()} sats`,
+        sublabel: "estimate",
+      },
+    ],
+    totalSats,
+    formattedTotal: `${totalSats.toLocaleString()} sats`,
+    recipient: params.toAddress,
+    estimatedTime: "~10-30 minutes",
+    warning: "NFT mints are final and cannot be reversed",
+  };
+}
 
 export default TransactionConfirmModal;

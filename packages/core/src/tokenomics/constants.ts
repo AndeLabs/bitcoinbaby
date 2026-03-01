@@ -20,7 +20,7 @@
  * Layer 3: On-chain Contract (Full validation)
  * - For direct on-chain mining (power users)
  * - Validates PoW, Merkle proofs, difficulty
- * - Distribution enforced: 70/20/10
+ * - Distribution enforced: 90/5/5 (miner/dev/staking)
  *
  * SECURITY MODEL:
  * - Virtual balance = trusted system (rate-limited)
@@ -260,15 +260,21 @@ export function calculateWithdrawBurn(amount: bigint): {
 }
 
 // =============================================================================
-// DISTRIBUTION
+// DISTRIBUTION (Re-exported from @bitcoinbaby/bitcoin - single source of truth)
 // =============================================================================
 
-/** Mining reward distribution */
-export const DISTRIBUTION = {
-  miner: 70, // 70% to miner
-  dev: 20, // 20% to development
-  staking: 10, // 10% to staking pool (future)
-} as const;
+import { BABTC_CONFIG } from "@bitcoinbaby/bitcoin";
+
+/**
+ * Mining reward distribution for ON-CHAIN minting
+ *
+ * SOURCE OF TRUTH: @bitcoinbaby/bitcoin (BABTC_CONFIG.distribution)
+ *
+ * NOTE: This only applies when minting real tokens via Charms.
+ * Virtual balance (what users see) shows 100% of their mined rewards.
+ * The dev/staking distribution happens silently in the background.
+ */
+export const DISTRIBUTION = BABTC_CONFIG.distribution;
 
 // =============================================================================
 // NFT & EVOLUTION COSTS

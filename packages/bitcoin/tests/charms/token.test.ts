@@ -45,10 +45,10 @@ describe("BABTC_CONFIG", () => {
     expect(miner + dev + staking).toBe(100);
   });
 
-  it("should have distribution of 70/20/10", () => {
-    expect(BABTC_CONFIG.distribution.miner).toBe(70);
-    expect(BABTC_CONFIG.distribution.dev).toBe(20);
-    expect(BABTC_CONFIG.distribution.staking).toBe(10);
+  it("should have distribution of 90/5/5", () => {
+    expect(BABTC_CONFIG.distribution.miner).toBe(90);
+    expect(BABTC_CONFIG.distribution.dev).toBe(5);
+    expect(BABTC_CONFIG.distribution.staking).toBe(5);
   });
 
   it("should have halving every 210,000 blocks", () => {
@@ -144,23 +144,26 @@ describe("calculateMiningReward", () => {
     expect(reward.total).toBe(expectedTotal);
   });
 
-  it("should distribute 70% to miner", () => {
+  it("should distribute 90% to miner", () => {
     const reward = calculateMiningReward(0);
-    const expectedMinerShare = (reward.total * 70n) / 100n;
+    const expectedMinerShare =
+      (reward.total * BigInt(BABTC_CONFIG.distribution.miner)) / 100n;
 
     expect(reward.minerShare).toBe(expectedMinerShare);
   });
 
-  it("should distribute 20% to dev fund", () => {
+  it("should distribute 5% to dev fund", () => {
     const reward = calculateMiningReward(0);
-    const expectedDevShare = (reward.total * 20n) / 100n;
+    const expectedDevShare =
+      (reward.total * BigInt(BABTC_CONFIG.distribution.dev)) / 100n;
 
     expect(reward.devShare).toBe(expectedDevShare);
   });
 
-  it("should distribute 10% to staking pool", () => {
+  it("should distribute 5% to staking pool", () => {
     const reward = calculateMiningReward(0);
-    const expectedStakingShare = (reward.total * 10n) / 100n;
+    const expectedStakingShare =
+      (reward.total * BigInt(BABTC_CONFIG.distribution.staking)) / 100n;
 
     expect(reward.stakingShare).toBe(expectedStakingShare);
   });

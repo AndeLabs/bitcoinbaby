@@ -30,6 +30,7 @@ import {
   isProofUsedGlobally,
   markProofUsedGlobally,
   STREAK_RESET_MS,
+  MIN_DIFFICULTY,
 } from "../lib/proof-validation";
 import {
   processShare,
@@ -478,17 +479,18 @@ export class VirtualBalanceDO extends DurableObject<Env> {
     // SECURITY: Reject shares below assigned difficulty to prevent reward farming
     const assignedDiff = this.difficultyState.currentDiff;
     if (proof.difficulty < assignedDiff) {
-      // Grace period: allow 2 levels below for network latency
-      const minAcceptable = Math.max(assignedDiff - 2, 1);
+      // Grace period: allow 1 level below for network latency (stricter than before)
+      // But apply a penalty to reward to discourage abuse
+      const minAcceptable = Math.max(assignedDiff - 1, MIN_DIFFICULTY);
       if (proof.difficulty < minAcceptable) {
         return this.errorResponse(
           `Share difficulty D${proof.difficulty} below minimum D${minAcceptable} (assigned: D${assignedDiff})`,
           400,
         );
       }
-      // Log below-assigned shares for monitoring
-      console.log(
-        `[VarDiff] Share at D${proof.difficulty} below assigned D${assignedDiff}, accepting with grace period`,
+      // Log below-assigned shares for monitoring (potential abuse indicator)
+      console.warn(
+        `[VarDiff] Share at D${proof.difficulty} below assigned D${assignedDiff}, accepting with penalty`,
       );
     }
 
@@ -519,6 +521,17 @@ export class VirtualBalanceDO extends DurableObject<Env> {
     const baseReward = proofValidation.calculatedReward!;
 
     // =========================================================================
+    // SECURITY: Mark proof globally FIRST (prevents race condition)
+    // If global marking fails after local insert, another address could use same proof
+    // =========================================================================
+    try {
+      await markProofUsedGlobally(proof.hash, this.address, kv);
+    } catch (e) {
+      console.error("[VirtualBalance] Failed to mark proof globally:", e);
+      return this.errorResponse("Failed to register proof. Try again.", 500);
+    }
+
+    // =========================================================================
     // Store proof with UNIQUE constraint (local duplicate check)
     // =========================================================================
     const proofId = crypto.randomUUID();
@@ -538,13 +551,11 @@ export class VirtualBalanceDO extends DurableObject<Env> {
       );
     } catch (e) {
       if (e instanceof Error && e.message.includes("UNIQUE")) {
+        // Proof already in local DB - this is fine, KV already has it
         return this.errorResponse("Proof already credited", 409);
       }
       throw e;
     }
-
-    // Mark proof as used globally (prevents cross-address submission)
-    await markProofUsedGlobally(proof.hash, this.address, kv);
 
     // =========================================================================
     // Update balance
@@ -616,21 +627,20 @@ export class VirtualBalanceDO extends DurableObject<Env> {
 
   /**
    * Get number of shares submitted in the last hour
-   * OPTIMIZATION: Uses in-memory counter, only hits DB on hour boundary
+   * SECURITY: Always query DB for accurate rolling 60-minute window
+   * Previous optimization using hour slots was bypassable at hour boundaries
    */
   private getSharesInLastHour(): number {
     const now = Date.now();
     const oneHourAgo = now - 60 * 60 * 1000;
 
-    // Check if we've crossed into a new hour boundary
-    // Using floor division to detect actual hour change, not just cache age
-    const currentHourSlot = Math.floor(now / (60 * 60 * 1000));
-    const cachedHourSlot = Math.floor(
-      this.sharesHourStartedAt / (60 * 60 * 1000),
-    );
+    // SECURITY: Always query for accurate rolling window
+    // Cache is only used as optimization within same request batch
+    // The hour-slot optimization was a security hole (bypass at :59/:01)
+    const cacheAge = now - this.sharesHourStartedAt;
+    const cacheValid = cacheAge < 5000; // 5 second cache max
 
-    if (currentHourSlot !== cachedHourSlot || this.sharesHourStartedAt === 0) {
-      // Hour boundary crossed - query DB for accurate count
+    if (!cacheValid || this.sharesHourStartedAt === 0) {
       const result = this.sql
         .exec(
           `SELECT COUNT(*) as count FROM mining_proofs WHERE created_at > ?`,

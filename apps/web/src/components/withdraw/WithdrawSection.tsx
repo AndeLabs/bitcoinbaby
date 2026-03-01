@@ -10,9 +10,9 @@
 import { useState } from "react";
 import { PixelCard, PixelButton } from "@bitcoinbaby/ui";
 import type { PoolType, WithdrawRequest } from "@bitcoinbaby/core";
+import { useWalletStore } from "@bitcoinbaby/core";
 import { useVirtualBalance } from "../../hooks/useVirtualBalance";
 import { useWithdrawPool, formatPoolType } from "../../hooks/useWithdrawPool";
-import { useWalletConnection } from "../../hooks/useWalletConnection";
 import { WithdrawPoolCard } from "./WithdrawPoolCard";
 
 /**
@@ -52,7 +52,10 @@ function StatusBadge({ status }: { status: WithdrawRequest["status"] }) {
 }
 
 export function WithdrawSection() {
-  const { address } = useWalletConnection();
+  // Use wallet store directly for consistent state across app
+  const wallet = useWalletStore((s) => s.wallet);
+  const address = wallet?.address ?? null;
+
   const [destinationAddress, setDestinationAddress] = useState("");
   const [activeTab, setActiveTab] = useState<"pools" | "requests">("pools");
 
@@ -259,6 +262,7 @@ export function WithdrawSection() {
                 availableBalance={availableToWithdraw}
                 onWithdraw={handleWithdraw}
                 isSubmitting={isSubmitting}
+                destinationAddress={destinationAddress || address || undefined}
               />
             ),
           )}

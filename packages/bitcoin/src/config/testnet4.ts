@@ -39,37 +39,27 @@ export const TESTNET4_ENDPOINTS = {
 /**
  * BABTC App Configuration
  *
- * IMPORTANT: Update these values after deploying the contract!
- *
- * To get these values:
- * 1. Deploy the BABTC contract using Charms CLI
- * 2. App ID = SHA256 of genesis UTXO (txid:vout)
- * 3. App VK = SHA256 of compiled WASM binary
+ * STATUS: DEPLOYED on testnet4 (2026-02-18)
+ * Genesis UTXO: b3deba0743aeffd0e455ce442b1693107090341381e3d8bcc5f586667c3e8a81:0
  */
 export const BABTC_TESTNET4 = {
   /**
    * App ID - SHA256 hash of the genesis UTXO
-   *
-   * Set to 'PLACEHOLDER' until deployed.
-   * Format: 64-character hex string
-   *
-   * Example: "a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd"
+   * Deployed and verified on testnet4
    */
   appId:
     process.env.NEXT_PUBLIC_BABTC_APP_ID ||
     process.env.BABTC_APP_ID ||
-    "PLACEHOLDER_DEPLOY_CONTRACT_FIRST",
+    "87b5ecfbfa392550b0a221e20f28a9453ed212a343551a2a43387d0cd183681b",
 
   /**
    * Verification Key - SHA256 hash of the WASM binary
-   *
-   * Generated when compiling the Rust contract.
-   * Format: 64-character hex string
+   * Generated from compiled contract
    */
   appVk:
     process.env.NEXT_PUBLIC_BABTC_APP_VK ||
     process.env.BABTC_APP_VK ||
-    "PLACEHOLDER_COMPILE_CONTRACT_FIRST",
+    "ab70796e62562b5245cf746d7ecf4b95b86df582921ae42ec2ceea25612807c6",
 
   /** Token ticker */
   ticker: "BABTC",
@@ -79,6 +69,13 @@ export const BABTC_TESTNET4 = {
 
   /** Decimal places */
   decimals: 8,
+
+  /** Genesis UTXO that created this app */
+  genesisUtxo:
+    "b3deba0743aeffd0e455ce442b1693107090341381e3d8bcc5f586667c3e8a81:0",
+
+  /** Deployment block height (approximate) */
+  deploymentBlock: 75000,
 } as const;
 
 /**
@@ -158,7 +155,7 @@ export const GENESIS_BABIES_TESTNET4 = {
 
   /** Treasury address for NFT sales (testnet4) */
   treasuryAddress:
-    "tb1phkt7ueqfl5539wp5phc8hvsqd9csuj8qwp48p842y0ypt98y3fus9vf8zp",
+    "tb1p7kk2fuf8kv5vjftczlezfded94v9ay9s0h7ggd87k5d5ws744lesw7smmu",
 } as const;
 
 /**

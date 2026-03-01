@@ -83,6 +83,7 @@ class SyncManager {
   private config: SyncManagerConfig;
   private isOnline: boolean = true;
   private isSyncing: boolean = false;
+  private syncPromise: Promise<void> | null = null; // Mutex for sync operations
   private syncTimer: ReturnType<typeof setInterval> | null = null;
   private healthTimer: ReturnType<typeof setInterval> | null = null;
   private eventHandlers: Set<SyncEventHandler> = new Set();
@@ -251,10 +252,17 @@ class SyncManager {
 
   /**
    * Trigger a sync cycle
+   * Uses Promise mutex to prevent race conditions
    */
   private async triggerSync(): Promise<void> {
-    // Skip if already syncing, offline, or no address
-    if (this.isSyncing || !this.isOnline || !this.address) {
+    // RACE CONDITION FIX: Use syncPromise as mutex
+    // Multiple calls will reuse the same pending sync instead of racing
+    if (this.syncPromise) {
+      return this.syncPromise;
+    }
+
+    // Skip if offline or no address
+    if (!this.isOnline || !this.address) {
       return;
     }
 
@@ -272,11 +280,25 @@ class SyncManager {
       }
     }
 
+    // Create sync promise as mutex - cleared in finally block
+    this.syncPromise = this.doSync();
+
+    try {
+      await this.syncPromise;
+    } finally {
+      this.syncPromise = null;
+    }
+  }
+
+  /**
+   * Internal sync implementation
+   */
+  private async doSync(): Promise<void> {
     this.isSyncing = true;
 
     try {
       const pending = await getPendingShares(
-        this.address,
+        this.address ?? undefined,
         this.config.batchSize,
       );
 
