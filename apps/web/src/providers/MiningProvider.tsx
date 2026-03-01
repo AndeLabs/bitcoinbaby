@@ -102,6 +102,29 @@ export function MiningProvider({ children }: MiningProviderProps) {
     };
   }, []);
 
+  // Save mining state on page unload to prevent data loss
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Force save mining state synchronously (fire-and-forget)
+      forceSaveMiningState();
+    };
+
+    // Also handle visibility change for mobile (where beforeunload may not fire)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        forceSaveMiningState();
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
   // SharedWorker error state
   const [sharedWorkerError, setSharedWorkerError] = useState<string | null>(
     null,
