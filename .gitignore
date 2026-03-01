@@ -45,6 +45,10 @@ apps/native/android/app/build/
 .claude/settings.local.json
 .claude/plans/
 
+# Admin wallet (sensitive - never commit!)
+scripts/admin-wallet.md
+.env.admin
+
 # Documentation (keep only README.md in repo)
 docs/
 

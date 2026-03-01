@@ -125,24 +125,24 @@ export function requireBABTCConfigured(): void {
  */
 export const GENESIS_BABIES_TESTNET4 = {
   /**
-   * App ID - SHA256 hash of the genesis UTXO
-   * For NFTs we can use a deterministic ID based on project
+   * App ID - SHA256 hash of "genesis-babies-testnet4-v1"
+   * Deterministic ID for NFT collection on testnet4
    */
   appId:
     process.env.NEXT_PUBLIC_GBABY_APP_ID ||
     process.env.GBABY_APP_ID ||
-    // Deterministic: SHA256("genesis-babies-testnet4-v1")
-    "c8d4e7f2a1b5c9d3e7f1a5b9c3d7e1f5a9b3c7d1e5f9a3b7c1d5e9f3a7b1c5d9",
+    // SHA256("genesis-babies-testnet4-v1")
+    "6ce41e63fa9a1029e934fd0113e322c292c9de31a4cb10f03f07e0bfc0c6c2cf",
 
   /**
-   * Verification Key - For simple NFTs, can be same as appId
-   * or a separate key for the NFT contract logic
+   * Verification Key - SHA256 hash of "genesis-babies-nft-vk-v1"
+   * Deterministic VK for NFT contract logic
    */
   appVk:
     process.env.NEXT_PUBLIC_GBABY_APP_VK ||
     process.env.GBABY_APP_VK ||
-    // Deterministic: SHA256("genesis-babies-vk-v1")
-    "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+    // SHA256("genesis-babies-nft-vk-v1")
+    "2e455d2692d118528f5aefd4a32b37ab32de8fb90a8a385f198f0a1da7a43754",
 
   /** Collection name */
   name: "Genesis Babies",
@@ -155,6 +155,10 @@ export const GENESIS_BABIES_TESTNET4 = {
 
   /** Price in satoshis */
   priceSats: 50_000n,
+
+  /** Treasury address for NFT sales (testnet4) */
+  treasuryAddress:
+    "tb1phkt7ueqfl5539wp5phc8hvsqd9csuj8qwp48p842y0ypt98y3fus9vf8zp",
 } as const;
 
 /**

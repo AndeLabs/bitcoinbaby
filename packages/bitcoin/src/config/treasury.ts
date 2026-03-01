@@ -19,7 +19,7 @@
  * Type: Taproot (P2TR)
  */
 export const NFT_TREASURY_TESTNET4 =
-  "tb1p7kk2fuf8kv5vjftczlezfded94v9ay9s0h7ggd87k5d5ws744lesw7smmu";
+  "tb1phkt7ueqfl5539wp5phc8hvsqd9csuj8qwp48p842y0ypt98y3fus9vf8zp";
 
 // Mainnet (set when ready for production)
 export const NFT_TREASURY_MAINNET = "";
