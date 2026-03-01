@@ -186,6 +186,10 @@ export function useWallet(): UseWalletReturn {
   // Internal wallet instance
   const walletRef = useRef<BitcoinWallet | null>(null);
 
+  // Track initial network to prevent locking on mount
+  const initialNetworkRef = useRef<string | null>(null);
+  const isInitializedRef = useRef(false);
+
   /**
    * Set up signing functions in global store
    * Must be called after wallet is ready
@@ -228,6 +232,9 @@ export function useWallet(): UseWalletReturn {
   useEffect(() => {
     async function init() {
       try {
+        // Store initial network to prevent false "network change" triggers
+        initialNetworkRef.current = network;
+
         const metadata = await SecureStorage.getMetadata();
 
         // Check if wallet singleton has a valid wallet (survives component remount)
@@ -248,6 +255,8 @@ export function useWallet(): UseWalletReturn {
 
           // Re-setup signing functions
           setupSigningFunctions();
+          // Mark as initialized AFTER restore
+          isInitializedRef.current = true;
           return;
         }
 
@@ -257,6 +266,9 @@ export function useWallet(): UseWalletReturn {
           metadata,
           isLoading: false,
         }));
+
+        // Mark as initialized
+        isInitializedRef.current = true;
       } catch (error) {
         setState((prev) => ({
           ...prev,
@@ -264,6 +276,7 @@ export function useWallet(): UseWalletReturn {
           error:
             error instanceof Error ? error.message : "Failed to initialize",
         }));
+        isInitializedRef.current = true;
       }
     }
 
@@ -274,8 +287,22 @@ export function useWallet(): UseWalletReturn {
 
   /**
    * Handle network changes - re-derive address if unlocked
+   * Only triggers on ACTUAL network changes, not on initial mount/hydration
    */
   useEffect(() => {
+    // Skip if not initialized yet (prevents locking during hydration)
+    if (!isInitializedRef.current) {
+      return;
+    }
+
+    // Skip if network hasn't actually changed from what we started with
+    if (initialNetworkRef.current === network) {
+      return;
+    }
+
+    // Update the reference for future comparisons
+    initialNetworkRef.current = network;
+
     if (walletRef.current && state.isLoaded && !state.isLocked) {
       // Network changed while unlocked - need to re-derive
       // For now, just lock the wallet to force re-unlock with new network
