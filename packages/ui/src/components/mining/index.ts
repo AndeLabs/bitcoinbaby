@@ -39,3 +39,9 @@ export {
   AnimatedTokenCounter,
   TokenCounterBadge,
 } from "./AnimatedTokenCounter";
+
+// Engagement Bonus Panel
+export {
+  EngagementBonusPanel,
+  type EngagementBonusPanelProps,
+} from "./EngagementBonusPanel";

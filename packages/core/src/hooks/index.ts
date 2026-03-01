@@ -135,3 +135,14 @@ export { useWithdraw } from "./use-api";
 
 // Game state hook (real-time sync via WebSocket)
 export { useGameState } from "./use-api";
+
+// =============================================================================
+// ENGAGEMENT HOOKS
+// =============================================================================
+
+// Engagement tracking hook (bonuses for baby care, streaks, playtime)
+export {
+  useEngagement,
+  type UseEngagementOptions,
+  type UseEngagementReturn,
+} from "./useEngagement";
