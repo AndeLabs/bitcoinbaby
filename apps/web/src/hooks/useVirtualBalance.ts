@@ -81,27 +81,17 @@ interface UseVirtualBalanceOptions {
   tokenTicker?: string;
   /** Auto-refresh interval in ms (default: 60000) */
   refreshInterval?: number;
-  /** Use production API (default: auto-detect) */
-  useProductionApi?: boolean;
 }
 
-// API client singleton
-let apiClient: ReturnType<typeof getApiClient> | null = null;
-
-function getClient(useProduction?: boolean) {
-  if (!apiClient) {
-    const env =
-      useProduction !== undefined
-        ? useProduction
-          ? "production"
-          : "development"
-        : typeof window !== "undefined" &&
-            window.location.hostname !== "localhost"
-          ? "production"
-          : "development";
-    apiClient = getApiClient(env);
-  }
-  return apiClient;
+/**
+ * Get API client - uses the same singleton as SyncManager
+ * Environment is auto-detected: production when not on localhost
+ */
+function getClient() {
+  // getApiClient() from @bitcoinbaby/core returns a singleton
+  // It defaults to "production" which is correct for deployed apps
+  // For local development, the dev server should be running on localhost:8787
+  return getApiClient();
 }
 
 /**
@@ -131,12 +121,7 @@ function getClient(useProduction?: boolean) {
 export function useVirtualBalance(
   options: UseVirtualBalanceOptions = {},
 ): UseVirtualBalanceReturn {
-  const {
-    address,
-    tokenTicker = "BABY",
-    refreshInterval = 60000,
-    useProductionApi,
-  } = options;
+  const { address, tokenTicker = "BABY", refreshInterval = 60000 } = options;
 
   // Network config for Scrolls
   const { config } = useNetworkStore();
@@ -177,7 +162,7 @@ export function useVirtualBalance(
       if (!address) return null;
 
       try {
-        const client = getClient(useProductionApi);
+        const client = getClient();
         const response = await client.getBalance(address);
 
         if (response.success && response.data) {
@@ -188,7 +173,7 @@ export function useVirtualBalance(
         console.error("[VirtualBalance] Workers API error:", error);
         return null;
       }
-    }, [address, useProductionApi]);
+    }, [address]);
 
   /**
    * Fetch on-chain balance from Scrolls API
@@ -288,7 +273,7 @@ export function useVirtualBalance(
       }
 
       try {
-        const client = getClient(useProductionApi);
+        const client = getClient();
         const apiProof: ApiMiningProof = {
           hash: proof.hash,
           nonce: proof.nonce,
@@ -329,7 +314,7 @@ export function useVirtualBalance(
         };
       }
     },
-    [address, useProductionApi],
+    [address],
   );
 
   // Initial fetch and auto-refresh

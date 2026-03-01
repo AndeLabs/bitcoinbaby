@@ -212,10 +212,13 @@ class SyncManager {
   async checkHealth(): Promise<boolean> {
     try {
       const client = getApiClient();
-      const response = await fetch(
-        `https://bitcoinbaby-api.andeanlabs-58f.workers.dev/health`,
-        { method: "GET" },
-      );
+      // Use the same API URL as the client for health check
+      const baseUrl =
+        typeof window !== "undefined" &&
+        window.location.hostname !== "localhost"
+          ? "https://bitcoinbaby-api.andeanlabs-58f.workers.dev"
+          : "http://localhost:8787";
+      const response = await fetch(`${baseUrl}/health`, { method: "GET" });
 
       const wasHealthy = this.apiHealthy;
       this.apiHealthy = response.ok;
@@ -530,8 +533,11 @@ class SyncManager {
     hashesIncrement: number,
     tokensEarned: string,
   ): void {
-    // Use production API endpoint directly
-    const apiUrl = "https://bitcoinbaby-api-prod.andeanlabs-58f.workers.dev";
+    // Use the same API URL as the main API client
+    const apiUrl =
+      typeof window !== "undefined" && window.location.hostname !== "localhost"
+        ? "https://bitcoinbaby-api.andeanlabs-58f.workers.dev"
+        : "http://localhost:8787";
 
     // Fire and forget - wrap in try-catch and don't await
     Promise.all([
