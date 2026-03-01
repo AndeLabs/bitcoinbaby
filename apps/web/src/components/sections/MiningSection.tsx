@@ -116,15 +116,26 @@ export function MiningSection() {
   const [syncState, setSyncState] = useState<ReturnType<
     typeof getSyncState
   > | null>(null);
+  const [forceSyncTriggered, setForceSyncTriggered] = useState(false);
 
   // Update sync state periodically when debug is visible
   useEffect(() => {
     if (!showSyncDebug) return;
     const update = () => setSyncState(getSyncState());
     update();
-    const interval = setInterval(update, 2000);
+    const interval = setInterval(update, 1000); // Faster updates
     return () => clearInterval(interval);
   }, [showSyncDebug, getSyncState]);
+
+  // Handle force sync with visual feedback
+  const handleForceSync = () => {
+    console.log("[MiningSection] Force Sync triggered");
+    setForceSyncTriggered(true);
+    resetAndSync();
+    // Update state immediately and reset button after delay
+    setTimeout(() => setSyncState(getSyncState()), 300);
+    setTimeout(() => setForceSyncTriggered(false), 2000);
+  };
 
   // Track recent reward for animation
   const recentReward = lastSubmission?.success
@@ -383,13 +394,15 @@ export function MiningSection() {
                     <span>{syncState.consecutiveFailures}</span>
                   </div>
                   <button
-                    onClick={() => {
-                      resetAndSync();
-                      setTimeout(() => setSyncState(getSyncState()), 500);
-                    }}
-                    className="w-full mt-2 py-1 bg-pixel-primary text-black font-pixel text-[8px] rounded"
+                    onClick={handleForceSync}
+                    disabled={forceSyncTriggered}
+                    className={`w-full mt-2 py-2 font-pixel text-[10px] rounded cursor-pointer border-2 transition-all ${
+                      forceSyncTriggered
+                        ? "bg-green-500 border-green-400 text-white animate-pulse"
+                        : "bg-pixel-primary hover:bg-pixel-primary/80 active:scale-95 text-black border-pixel-primary/50"
+                    }`}
                   >
-                    FORCE SYNC
+                    {forceSyncTriggered ? "SYNCING..." : "FORCE SYNC"}
                   </button>
                 </div>
               )}
