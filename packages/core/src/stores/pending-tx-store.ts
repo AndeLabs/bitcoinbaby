@@ -127,7 +127,7 @@ export const usePendingTxStore = create<PendingTxStore>()(
         if (trackerInstance || get().isTracking) return;
 
         trackerInstance = createTxTracker({
-          pollInterval: 30000, // 30 seconds
+          pollInterval: 10000, // 10 seconds for responsive UX
           targetConfirmations: 1, // Consider confirmed after 1 confirmation for UX
           apiEndpoint: "https://mempool.space/testnet4/api",
           events: {
@@ -174,6 +174,17 @@ export const usePendingTxStore = create<PendingTxStore>()(
 
         trackerInstance.start();
         set({ isTracking: true });
+
+        // Immediately refresh to get current status (don't wait for poll interval)
+        if (pending.length > 0) {
+          console.log(
+            `[PendingTx] Starting tracker with ${pending.length} pending transactions`,
+          );
+          // Small delay to let tracker initialize, then refresh
+          setTimeout(() => {
+            trackerInstance?.refresh();
+          }, 1000);
+        }
       },
 
       stopTracking: () => {
@@ -236,4 +247,31 @@ export function usePendingTxCount(): number {
           tx.status === "confirming",
       ).length,
   );
+}
+
+/**
+ * Cleanup old stuck transactions
+ * Call this periodically or on app init to remove zombie transactions
+ * that have been pending for too long (likely dropped from mempool)
+ */
+export function cleanupStuckTransactions(maxAgeHours: number = 24): number {
+  const store = usePendingTxStore.getState();
+  const cutoff = Date.now() - maxAgeHours * 60 * 60 * 1000;
+
+  const stuckTxs = store.transactions.filter(
+    (tx) =>
+      (tx.status === "pending" || tx.status === "mempool") &&
+      tx.submittedAt < cutoff,
+  );
+
+  if (stuckTxs.length > 0) {
+    console.log(
+      `[PendingTx] Cleaning up ${stuckTxs.length} stuck transactions older than ${maxAgeHours}h`,
+    );
+    for (const tx of stuckTxs) {
+      store.removeTransaction(tx.txid);
+    }
+  }
+
+  return stuckTxs.length;
 }

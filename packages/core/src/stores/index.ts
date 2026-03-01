@@ -58,6 +58,7 @@ export {
 export {
   usePendingTxStore,
   usePendingTxCount,
+  cleanupStuckTransactions,
   type TransactionType,
   type PendingTransaction,
 } from "./pending-tx-store";

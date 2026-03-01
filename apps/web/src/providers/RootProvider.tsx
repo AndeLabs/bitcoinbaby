@@ -17,6 +17,7 @@ import {
 import { usePlatform } from "@/hooks";
 import { MiningProvider } from "./MiningProvider";
 import { QueryProvider } from "./QueryProvider";
+import { usePendingTxStore, cleanupStuckTransactions } from "@bitcoinbaby/core";
 
 interface RootProviderProps {
   children: ReactNode;
@@ -33,10 +34,29 @@ export function RootProvider({ children }: RootProviderProps) {
   const [isCapacitorReady, setIsCapacitorReady] = useState(false);
   const platform = usePlatform();
 
+  // Get pending tx store actions
+  const startTracking = usePendingTxStore((s) => s.startTracking);
+  const isTracking = usePendingTxStore((s) => s.isTracking);
+
   // Wait for hydration to complete
   useEffect(() => {
     setIsHydrated(true);
   }, []);
+
+  // Start transaction tracking after hydration
+  // This ensures pending transactions from localStorage are polled for confirmations
+  useEffect(() => {
+    if (isHydrated && !isTracking) {
+      // Cleanup old stuck transactions (> 24 hours)
+      const cleaned = cleanupStuckTransactions(24);
+      if (cleaned > 0) {
+        console.log(`[RootProvider] Cleaned up ${cleaned} stuck transactions`);
+      }
+
+      console.log("[RootProvider] Starting transaction tracker");
+      startTracking();
+    }
+  }, [isHydrated, isTracking, startTracking]);
 
   // Initialize Capacitor (only for native apps)
   useEffect(() => {
