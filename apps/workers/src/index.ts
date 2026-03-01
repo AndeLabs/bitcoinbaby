@@ -212,6 +212,53 @@ app.post("/api/balance/:address/credit", async (c) => {
   }
 });
 
+/**
+ * POST /api/balance/:address/set-hashrate - Report hashrate for VarDiff estimation
+ *
+ * This allows miners to report their hashrate so the server can estimate
+ * an appropriate starting difficulty. The VarDiff algorithm will fine-tune from there.
+ */
+app.post("/api/balance/:address/set-hashrate", async (c) => {
+  const address = c.req.param("address");
+
+  if (!address || !isValidBitcoinAddress(address)) {
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Invalid Bitcoin address",
+        timestamp: Date.now(),
+      },
+      400,
+    );
+  }
+
+  try {
+    const body = await c.req.json();
+    const id = c.env.VIRTUAL_BALANCE.idFromName(address);
+    const stub = c.env.VIRTUAL_BALANCE.get(id);
+
+    const response = await stub.fetch(
+      new Request(`http://internal/balance/${address}/set-hashrate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    );
+
+    return response;
+  } catch (error) {
+    console.error("[SetHashrate] Error:", error);
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Service temporarily unavailable. Please try again later.",
+        timestamp: Date.now(),
+      },
+      503,
+    );
+  }
+});
+
 // =============================================================================
 // WITHDRAW POOL API
 // =============================================================================

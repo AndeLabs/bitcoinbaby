@@ -25,6 +25,7 @@ import {
 } from "./share-queue";
 import { getApiClient } from "../api/client";
 import { MIN_DIFFICULTY } from "../tokenomics/constants";
+import { getMiningManager } from "../mining/mining-singleton";
 
 // =============================================================================
 // TYPES
@@ -374,6 +375,13 @@ class SyncManager {
           share.reward,
         );
 
+        // Apply VarDiff adjustment if server suggested a new difficulty
+        if (response.data?.varDiff?.difficultyChanged) {
+          this.applyVarDiffAdjustment(
+            response.data.varDiff.suggestedDifficulty,
+          );
+        }
+
         return { success: true, reward: share.reward };
       } else {
         // Check if it's a duplicate (already synced)
@@ -577,6 +585,37 @@ class SyncManager {
       // This should never happen since individual promises catch their errors
       console.warn("[SyncManager] Leaderboard update failed:", err);
     });
+  }
+
+  /**
+   * Apply VarDiff adjustment to the mining manager
+   *
+   * Called when server returns a new suggested difficulty.
+   * This ensures miners gradually adjust to their optimal difficulty.
+   *
+   * @param newDifficulty - New difficulty suggested by server
+   */
+  private applyVarDiffAdjustment(newDifficulty: number): void {
+    try {
+      const manager = getMiningManager();
+      if (manager.isInitialized()) {
+        const changed = manager.updateDifficultyFromVarDiff(newDifficulty);
+        if (changed) {
+          this.emit({
+            type: "sync_complete",
+            timestamp: Date.now(),
+            data: {
+              synced: 0,
+              failed: 0,
+              pending: 0,
+              reward: "0",
+            },
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("[SyncManager] Failed to apply VarDiff adjustment:", err);
+    }
   }
 }
 

@@ -31,6 +31,15 @@ import {
   markProofUsedGlobally,
   STREAK_RESET_MS,
 } from "../lib/proof-validation";
+import {
+  processShare,
+  createInitialState,
+  serializeState,
+  deserializeState,
+  estimateInitialDifficulty,
+  type UserDifficultyState,
+  VARDIFF_CONFIG,
+} from "../lib/vardiff";
 import { getRedis, updateAllPeriods, updateUserStats } from "../lib/redis";
 
 // Minimum withdraw amount (from env)
@@ -48,6 +57,9 @@ export class VirtualBalanceDO extends DurableObject<Env> {
   // Rate limit cache - avoid COUNT query on every request
   private sharesThisHourCache: number = 0;
   private sharesHourStartedAt: number = 0;
+
+  // VarDiff state cache
+  private difficultyState: UserDifficultyState | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -83,6 +95,13 @@ export class VirtualBalanceDO extends DurableObject<Env> {
       this.sql.exec(
         `ALTER TABLE balance ADD COLUMN streak_count INTEGER NOT NULL DEFAULT 0`,
       );
+    } catch {
+      // Column already exists
+    }
+
+    // Add difficulty_state if not exists (VarDiff migration)
+    try {
+      this.sql.exec(`ALTER TABLE balance ADD COLUMN difficulty_state TEXT`);
     } catch {
       // Column already exists
     }
@@ -143,6 +162,10 @@ export class VirtualBalanceDO extends DurableObject<Env> {
         createdAt: row.created_at as number,
         updatedAt: row.updated_at as number,
       };
+      // Load VarDiff state
+      this.difficultyState = deserializeState(
+        row.difficulty_state as string | null,
+      );
       this.cacheLoadedAt = now;
       return this.cachedBalance;
     }
@@ -166,6 +189,8 @@ export class VirtualBalanceDO extends DurableObject<Env> {
       createdAt: now,
       updatedAt: now,
     };
+    // Initialize VarDiff state for new user
+    this.difficultyState = createInitialState();
     this.cacheLoadedAt = now;
     return this.cachedBalance;
   }
@@ -175,6 +200,10 @@ export class VirtualBalanceDO extends DurableObject<Env> {
    */
   private updateBalance(balance: VirtualBalance): void {
     const now = Date.now();
+    const diffStateJson = this.difficultyState
+      ? serializeState(this.difficultyState)
+      : null;
+
     this.sql.exec(
       `UPDATE balance SET
         virtual_balance = ?,
@@ -183,6 +212,7 @@ export class VirtualBalanceDO extends DurableObject<Env> {
         pending_withdraw = ?,
         streak_count = ?,
         last_mining_at = ?,
+        difficulty_state = ?,
         updated_at = ?
        WHERE address = ?`,
       balance.virtualBalance.toString(),
@@ -191,6 +221,7 @@ export class VirtualBalanceDO extends DurableObject<Env> {
       balance.pendingWithdraw.toString(),
       balance.streakCount,
       balance.lastMiningAt,
+      diffStateJson,
       now,
       balance.address,
     );
@@ -237,6 +268,9 @@ export class VirtualBalanceDO extends DurableObject<Env> {
           if (action === "cancel-withdraw") {
             return this.handleCancelWithdraw(request);
           }
+          if (action === "set-hashrate") {
+            return this.handleSetHashrate(request);
+          }
           break;
       }
 
@@ -261,7 +295,17 @@ export class VirtualBalanceDO extends DurableObject<Env> {
     const balance = this.getOrCreateBalance(this.address);
     const available = balance.virtualBalance - balance.pendingWithdraw;
 
-    const response: ApiResponse<BalanceResponse> = {
+    // Ensure difficulty state is initialized
+    if (!this.difficultyState) {
+      this.difficultyState = createInitialState();
+    }
+
+    const response: ApiResponse<
+      BalanceResponse & {
+        suggestedDifficulty: number;
+        averageShareTime: number;
+      }
+    > = {
       success: true,
       data: {
         address: balance.address,
@@ -270,6 +314,69 @@ export class VirtualBalanceDO extends DurableObject<Env> {
         availableToWithdraw: (available > 0n ? available : 0n).toString(),
         totalMined: balance.totalMined.toString(),
         totalWithdrawn: balance.totalWithdrawn.toString(),
+        suggestedDifficulty: this.difficultyState.currentDiff,
+        averageShareTime: this.difficultyState.averageShareTime,
+      },
+      timestamp: Date.now(),
+    };
+
+    return Response.json(response);
+  }
+
+  /**
+   * POST /balance/{address}/set-hashrate - Report hashrate to estimate initial difficulty
+   *
+   * This allows new miners to get an appropriate starting difficulty based on their device.
+   * The VarDiff algorithm will fine-tune from there.
+   */
+  private async handleSetHashrate(request: Request): Promise<Response> {
+    if (!this.address) {
+      return this.errorResponse("Address required", 400);
+    }
+
+    const body = (await request.json()) as {
+      hashrate: number;
+    };
+
+    if (typeof body.hashrate !== "number" || body.hashrate < 0) {
+      return this.errorResponse("Invalid hashrate", 400);
+    }
+
+    // Initialize balance and difficulty state
+    this.getOrCreateBalance(this.address);
+
+    if (!this.difficultyState) {
+      this.difficultyState = createInitialState();
+    }
+
+    // Estimate initial difficulty based on hashrate
+    const estimatedDiff = estimateInitialDifficulty(
+      body.hashrate,
+      VARDIFF_CONFIG.targetTime,
+      VARDIFF_CONFIG,
+    );
+
+    // Only update if new difficulty is different and higher than current
+    // (don't let users artificially lower their difficulty)
+    if (estimatedDiff > this.difficultyState.currentDiff) {
+      this.difficultyState.currentDiff = estimatedDiff;
+      // Force save the updated difficulty state
+      this.updateBalance(this.cachedBalance!);
+
+      console.log(
+        `[VarDiff] ${this.address}: Set initial difficulty to D${estimatedDiff} based on ${body.hashrate} H/s`,
+      );
+    }
+
+    const response: ApiResponse<{
+      suggestedDifficulty: number;
+      estimatedShareTime: number;
+    }> = {
+      success: true,
+      data: {
+        suggestedDifficulty: this.difficultyState.currentDiff,
+        estimatedShareTime:
+          Math.pow(2, this.difficultyState.currentDiff) / body.hashrate,
       },
       timestamp: Date.now(),
     };
@@ -357,6 +464,34 @@ export class VirtualBalanceDO extends DurableObject<Env> {
     }
 
     // =========================================================================
+    // VarDiff: Initialize and process share
+    // =========================================================================
+    if (!this.difficultyState) {
+      this.difficultyState = createInitialState();
+    }
+
+    // Validate that submitted difficulty meets the assigned difficulty
+    // We accept shares at OR ABOVE assigned difficulty (higher diff = more valuable)
+    const assignedDiff = this.difficultyState.currentDiff;
+    if (proof.difficulty < assignedDiff) {
+      // Don't reject, but suggest they increase their difficulty
+      // This helps gradual transition for existing miners
+      console.log(
+        `[VarDiff] Share at D${proof.difficulty} below assigned D${assignedDiff}, accepting but suggesting increase`,
+      );
+    }
+
+    // Process this share through VarDiff algorithm
+    const varDiffResult = processShare(this.difficultyState, now);
+    this.difficultyState = varDiffResult.state;
+
+    if (varDiffResult.result.changed) {
+      console.log(
+        `[VarDiff] ${this.address}: D${assignedDiff} -> D${varDiffResult.result.newDifficulty} (${varDiffResult.result.reason})`,
+      );
+    }
+
+    // =========================================================================
     // Calculate streak bonus (server-side)
     // =========================================================================
     const streakActive = now - balance.lastMiningAt < STREAK_RESET_MS;
@@ -425,7 +560,7 @@ export class VirtualBalanceDO extends DurableObject<Env> {
     this.updateLeaderboardAsync(this.address, balance.totalMined);
 
     // =========================================================================
-    // Response
+    // Response (includes VarDiff suggested difficulty)
     // =========================================================================
     const response: ApiResponse<{
       credited: string;
@@ -437,6 +572,11 @@ export class VirtualBalanceDO extends DurableObject<Env> {
         baseReward: string;
         boostedReward: string;
         nextTierAt: number;
+      };
+      varDiff: {
+        suggestedDifficulty: number;
+        averageShareTime: number;
+        difficultyChanged: boolean;
       };
     }> = {
       success: true,
@@ -450,6 +590,11 @@ export class VirtualBalanceDO extends DurableObject<Env> {
           baseReward: baseReward.toString(),
           boostedReward: boostedReward.toString(),
           nextTierAt: this.getNextStreakTier(balance.streakCount),
+        },
+        varDiff: {
+          suggestedDifficulty: this.difficultyState!.currentDiff,
+          averageShareTime: varDiffResult.result.averageShareTime,
+          difficultyChanged: varDiffResult.result.changed,
         },
       },
       timestamp: now,

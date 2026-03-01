@@ -404,6 +404,34 @@ class MiningManager {
   }
 
   /**
+   * Update difficulty from VarDiff response (called by SyncManager)
+   *
+   * Only updates if the new difficulty is different from current.
+   * Logs the change for debugging.
+   */
+  updateDifficultyFromVarDiff(newDifficulty: number): boolean {
+    if (newDifficulty === this.state.difficulty) {
+      return false;
+    }
+
+    const oldDiff = this.state.difficulty;
+    this.setDifficulty(newDifficulty);
+
+    console.log(
+      `[MiningManager] VarDiff adjustment: D${oldDiff} -> D${newDifficulty}`,
+    );
+
+    return true;
+  }
+
+  /**
+   * Get current difficulty
+   */
+  getDifficulty(): number {
+    return this.state.difficulty;
+  }
+
+  /**
    * Check if manager is initialized
    */
   isInitialized(): boolean {

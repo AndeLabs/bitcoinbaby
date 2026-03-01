@@ -26,12 +26,36 @@ export interface BalanceResponse {
   availableToWithdraw: string;
   totalMined: string;
   totalWithdrawn: string;
+  /** Server-assigned difficulty (VarDiff) */
+  suggestedDifficulty?: number;
+  /** Average time between shares */
+  averageShareTime?: number;
 }
 
 export interface CreditResponse {
   credited: string;
   newBalance: string;
   proofId: string;
+  /** Streak bonus information */
+  streakInfo?: {
+    consecutiveShares: number;
+    multiplier: number;
+    baseReward: string;
+    boostedReward: string;
+    nextTierAt: number;
+  };
+  /** VarDiff (Variable Difficulty) information */
+  varDiff?: {
+    suggestedDifficulty: number;
+    averageShareTime: number;
+    difficultyChanged: boolean;
+  };
+}
+
+/** Response from setHashrate endpoint */
+export interface SetHashrateResponse {
+  suggestedDifficulty: number;
+  estimatedShareTime: number;
 }
 
 export interface MiningProof {

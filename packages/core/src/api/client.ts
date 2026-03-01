@@ -20,6 +20,7 @@ import type {
   LeaderboardResponse,
   UserRankResponse,
   UserStats,
+  SetHashrateResponse,
 } from "./types";
 
 // =============================================================================
@@ -88,6 +89,27 @@ export class BitcoinBabyClient {
       },
     );
     return response.json() as Promise<ApiResponse<CreditResponse>>;
+  }
+
+  /**
+   * Report hashrate to get appropriate starting difficulty (VarDiff)
+   *
+   * This helps new miners start at an appropriate difficulty based on their device.
+   * The VarDiff algorithm will fine-tune from there based on actual share submission rates.
+   */
+  async setHashrate(
+    address: string,
+    hashrate: number,
+  ): Promise<ApiResponse<SetHashrateResponse>> {
+    const response = await fetch(
+      `${this.baseUrl}/api/balance/${address}/set-hashrate`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hashrate }),
+      },
+    );
+    return response.json() as Promise<ApiResponse<SetHashrateResponse>>;
   }
 
   // ===========================================================================
