@@ -29,6 +29,8 @@ interface WithdrawPoolCardProps {
   minAmount?: bigint;
   /** Destination address for display in confirmation modal */
   destinationAddress?: string;
+  /** Callback when withdrawal succeeds */
+  onSuccess?: (amount: bigint, poolType: PoolType) => void;
 }
 
 export function WithdrawPoolCard({
@@ -39,6 +41,7 @@ export function WithdrawPoolCard({
   isSubmitting = false,
   minAmount = 100n,
   destinationAddress,
+  onSuccess,
 }: WithdrawPoolCardProps) {
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -76,8 +79,11 @@ export function WithdrawPoolCard({
     if (!result.success) {
       setError(result.error ?? "Withdrawal failed");
     } else {
+      const withdrawnAmount = pendingAmount;
       setAmount("");
       setPendingAmount(0n);
+      // Notify parent of success
+      onSuccess?.(withdrawnAmount, poolType);
     }
   };
 

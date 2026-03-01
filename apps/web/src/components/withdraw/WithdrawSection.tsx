@@ -7,13 +7,22 @@
  * Displays virtual balance, withdrawal pools, and pending requests.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PixelCard, PixelButton } from "@bitcoinbaby/ui";
 import type { PoolType, WithdrawRequest } from "@bitcoinbaby/core";
 import { useWalletStore } from "@bitcoinbaby/core";
 import { useVirtualBalance } from "../../hooks/useVirtualBalance";
 import { useWithdrawPool, formatPoolType } from "../../hooks/useWithdrawPool";
 import { WithdrawPoolCard } from "./WithdrawPoolCard";
+
+/**
+ * Success notification for withdrawal
+ */
+interface WithdrawSuccess {
+  amount: bigint;
+  poolType: PoolType;
+  timestamp: number;
+}
 
 /**
  * Format bigint for display
@@ -58,6 +67,8 @@ export function WithdrawSection() {
 
   const [destinationAddress, setDestinationAddress] = useState("");
   const [activeTab, setActiveTab] = useState<"pools" | "requests">("pools");
+  const [successNotification, setSuccessNotification] =
+    useState<WithdrawSuccess | null>(null);
 
   // Virtual balance from Workers API
   const {
@@ -114,6 +125,28 @@ export function WithdrawSection() {
     }
   };
 
+  // Handle withdrawal success
+  const handleWithdrawSuccess = (amount: bigint, poolType: PoolType) => {
+    // Show success notification
+    setSuccessNotification({ amount, poolType, timestamp: Date.now() });
+
+    // Switch to requests tab to show the new request
+    setActiveTab("requests");
+
+    // Refresh pools to show updated request list
+    refreshPools();
+  };
+
+  // Auto-dismiss success notification after 10 seconds
+  useEffect(() => {
+    if (successNotification) {
+      const timer = setTimeout(() => {
+        setSuccessNotification(null);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [successNotification]);
+
   // Refresh all
   const handleRefresh = async () => {
     await Promise.all([refreshBalance(), refreshPools()]);
@@ -134,6 +167,36 @@ export function WithdrawSection() {
 
   return (
     <div className="space-y-4">
+      {/* Success Notification */}
+      {successNotification && (
+        <div className="bg-green-500/20 border-2 border-green-500 rounded p-4 animate-pulse">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">✓</span>
+              <div>
+                <p className="font-pixel text-sm text-green-400">
+                  Withdrawal Request Created!
+                </p>
+                <p className="text-xs text-gray-300 mt-1">
+                  {formatBalance(successNotification.amount)} $BABY queued for{" "}
+                  {formatPoolType(successNotification.poolType)}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSuccessNotification(null)}
+              className="text-gray-400 hover:text-white text-lg"
+            >
+              ×
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            Your withdrawal is now pending. Check the &quot;My Requests&quot;
+            tab for status updates.
+          </p>
+        </div>
+      )}
+
       {/* Balance Overview */}
       <PixelCard>
         <div className="p-4">
@@ -263,6 +326,7 @@ export function WithdrawSection() {
                 onWithdraw={handleWithdraw}
                 isSubmitting={isSubmitting}
                 destinationAddress={destinationAddress || address || undefined}
+                onSuccess={handleWithdrawSuccess}
               />
             ),
           )}
