@@ -74,11 +74,11 @@ export type SyncEventHandler = (event: SyncEvent) => void;
 // =============================================================================
 
 const DEFAULT_CONFIG: SyncManagerConfig = {
-  syncInterval: 5000,
+  syncInterval: 3000, // Faster sync for large queues
   healthCheckInterval: 30000,
-  maxConcurrent: 3,
+  maxConcurrent: 5, // Increased parallelism
   maxRetries: 10,
-  batchSize: 10,
+  batchSize: 50, // Process more shares per cycle (50 × 5 parallel = 250/cycle)
 };
 
 class SyncManager {
@@ -497,14 +497,19 @@ class SyncManager {
           response.error?.includes("Exceeded")
         ) {
           this.consecutiveFailures++;
-          const breakerDelays = [60000, 300000, 900000, 1800000, 3600000];
+          // Exponential backoff with jitter (best practice to prevent thundering herd)
+          const breakerDelays = [30000, 60000, 120000, 300000, 600000]; // 30s, 1m, 2m, 5m, 10m (reduced from before)
           const delayIndex = Math.min(
             this.consecutiveFailures - 1,
             breakerDelays.length - 1,
           );
-          this.circuitBreakerUntil = Date.now() + breakerDelays[delayIndex];
+          // Add ±20% jitter to prevent synchronized retries
+          const baseDelay = breakerDelays[delayIndex];
+          const jitter = baseDelay * 0.2 * (Math.random() * 2 - 1); // ±20%
+          const delay = Math.round(baseDelay + jitter);
+          this.circuitBreakerUntil = Date.now() + delay;
           console.log(
-            `[SyncManager] Circuit breaker activated for ${breakerDelays[delayIndex] / 1000}s`,
+            `[SyncManager] Circuit breaker activated for ${Math.round(delay / 1000)}s`,
           );
           await markFailed(share.id!, "API rate limited - will retry later", 0);
           return { success: false, reward: "0" };
@@ -539,15 +544,19 @@ class SyncManager {
         errorMsg.includes("Exceeded")
       ) {
         this.consecutiveFailures++;
-        // Exponential circuit breaker: 1min, 5min, 15min, 30min, 1hr
-        const breakerDelays = [60000, 300000, 900000, 1800000, 3600000];
+        // Exponential backoff with jitter (best practice to prevent thundering herd)
+        const breakerDelays = [30000, 60000, 120000, 300000, 600000]; // 30s, 1m, 2m, 5m, 10m
         const delayIndex = Math.min(
           this.consecutiveFailures - 1,
           breakerDelays.length - 1,
         );
-        this.circuitBreakerUntil = Date.now() + breakerDelays[delayIndex];
+        // Add ±20% jitter
+        const baseDelay = breakerDelays[delayIndex];
+        const jitter = baseDelay * 0.2 * (Math.random() * 2 - 1);
+        const delay = Math.round(baseDelay + jitter);
+        this.circuitBreakerUntil = Date.now() + delay;
         console.log(
-          `[SyncManager] Circuit breaker activated for ${breakerDelays[delayIndex] / 1000}s`,
+          `[SyncManager] Circuit breaker activated for ${Math.round(delay / 1000)}s`,
         );
         // Don't increment share attempts for rate limiting
         await markFailed(share.id!, "API rate limited - will retry later", 0);
