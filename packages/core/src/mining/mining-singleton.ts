@@ -477,6 +477,37 @@ class MiningManager {
   }
 
   /**
+   * Force save current state immediately
+   * Called on page unload to prevent data loss
+   */
+  forceSave(): void {
+    if (!this.persistence) return;
+
+    try {
+      // Use synchronous approach for beforeunload
+      const stateToSave = {
+        lastNonce: 0,
+        totalHashes: this.state.lifetimeHashes + this.state.totalHashes,
+        totalShares: this.state.lifetimeShares + this.state.shares,
+        difficulty: this.state.difficulty,
+        lastBlockData: "",
+        lastSavedAt: Date.now(),
+        sessionUptime: this.getUptime(),
+        tokensEarned: 0,
+      };
+
+      // Fire-and-forget save - can't await in beforeunload
+      this.persistence.saveState(stateToSave).catch((err) => {
+        console.warn("[MiningManager] Force save failed:", err);
+      });
+
+      console.log("[MiningManager] Force save triggered");
+    } catch (err) {
+      console.warn("[MiningManager] Force save error:", err);
+    }
+  }
+
+  /**
    * Check if wake lock is supported
    */
   isWakeLockSupported(): boolean {
@@ -516,6 +547,14 @@ export function getMiningManager(): MiningManager {
 export function destroyMiningManager(): void {
   instance?.destroy();
   instance = null;
+}
+
+/**
+ * Force save mining state immediately
+ * Call this on page unload (beforeunload event) to prevent data loss
+ */
+export function forceSaveMiningState(): void {
+  instance?.forceSave();
 }
 
 // Export class for testing

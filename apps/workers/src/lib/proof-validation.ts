@@ -18,8 +18,11 @@ export const MAX_DIFFICULTY = 32;
 /** Base reward per share at minimum difficulty */
 export const BASE_REWARD_PER_SHARE = BigInt(100);
 
-/** Maximum shares per hour per address */
-export const MAX_SHARES_PER_HOUR = 50;
+/** Maximum shares per hour per address
+ * Safety cap to prevent abuse. WebGPU miners can find many shares quickly.
+ * This allows reasonable mining while preventing spam.
+ */
+export const MAX_SHARES_PER_HOUR = 1000;
 
 /** Minimum time between shares in ms */
 export const MIN_SHARE_INTERVAL_MS = 1000;

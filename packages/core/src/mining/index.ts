@@ -14,6 +14,7 @@ export { WebGPUMiner } from "./webgpu-miner";
 export {
   getMiningManager,
   destroyMiningManager,
+  forceSaveMiningState,
   MiningManager,
   type MiningManagerState,
   type MiningManagerConfig,

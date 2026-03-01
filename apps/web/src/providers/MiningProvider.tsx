@@ -22,6 +22,7 @@ import {
 } from "react";
 import {
   getMiningManager,
+  forceSaveMiningState,
   formatHashrate,
   formatTotal,
   type MiningManagerState,

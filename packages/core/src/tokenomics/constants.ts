@@ -276,10 +276,12 @@ export type PremiumFeature = keyof typeof PREMIUM_BURN_COSTS;
 
 /**
  * Maximum shares per hour per address
- * At D20, GPU finds ~40 shares/hour max anyway
- * This is a safety cap, not the limiter
+ * Safety cap to prevent abuse. Actual mining rate at D22:
+ * - WebGPU at ~70 MH/s finds ~50 shares/second
+ * - This limit allows reasonable mining while preventing spam
+ * - Server-side validation is the real limiter
  */
-export const MAX_SHARES_PER_HOUR = 50;
+export const MAX_SHARES_PER_HOUR = 1000;
 
 /** Maximum reward per share (cap to prevent exploits) */
 export const MAX_REWARD_PER_SHARE = BigInt(10_000); // 10K max (with all bonuses)

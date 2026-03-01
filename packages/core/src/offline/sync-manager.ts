@@ -383,9 +383,11 @@ class SyncManager {
         }
 
         // Check for rate limiting (trigger circuit breaker)
+        // Note: Case-insensitive check for "rate limit" variations
+        const errorLower = response.error?.toLowerCase() ?? "";
         if (
           response.error?.includes("503") ||
-          response.error?.includes("rate limit") ||
+          errorLower.includes("rate limit") ||
           response.error?.includes("free tier") ||
           response.error?.includes("Exceeded")
         ) {
@@ -423,9 +425,11 @@ class SyncManager {
       const errorMsg = error instanceof Error ? error.message : "Network error";
 
       // Check for rate limiting (trigger circuit breaker)
+      // Note: Case-insensitive check for "rate limit" variations
+      const errorMsgLower = errorMsg.toLowerCase();
       if (
         errorMsg.includes("503") ||
-        errorMsg.includes("rate limit") ||
+        errorMsgLower.includes("rate limit") ||
         errorMsg.includes("free tier") ||
         errorMsg.includes("Exceeded")
       ) {
