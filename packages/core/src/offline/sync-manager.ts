@@ -571,13 +571,31 @@ class SyncManager {
     isSyncing: boolean;
     apiHealthy: boolean;
     address: string | null;
+    circuitBreakerActive: boolean;
+    circuitBreakerUntil: number;
+    consecutiveFailures: number;
   } {
     return {
       isOnline: this.isOnline,
       isSyncing: this.isSyncing,
       apiHealthy: this.apiHealthy,
       address: this.address,
+      circuitBreakerActive: Date.now() < this.circuitBreakerUntil,
+      circuitBreakerUntil: this.circuitBreakerUntil,
+      consecutiveFailures: this.consecutiveFailures,
     };
+  }
+
+  /**
+   * Reset the circuit breaker and force sync
+   * Use this when the API is known to be healthy again
+   */
+  resetCircuitBreaker(): void {
+    console.log("[SyncManager] Circuit breaker reset manually");
+    this.circuitBreakerUntil = 0;
+    this.consecutiveFailures = 0;
+    this.apiHealthy = true;
+    this.triggerSync();
   }
 
   /**

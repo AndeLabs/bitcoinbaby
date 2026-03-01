@@ -77,6 +77,18 @@ export interface UseMiningShareSubmissionReturn {
   strategy: SubmissionStrategy;
   /** Whether blockchain submission is available */
   canSubmitToBlockchain: boolean;
+  /** Get current sync manager state (for debugging) */
+  getSyncState: () => {
+    isOnline: boolean;
+    isSyncing: boolean;
+    apiHealthy: boolean;
+    address: string | null;
+    circuitBreakerActive: boolean;
+    circuitBreakerUntil: number;
+    consecutiveFailures: number;
+  };
+  /** Reset circuit breaker and force immediate sync */
+  resetAndSync: () => void;
 }
 
 // =============================================================================
@@ -306,6 +318,20 @@ export function useMiningShareSubmission(
     return () => clearInterval(cleanup);
   }, []);
 
+  /**
+   * Get current sync state for debugging
+   */
+  const getSyncState = () => {
+    return syncManagerRef.current.getState();
+  };
+
+  /**
+   * Reset circuit breaker and force sync
+   */
+  const resetAndSync = () => {
+    syncManagerRef.current.resetCircuitBreaker();
+  };
+
   return {
     sessionShares: mining.shares, // Shares found this session (from miner)
     pendingShares,
@@ -317,5 +343,9 @@ export function useMiningShareSubmission(
     clearNotifications,
     strategy,
     canSubmitToBlockchain,
+    /** Get current sync manager state (for debugging) */
+    getSyncState,
+    /** Reset circuit breaker and force immediate sync */
+    resetAndSync,
   };
 }

@@ -105,9 +105,26 @@ export function MiningSection() {
     notifications,
     canSubmitToBlockchain,
     lastSubmission,
+    getSyncState,
+    resetAndSync,
   } = useMiningShareSubmission({
     strategy: "virtual-first",
   });
+
+  // Sync debug state
+  const [showSyncDebug, setShowSyncDebug] = useState(false);
+  const [syncState, setSyncState] = useState<ReturnType<
+    typeof getSyncState
+  > | null>(null);
+
+  // Update sync state periodically when debug is visible
+  useEffect(() => {
+    if (!showSyncDebug) return;
+    const update = () => setSyncState(getSyncState());
+    update();
+    const interval = setInterval(update, 2000);
+    return () => clearInterval(interval);
+  }, [showSyncDebug, getSyncState]);
 
   // Track recent reward for animation
   const recentReward = lastSubmission?.success
@@ -306,13 +323,76 @@ export function MiningSection() {
               <div className="font-pixel text-lg text-pixel-secondary">
                 {sessionShares}
               </div>
-              <div className="font-pixel text-[8px] text-pixel-text-muted">
+              <button
+                onClick={() => setShowSyncDebug(!showSyncDebug)}
+                className="font-pixel text-[8px] text-pixel-text-muted hover:text-pixel-primary cursor-pointer underline"
+              >
                 {isSubmitting
                   ? "Syncing..."
                   : pendingShares > 0
-                    ? `${pendingShares} pending sync`
+                    ? `${pendingShares.toLocaleString()} pending sync`
                     : `${submittedShares} synced`}
-              </div>
+              </button>
+
+              {/* Sync Debug Panel */}
+              {showSyncDebug && syncState && (
+                <div className="mt-3 p-2 bg-pixel-bg-dark/50 rounded text-[8px] space-y-1">
+                  <div className="flex justify-between">
+                    <span>Online:</span>
+                    <span
+                      className={
+                        syncState.isOnline ? "text-green-400" : "text-red-400"
+                      }
+                    >
+                      {syncState.isOnline ? "Yes" : "No"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>API Health:</span>
+                    <span
+                      className={
+                        syncState.apiHealthy ? "text-green-400" : "text-red-400"
+                      }
+                    >
+                      {syncState.apiHealthy ? "OK" : "Down"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Circuit Breaker:</span>
+                    <span
+                      className={
+                        syncState.circuitBreakerActive
+                          ? "text-red-400"
+                          : "text-green-400"
+                      }
+                    >
+                      {syncState.circuitBreakerActive ? "ACTIVE" : "OK"}
+                    </span>
+                  </div>
+                  {syncState.circuitBreakerActive && (
+                    <div className="text-yellow-400">
+                      Resets in:{" "}
+                      {Math.ceil(
+                        (syncState.circuitBreakerUntil - Date.now()) / 1000,
+                      )}
+                      s
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span>Failures:</span>
+                    <span>{syncState.consecutiveFailures}</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      resetAndSync();
+                      setTimeout(() => setSyncState(getSyncState()), 500);
+                    }}
+                    className="w-full mt-2 py-1 bg-pixel-primary text-black font-pixel text-[8px] rounded"
+                  >
+                    FORCE SYNC
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* On-Chain Balance */}
