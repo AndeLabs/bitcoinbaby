@@ -6,13 +6,6 @@
 // =============================================================================
 
 // Blockchain hooks
-// Note: This is the app-specific CharmsService wrapper, different from
-// the simpler hooks in @bitcoinbaby/core/hooks/useCharms
-export {
-  useCharmsService,
-  type CharmsState,
-  type UseCharmsOptions,
-} from "./useCharmsService";
 export {
   useBalance,
   type BalanceState,
@@ -105,14 +98,6 @@ export {
   type UseSharedMiningReturn,
   type ShareData,
 } from "./useSharedMining";
-
-// Unified persistent mining (auto-selects best strategy)
-export {
-  usePersistentMining,
-  type UsePersistentMiningOptions,
-  type UsePersistentMiningReturn,
-  type MiningStrategy,
-} from "./usePersistentMining";
 
 // =============================================================================
 // RE-EXPORTS FROM @bitcoinbaby/core
