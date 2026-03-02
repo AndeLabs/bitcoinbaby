@@ -34,13 +34,16 @@ import {
 // Throttle hook for smoother updates
 function useThrottledValue<T>(value: T, delay: number): T {
   const [throttled, setThrottled] = useState(value);
-  const lastUpdate = useRef(Date.now());
+  const lastUpdate = useRef(0); // Start at 0, will be set on first update
 
   useEffect(() => {
     const now = Date.now();
     if (now - lastUpdate.current >= delay) {
-      setThrottled(value);
-      lastUpdate.current = now;
+      // Defer to avoid cascading renders
+      queueMicrotask(() => {
+        setThrottled(value);
+        lastUpdate.current = Date.now();
+      });
     } else {
       const timeout = setTimeout(
         () => {

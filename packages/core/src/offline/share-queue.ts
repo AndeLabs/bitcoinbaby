@@ -73,10 +73,16 @@ class ShareQueueDB extends Dexie {
   constructor() {
     super("BitcoinBabyShareQueue");
 
-    // Schema versioning for migrations
+    // Version 1: Initial schema
     this.version(1).stores({
-      // Indexed fields for efficient queries
       shares: "++id, &hash, status, address, timestamp, nextRetry",
+    });
+
+    // Version 2: Add compound index [status+address] for efficient queries
+    // Required by getPendingShares(address) and getPendingReward(address)
+    this.version(2).stores({
+      shares:
+        "++id, &hash, status, address, [status+address], timestamp, nextRetry",
     });
   }
 }

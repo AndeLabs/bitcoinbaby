@@ -62,3 +62,13 @@ export {
   type TransactionType,
   type PendingTransaction,
 } from "./pending-tx-store";
+export {
+  useOverlayStore,
+  useWithdrawOverlay,
+  useSendOverlay,
+  useReceiveOverlay,
+  useSettingsOverlay,
+  useHistoryOverlay,
+  type OverlayType,
+  type OverlayData,
+} from "./overlay-store";

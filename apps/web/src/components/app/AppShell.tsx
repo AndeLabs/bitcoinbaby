@@ -79,10 +79,11 @@ function ResetConfirmationModal({
     }
   }, [isOpen]);
 
-  // Reset input when modal closes
+  // Reset input when modal opens (not on close to avoid cascading renders)
   useEffect(() => {
-    if (!isOpen) {
-      setConfirmText("");
+    if (isOpen) {
+      // Clear any previous text when opening
+      queueMicrotask(() => setConfirmText(""));
     }
   }, [isOpen]);
 

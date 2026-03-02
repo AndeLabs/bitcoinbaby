@@ -208,7 +208,8 @@ export function MiningProvider({ children }: MiningProviderProps) {
         "[MiningProvider] SharedWorker initialization failed:",
         errorMessage,
       );
-      setSharedWorkerError(errorMessage);
+      // Defer setState to avoid cascading renders in effect
+      queueMicrotask(() => setSharedWorkerError(errorMessage));
     }
   }, [sharedWorkerSupported]);
 

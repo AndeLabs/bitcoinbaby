@@ -15,6 +15,7 @@
 import Link from "next/link";
 import { clsx } from "clsx";
 import { HelpTooltip } from "@bitcoinbaby/ui";
+import { useSettingsOverlay } from "@bitcoinbaby/core";
 
 interface MenuItem {
   id: string;
@@ -24,6 +25,7 @@ interface MenuItem {
   href: string;
   external?: boolean;
   highlight?: boolean;
+  onClick?: () => void;
 }
 
 const MENU_ITEMS: MenuItem[] = [
@@ -137,6 +139,15 @@ function MenuButton({ item }: { item: MenuItem }) {
     </div>
   );
 
+  // Handle onClick actions (for overlays)
+  if (item.onClick) {
+    return (
+      <button onClick={item.onClick} className="w-full text-left">
+        {content}
+      </button>
+    );
+  }
+
   if (item.external) {
     return (
       <a href={item.href} target="_blank" rel="noopener noreferrer">
@@ -149,6 +160,16 @@ function MenuButton({ item }: { item: MenuItem }) {
 }
 
 export function MoreSection() {
+  const { open: openSettings } = useSettingsOverlay();
+
+  // Modify menu items to use overlays where appropriate
+  const menuItems = MENU_ITEMS.map((item) => {
+    if (item.id === "settings") {
+      return { ...item, onClick: openSettings };
+    }
+    return item;
+  });
+
   return (
     <div className="p-4 md:p-8 bg-pixel-bg-dark">
       <div className="max-w-2xl mx-auto">
@@ -169,7 +190,7 @@ export function MoreSection() {
 
         {/* Main Menu */}
         <div className="space-y-3 mb-8">
-          {MENU_ITEMS.map((item) => (
+          {menuItems.map((item) => (
             <MenuButton key={item.id} item={item} />
           ))}
         </div>

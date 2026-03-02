@@ -18,6 +18,7 @@ import { usePlatform } from "@/hooks";
 import { MiningProvider } from "./MiningProvider";
 import { QueryProvider } from "./QueryProvider";
 import { usePendingTxStore, cleanupStuckTransactions } from "@bitcoinbaby/core";
+import { OverlayManager } from "@/components/overlays/OverlayManager";
 
 interface RootProviderProps {
   children: ReactNode;
@@ -112,7 +113,10 @@ export function RootProvider({ children }: RootProviderProps) {
 
   return (
     <QueryProvider>
-      <MiningProvider>{children}</MiningProvider>
+      <MiningProvider>
+        {children}
+        <OverlayManager />
+      </MiningProvider>
     </QueryProvider>
   );
 }

@@ -257,12 +257,15 @@ export function useMiningShareSubmission(
         "[ShareSubmission] Share missing blockData, cannot submit:",
         share.hash.slice(0, 16),
       );
-      // Notify user that share was rejected
-      addNotification({
-        type: "warning",
-        title: "Share Rejected",
-        message: "Share missing required data - this may indicate a miner bug",
-      });
+      // Notify user that share was rejected (deferred to avoid cascading renders)
+      queueMicrotask(() =>
+        addNotification({
+          type: "warning",
+          title: "Share Rejected",
+          message:
+            "Share missing required data - this may indicate a miner bug",
+        }),
+      );
       return;
     }
 

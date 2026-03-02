@@ -29,6 +29,9 @@ import {
   useNetworkStore,
   useTokenBalance as useCharmsTokenBalance,
   useMiningBoost,
+  useSendOverlay,
+  useWithdrawOverlay,
+  useHistoryOverlay,
   MIN_PASSWORD_LENGTH,
 } from "@bitcoinbaby/core";
 import {
@@ -165,6 +168,11 @@ function UnlockModal({
 export function WalletSection() {
   const { network, switchNetwork, mainnetAllowed, setMainnetAllowed, config } =
     useNetworkStore();
+
+  // Overlay hooks for opening sheets without navigation
+  const { open: openSend } = useSendOverlay();
+  const { open: openWithdraw } = useWithdrawOverlay();
+  const { open: openHistory } = useHistoryOverlay();
 
   const {
     wallet,
@@ -523,24 +531,24 @@ export function WalletSection() {
 
               {/* Primary Actions */}
               <div className="flex gap-3 pt-4 border-t-2 border-pixel-border">
-                <a
-                  href="/wallet/send"
+                <button
+                  onClick={() => openSend()}
                   className="flex-1 py-3 font-pixel text-[10px] text-center bg-pixel-primary text-black border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
                 >
                   SEND
-                </a>
-                <a
-                  href="/wallet/withdraw"
+                </button>
+                <button
+                  onClick={openWithdraw}
                   className="flex-1 py-3 font-pixel text-[10px] text-center bg-pixel-success text-black border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
                 >
                   WITHDRAW
-                </a>
-                <a
-                  href="/wallet/history"
+                </button>
+                <button
+                  onClick={openHistory}
                   className="flex-1 py-3 font-pixel text-[10px] text-center bg-pixel-bg-light text-pixel-text border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
                 >
                   HISTORY
-                </a>
+                </button>
               </div>
 
               {/* Get Testnet BTC */}

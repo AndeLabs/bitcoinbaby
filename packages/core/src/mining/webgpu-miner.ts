@@ -196,6 +196,43 @@ export class WebGPUMiner implements Miner {
 
     const device = this.device!;
 
+    // Recreate all persistent buffers that were destroyed by cleanupBuffers()
+    this.uniformBuffer = device.createBuffer({
+      label: "mining-params",
+      size: 32,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    this.bestDigestBuffer = device.createBuffer({
+      label: "best-digest",
+      size: 32,
+      usage:
+        GPUBufferUsage.STORAGE |
+        GPUBufferUsage.COPY_SRC |
+        GPUBufferUsage.COPY_DST,
+    });
+
+    this.bestInfoBuffer = device.createBuffer({
+      label: "best-info",
+      size: 16,
+      usage:
+        GPUBufferUsage.STORAGE |
+        GPUBufferUsage.COPY_SRC |
+        GPUBufferUsage.COPY_DST,
+    });
+
+    this.readDigestBuffer = device.createBuffer({
+      label: "read-digest",
+      size: 32,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    });
+
+    this.readInfoBuffer = device.createBuffer({
+      label: "read-info",
+      size: 16,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    });
+
     // Encode challenge as UTF-8 bytes
     const encoder = new TextEncoder();
     const challengeBytes = encoder.encode(challenge);

@@ -79,6 +79,20 @@ export {
 // Help & Tooltips
 export { HelpTooltip, InfoLabel, StatWithHelp } from "./common/HelpTooltip";
 
+// Sheet/Overlay Components
+export {
+  Sheet,
+  SheetPortal,
+  SheetOverlay,
+  SheetTrigger,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetFooter,
+  SheetTitle,
+  SheetDescription,
+} from "./common/sheet";
+
 // Error Components
 export {
   ErrorBoundary,

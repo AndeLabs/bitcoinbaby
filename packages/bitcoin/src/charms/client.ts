@@ -230,14 +230,57 @@ export class CharmsClient {
   }
 
   /**
-   * Get address transaction history
+   * Get address transaction history with optional pagination
+   * @param address - Bitcoin address
+   * @param afterTxid - Optional txid to paginate after (for fetching more history)
    */
-  async getAddressTransactions(address: string): Promise<TransactionInfo[]> {
-    const response = await fetch(`${this.mempoolUrl}/address/${address}/txs`);
+  async getAddressTransactions(
+    address: string,
+    afterTxid?: string,
+  ): Promise<TransactionInfo[]> {
+    const url = afterTxid
+      ? `${this.mempoolUrl}/address/${address}/txs?after_txid=${afterTxid}`
+      : `${this.mempoolUrl}/address/${address}/txs`;
+
+    const response = await fetch(url);
     if (!response.ok) {
       throw new CharmsError(`Failed to get txs: ${response.statusText}`);
     }
     return response.json();
+  }
+
+  /**
+   * Get extended transaction history (up to 150 transactions)
+   * Uses pagination to fetch more than the default 50 tx limit
+   */
+  async getExtendedTransactionHistory(
+    address: string,
+    maxTxs: number = 150,
+  ): Promise<TransactionInfo[]> {
+    const allTxs: TransactionInfo[] = [];
+
+    // First batch (most recent 50)
+    const firstBatch = await this.getAddressTransactions(address);
+    allTxs.push(...firstBatch);
+
+    // If we got 50 and need more, paginate
+    if (firstBatch.length >= 50 && allTxs.length < maxTxs) {
+      const lastTxid = firstBatch[firstBatch.length - 1].txid;
+      const secondBatch = await this.getAddressTransactions(address, lastTxid);
+      allTxs.push(...secondBatch);
+
+      // Third batch if needed
+      if (secondBatch.length >= 50 && allTxs.length < maxTxs) {
+        const lastTxid2 = secondBatch[secondBatch.length - 1].txid;
+        const thirdBatch = await this.getAddressTransactions(
+          address,
+          lastTxid2,
+        );
+        allTxs.push(...thirdBatch);
+      }
+    }
+
+    return allTxs.slice(0, maxTxs);
   }
 
   /**
@@ -287,6 +330,7 @@ export class CharmsClient {
    * Extract charms from transactions for a wallet
    *
    * Uses charms-js SDK for real charm extraction and verification.
+   * Now uses extended transaction history (up to 150 txs) for better NFT discovery.
    */
   async extractCharmsForWallet(
     address: string,
@@ -294,7 +338,8 @@ export class CharmsClient {
   ): Promise<ExtractedCharm[]> {
     const utxos = await this.getUTXOs(address);
     const outpoints = new Set(utxos.map((u) => `${u.txid}:${u.vout}`));
-    const txHistory = await this.getAddressTransactions(address);
+    // Use extended history to find NFTs in older transactions
+    const txHistory = await this.getExtendedTransactionHistory(address, 150);
 
     const charms: ExtractedCharm[] = [];
     const network = this.network === "main" ? "mainnet" : "testnet4";
@@ -302,7 +347,7 @@ export class CharmsClient {
     let processedCount = 0;
     let errorCount = 0;
 
-    for (const txInfo of txHistory.slice(0, 50)) {
+    for (const txInfo of txHistory) {
       try {
         const txHex = await this.getRawTransaction(txInfo.txid);
 

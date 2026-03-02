@@ -427,6 +427,26 @@ export function NFTsSection() {
                 <p className="font-pixel text-[8px] text-pixel-text-muted mt-2">
                   Your Genesis Baby is being born!
                 </p>
+
+                {/* Transaction Status */}
+                {txid && (
+                  <div className="mt-4 p-3 bg-pixel-bg-dark border-2 border-pixel-border rounded">
+                    <p className="font-pixel text-[7px] text-pixel-secondary mb-1">
+                      📡 Transaction submitted
+                    </p>
+                    <a
+                      href={`https://mempool.space/testnet4/tx/${txid}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-pixel-body text-[9px] text-pixel-primary hover:text-pixel-secondary break-all underline"
+                    >
+                      {txid.slice(0, 16)}...{txid.slice(-8)}
+                    </a>
+                    <p className="font-pixel text-[6px] text-pixel-text-muted mt-2">
+                      Waiting for confirmation... This may take a few minutes.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
