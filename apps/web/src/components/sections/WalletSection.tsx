@@ -61,7 +61,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   return (
     <button
       onClick={copy}
-      className={`px-3 py-1 font-pixel text-[8px] border-2 border-black transition-all ${
+      className={`px-3 py-2 min-h-[36px] font-pixel text-pixel-2xs border-2 border-black transition-all active:scale-95 ${
         copied
           ? "bg-pixel-success text-black"
           : "bg-pixel-bg-dark text-pixel-text hover:bg-pixel-primary hover:text-black"
@@ -136,7 +136,7 @@ function UnlockModal({
             <p
               id="unlock-error"
               role="alert"
-              className="font-pixel text-[8px] text-pixel-error mb-4"
+              className="font-pixel text-pixel-2xs text-pixel-error mb-4"
             >
               {error}
             </p>
@@ -147,14 +147,14 @@ function UnlockModal({
               type="button"
               onClick={onCancel}
               disabled={isLoading}
-              className="flex-1 px-4 py-2 font-pixel text-[10px] uppercase bg-pixel-bg-light text-pixel-text border-2 border-black hover:bg-pixel-bg-dark disabled:opacity-50"
+              className="flex-1 px-4 py-3 min-h-[44px] font-pixel text-pixel-xs uppercase bg-pixel-bg-light text-pixel-text border-2 border-black hover:bg-pixel-bg-dark disabled:opacity-50 active:scale-95"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isLoading || password.length < MIN_PASSWORD_LENGTH}
-              className="flex-1 px-4 py-2 font-pixel text-[10px] uppercase bg-pixel-success text-black border-2 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] disabled:opacity-50"
+              className="flex-1 px-4 py-3 min-h-[44px] font-pixel text-pixel-xs uppercase bg-pixel-success text-black border-2 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] disabled:opacity-50 active:scale-95"
             >
               {isLoading ? "..." : "Unlock"}
             </button>
@@ -284,13 +284,15 @@ export function WalletSection() {
   }, [deleteWallet]);
 
   return (
-    <div className="p-4 md:p-8 bg-pixel-bg-dark">
+    <div className="p-responsive safe-x bg-pixel-bg-dark min-h-screen-safe">
       <div className="max-w-2xl mx-auto">
         {/* Section Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+        <div className="mb-6 sm:mb-8">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
-              <h2 className="font-pixel text-xl text-pixel-primary">WALLET</h2>
+              <h2 className="font-pixel text-pixel-lg text-pixel-primary">
+                WALLET
+              </h2>
               <HelpTooltip
                 content="Your Bitcoin wallet for managing BTC and $BABY tokens. All funds are stored locally and encrypted."
                 title="Bitcoin Wallet"
@@ -305,7 +307,7 @@ export function WalletSection() {
               onEnableMainnet={() => setMainnetAllowed(true)}
             />
           </div>
-          <p className="font-pixel-body text-sm text-pixel-text-muted mt-2">
+          <p className="font-pixel-body text-body-sm text-pixel-text-muted mt-2">
             Bitcoin {network === "mainnet" ? "Mainnet" : "Testnet4"} - Taproot
             (P2TR/BIP86)
           </p>
@@ -344,13 +346,13 @@ export function WalletSection() {
             </div>
 
             <div className="border-t-2 border-pixel-border pt-6 mt-6">
-              <p className="font-pixel text-[10px] text-pixel-text-muted text-center mb-4">
+              <p className="font-pixel text-pixel-xs text-pixel-text-muted text-center mb-4">
                 Forgot password? You can restore using your recovery phrase.
               </p>
               <div className="flex gap-3 justify-center">
                 <button
                   onClick={handleDelete}
-                  className="px-4 py-2 font-pixel text-[10px] text-pixel-error border-2 border-pixel-error hover:bg-pixel-error hover:text-white transition-colors"
+                  className="px-4 py-3 min-h-[44px] font-pixel text-pixel-xs text-pixel-error border-2 border-pixel-error hover:bg-pixel-error hover:text-white transition-colors active:scale-95"
                 >
                   DELETE & RESTORE
                 </button>
@@ -365,19 +367,19 @@ export function WalletSection() {
             <div className="space-y-6">
               {/* Address Section */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="font-pixel text-[10px] text-pixel-text-muted">
+                <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                  <label className="font-pixel text-pixel-xs text-pixel-text-muted">
                     YOUR ADDRESS
                   </label>
                   <div className="flex items-center gap-2">
                     <NetworkBadge network={network} />
-                    <span className="px-2 py-0.5 font-pixel text-[6px] bg-pixel-bg-light text-pixel-text-muted border border-pixel-border">
+                    <span className="px-2 py-1 font-pixel text-pixel-2xs bg-pixel-bg-light text-pixel-text-muted border border-pixel-border">
                       TAPROOT
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 bg-pixel-bg-dark p-3 border-2 border-pixel-border">
-                  <span className="font-pixel text-xs text-pixel-text flex-1 break-all">
+                <div className="flex items-center gap-2 sm:gap-3 bg-pixel-bg-dark p-3 border-2 border-pixel-border">
+                  <span className="font-pixel-mono text-body-xs text-pixel-text flex-1 truncate-address">
                     {wallet.address}
                   </span>
                   <CopyButton text={wallet.address} label="COPY" />
@@ -388,12 +390,12 @@ export function WalletSection() {
               <QRCode data={wallet.address} />
 
               {/* Balances */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 {/* BTC Balance */}
-                <div className="bg-pixel-bg-dark p-4 border-2 border-pixel-border">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-1">
-                      <label className="font-pixel text-[8px] text-pixel-text-muted">
+                <div className="bg-pixel-bg-dark p-3 sm:p-4 border-2 border-pixel-border">
+                  <div className="flex items-center justify-between mb-1 gap-1">
+                    <div className="flex items-center gap-1 min-w-0">
+                      <label className="font-pixel text-pixel-2xs text-pixel-text-muted truncate">
                         BTC BALANCE
                       </label>
                       <HelpTooltip
@@ -405,16 +407,16 @@ export function WalletSection() {
                     <button
                       onClick={refreshBalance}
                       disabled={balanceLoading}
-                      className="font-pixel text-[6px] text-pixel-text-muted hover:text-pixel-primary disabled:opacity-50"
+                      className="font-pixel text-pixel-2xs text-pixel-text-muted hover:text-pixel-primary disabled:opacity-50 p-1"
                     >
                       {balanceLoading ? "..." : "↻"}
                     </button>
                   </div>
-                  <span className="font-pixel text-xl text-pixel-text">
+                  <span className="font-pixel text-pixel-base text-pixel-text">
                     {btcBalance}
                   </span>
                   {addressBalance && addressBalance.unconfirmed !== 0 && (
-                    <p className="font-pixel text-[6px] text-pixel-secondary mt-1">
+                    <p className="font-pixel text-pixel-2xs text-pixel-secondary mt-1 truncate">
                       +{(addressBalance.unconfirmed / 100_000_000).toFixed(8)}{" "}
                       pending
                     </p>
@@ -422,10 +424,10 @@ export function WalletSection() {
                 </div>
 
                 {/* $BABY Virtual Balance (Primary) */}
-                <div className="bg-pixel-bg-dark p-4 border-2 border-pixel-success">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-1">
-                      <label className="font-pixel text-[8px] text-pixel-text-muted">
+                <div className="bg-pixel-bg-dark p-3 sm:p-4 border-2 border-pixel-success">
+                  <div className="flex items-center justify-between mb-1 gap-1">
+                    <div className="flex items-center gap-1 min-w-0">
+                      <label className="font-pixel text-pixel-2xs text-pixel-text-muted truncate">
                         $BABY BALANCE
                       </label>
                       <HelpTooltip
@@ -435,26 +437,26 @@ export function WalletSection() {
                       />
                     </div>
                     {virtualBalanceLoading && (
-                      <span className="font-pixel text-[6px] text-pixel-text-muted animate-pulse">
+                      <span className="font-pixel text-pixel-2xs text-pixel-text-muted animate-pulse">
                         ...
                       </span>
                     )}
                   </div>
-                  <span className="font-pixel text-xl text-pixel-success">
+                  <span className="font-pixel text-pixel-base text-pixel-success">
                     {virtualBalanceLoading
                       ? "---"
                       : virtualBalance.toLocaleString()}
                   </span>
-                  <p className="font-pixel text-[6px] text-pixel-text-muted mt-1">
+                  <p className="font-pixel text-pixel-2xs text-pixel-text-muted mt-1 truncate">
                     Total mined: {totalMined.toLocaleString()}
                   </p>
                 </div>
 
                 {/* BABTC Token Balance */}
-                <div className="bg-pixel-bg-dark p-4 border-2 border-pixel-border">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-1">
-                      <label className="font-pixel text-[8px] text-pixel-text-muted">
+                <div className="bg-pixel-bg-dark p-3 sm:p-4 border-2 border-pixel-border">
+                  <div className="flex items-center justify-between mb-1 gap-1">
+                    <div className="flex items-center gap-1 min-w-0">
+                      <label className="font-pixel text-pixel-2xs text-pixel-text-muted truncate">
                         BABTC (CHARMS)
                       </label>
                       <HelpTooltip
@@ -464,27 +466,27 @@ export function WalletSection() {
                       />
                     </div>
                     {babtcLoading && (
-                      <span className="font-pixel text-[6px] text-pixel-text-muted animate-pulse">
+                      <span className="font-pixel text-pixel-2xs text-pixel-text-muted animate-pulse">
                         ...
                       </span>
                     )}
                   </div>
                   {babtcError ? (
-                    <span className="font-pixel text-sm text-pixel-error">
+                    <span className="font-pixel text-pixel-sm text-pixel-error">
                       Error
                     </span>
                   ) : (
-                    <span className="font-pixel text-xl text-pixel-secondary">
+                    <span className="font-pixel text-pixel-base text-pixel-secondary">
                       {babtcLoading ? "---" : babtcFormatted}
                     </span>
                   )}
                 </div>
 
                 {/* Mining Boost */}
-                <div className="bg-pixel-bg-dark p-4 border-2 border-pixel-border">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-1">
-                      <label className="font-pixel text-[8px] text-pixel-text-muted">
+                <div className="bg-pixel-bg-dark p-3 sm:p-4 border-2 border-pixel-border">
+                  <div className="flex items-center justify-between mb-1 gap-1">
+                    <div className="flex items-center gap-1 min-w-0">
+                      <label className="font-pixel text-pixel-2xs text-pixel-text-muted truncate">
                         MINING BOOST
                       </label>
                       <HelpTooltip
@@ -494,14 +496,14 @@ export function WalletSection() {
                       />
                     </div>
                     {boostLoading && (
-                      <span className="font-pixel text-[6px] text-pixel-text-muted animate-pulse">
+                      <span className="font-pixel text-pixel-2xs text-pixel-text-muted animate-pulse">
                         ...
                       </span>
                     )}
                   </div>
-                  <div className="flex items-baseline gap-2">
+                  <div className="flex items-baseline gap-2 flex-wrap">
                     <span
-                      className={`font-pixel text-xl ${
+                      className={`font-pixel text-pixel-base ${
                         miningBoost > 0
                           ? "text-pixel-success"
                           : "text-pixel-text"
@@ -510,13 +512,13 @@ export function WalletSection() {
                       {boostLoading ? "---" : `+${miningBoost}%`}
                     </span>
                     {nftCount > 0 && (
-                      <span className="font-pixel text-[8px] text-pixel-text-muted">
+                      <span className="font-pixel text-pixel-2xs text-pixel-text-muted">
                         ({nftCount} NFT{nftCount !== 1 ? "s" : ""})
                       </span>
                     )}
                   </div>
                   {miningBoost === 0 && !boostLoading && (
-                    <p className="font-pixel text-[6px] text-pixel-text-muted mt-1">
+                    <p className="font-pixel text-pixel-2xs text-pixel-text-muted mt-1 truncate">
                       Get Genesis Babies for boost
                     </p>
                   )}
@@ -524,28 +526,28 @@ export function WalletSection() {
               </div>
 
               {lastUpdated && (
-                <p className="font-pixel text-[6px] text-pixel-text-muted text-center">
+                <p className="font-pixel text-pixel-2xs text-pixel-text-muted text-center">
                   Last updated: {new Date(lastUpdated).toLocaleTimeString()}
                 </p>
               )}
 
               {/* Primary Actions */}
-              <div className="flex gap-3 pt-4 border-t-2 border-pixel-border">
+              <div className="flex gap-2 sm:gap-3 pt-4 border-t-2 border-pixel-border">
                 <button
                   onClick={() => openSend()}
-                  className="flex-1 py-3 font-pixel text-[10px] text-center bg-pixel-primary text-black border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
+                  className="flex-1 py-3 min-h-[44px] font-pixel text-pixel-xs text-center bg-pixel-primary text-black border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all active:scale-95"
                 >
                   SEND
                 </button>
                 <button
                   onClick={openWithdraw}
-                  className="flex-1 py-3 font-pixel text-[10px] text-center bg-pixel-success text-black border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
+                  className="flex-1 py-3 min-h-[44px] font-pixel text-pixel-xs text-center bg-pixel-success text-black border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all active:scale-95"
                 >
                   WITHDRAW
                 </button>
                 <button
                   onClick={openHistory}
-                  className="flex-1 py-3 font-pixel text-[10px] text-center bg-pixel-bg-light text-pixel-text border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
+                  className="flex-1 py-3 min-h-[44px] font-pixel text-pixel-xs text-center bg-pixel-bg-light text-pixel-text border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all active:scale-95"
                 >
                   HISTORY
                 </button>
@@ -557,23 +559,23 @@ export function WalletSection() {
                   href="https://mempool.space/testnet4/faucet"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block w-full py-3 font-pixel text-[10px] text-center bg-pixel-secondary text-black border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
+                  className="block w-full py-3 min-h-[44px] font-pixel text-pixel-xs text-center bg-pixel-secondary text-black border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all active:scale-95"
                 >
                   GET TESTNET BTC
                 </a>
               )}
 
               {/* Secondary Actions */}
-              <div className="flex gap-3 pt-3">
+              <div className="flex gap-2 sm:gap-3 pt-3">
                 <button
                   onClick={lock}
-                  className="flex-1 py-3 font-pixel text-[10px] bg-pixel-bg-light text-pixel-text border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
+                  className="flex-1 py-3 min-h-[44px] font-pixel text-pixel-xs bg-pixel-bg-light text-pixel-text border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all active:scale-95"
                 >
                   LOCK
                 </button>
                 <button
                   onClick={handleDelete}
-                  className="px-4 py-3 font-pixel text-[10px] bg-pixel-error text-white border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all"
+                  className="px-4 py-3 min-h-[44px] font-pixel text-pixel-xs bg-pixel-error text-white border-4 border-black shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all active:scale-95"
                 >
                   DELETE
                 </button>
@@ -585,16 +587,16 @@ export function WalletSection() {
         {/* Error display */}
         {walletError && (
           <div className="mt-4 p-3 bg-pixel-error/20 border-2 border-pixel-error">
-            <p className="font-pixel text-[10px] text-pixel-error text-center">
+            <p className="font-pixel text-pixel-xs text-pixel-error text-center">
               {walletError}
             </p>
           </div>
         )}
 
         {/* Info Section */}
-        <div className="mt-8 p-4 bg-pixel-bg-light border-4 border-dashed border-pixel-border">
+        <div className="mt-6 sm:mt-8 p-4 bg-pixel-bg-light border-4 border-dashed border-pixel-border">
           <div className="flex items-center gap-2 mb-3">
-            <h3 className="font-pixel text-xs text-pixel-secondary">
+            <h3 className="font-pixel text-pixel-xs text-pixel-secondary">
               SECURITY INFO
             </h3>
             <HelpTooltip
@@ -604,7 +606,7 @@ export function WalletSection() {
               size="sm"
             />
           </div>
-          <ul className="space-y-2 font-pixel-body text-sm text-pixel-text-muted">
+          <ul className="space-y-2 font-pixel-body text-body-sm text-pixel-text-muted">
             <li>
               <span className="text-pixel-success">●</span> Wallet encrypted
               with AES-256-GCM
@@ -635,7 +637,7 @@ export function WalletSection() {
               href={`${config.explorerUrl}/address/${wallet.address}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-pixel text-[10px] text-pixel-secondary hover:text-pixel-primary underline"
+              className="font-pixel text-pixel-xs text-pixel-secondary hover:text-pixel-primary underline py-2 inline-block"
             >
               View on Explorer
             </a>

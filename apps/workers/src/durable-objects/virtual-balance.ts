@@ -273,6 +273,12 @@ export class VirtualBalanceDO extends DurableObject<Env> {
             return this.handleSetHashrate(request);
           }
           break;
+
+        case "DELETE":
+          if (action === "reset") {
+            return this.handleReset();
+          }
+          break;
       }
 
       return this.errorResponse("Not found", 404);
@@ -812,6 +818,37 @@ export class VirtualBalanceDO extends DurableObject<Env> {
           balance.virtualBalance - balance.pendingWithdraw
         ).toString(),
       },
+      timestamp: Date.now(),
+    };
+
+    return Response.json(response);
+  }
+
+  /**
+   * DELETE /balance/{address}/reset - Reset user data (testnet only)
+   * Clears balance, proofs, and difficulty state
+   */
+  private handleReset(): Response {
+    if (!this.address) {
+      return this.errorResponse("Address required", 400);
+    }
+
+    // Delete all data for this address
+    this.sql.exec("DELETE FROM mining_proofs WHERE 1=1");
+    this.sql.exec("DELETE FROM balance WHERE 1=1");
+
+    // Clear caches
+    this.cachedBalance = null;
+    this.cacheLoadedAt = 0;
+    this.difficultyState = null;
+    this.sharesThisHourCache = 0;
+    this.sharesHourStartedAt = 0;
+
+    console.log(`[VirtualBalance] Reset complete for ${this.address}`);
+
+    const response: ApiResponse<{ reset: boolean }> = {
+      success: true,
+      data: { reset: true },
       timestamp: Date.now(),
     };
 

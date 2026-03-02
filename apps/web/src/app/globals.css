@@ -188,6 +188,38 @@ canvas,
 }
 
 /* ========================================
+   RESPONSIVE TYPOGRAPHY SYSTEM (2024-2025 Best Practices)
+   Using CSS clamp() for fluid scaling
+
+   Press Start 2P requires multiples of 8px for crisp rendering
+   Pixelify Sans is more flexible but still looks best at discrete sizes
+   ======================================== */
+
+/* Pixel font sizes with fluid scaling */
+:root {
+  /* Press Start 2P - Pixel perfect sizes (8, 10, 12, 16, 24px) */
+  --font-pixel-2xs: clamp(8px, 1.8vw, 8px);      /* Minimum readable */
+  --font-pixel-xs: clamp(8px, 2vw, 10px);        /* Small labels */
+  --font-pixel-sm: clamp(10px, 2.5vw, 12px);     /* Default body pixel */
+  --font-pixel-base: clamp(12px, 3vw, 16px);     /* Headings */
+  --font-pixel-lg: clamp(16px, 4vw, 24px);       /* Large headings */
+  --font-pixel-xl: clamp(20px, 5vw, 32px);       /* Hero text */
+
+  /* Pixelify Sans - Body text (more flexible) */
+  --font-body-xs: clamp(10px, 2vw, 12px);
+  --font-body-sm: clamp(12px, 2.5vw, 14px);
+  --font-body-base: clamp(14px, 3vw, 16px);
+  --font-body-lg: clamp(16px, 3.5vw, 18px);
+  --font-body-xl: clamp(18px, 4vw, 20px);
+
+  /* Touch target minimum (WCAG 2.2 AAA) */
+  --touch-target-min: 44px;
+
+  /* Spacing scale */
+  --space-safe: max(16px, env(safe-area-inset-bottom, 16px));
+}
+
+/* ========================================
    UTILITY CLASSES
    ======================================== */
 /* Font utilities - using CSS variables from next/font for optimized loading */
@@ -199,6 +231,83 @@ canvas,
 }
 .font-pixel-mono {
   font-family: var(--font-vt323), 'VT323', monospace;
+}
+
+/* ========================================
+   RESPONSIVE PIXEL FONT UTILITIES
+   These replace text-[6px], text-[8px] etc with responsive equivalents
+   ======================================== */
+
+/* Pixel font responsive sizes */
+.text-pixel-2xs { font-size: var(--font-pixel-2xs); line-height: 1.5; }
+.text-pixel-xs { font-size: var(--font-pixel-xs); line-height: 1.5; }
+.text-pixel-sm { font-size: var(--font-pixel-sm); line-height: 1.4; }
+.text-pixel-base { font-size: var(--font-pixel-base); line-height: 1.3; }
+.text-pixel-lg { font-size: var(--font-pixel-lg); line-height: 1.2; }
+.text-pixel-xl { font-size: var(--font-pixel-xl); line-height: 1.1; }
+
+/* Body font responsive sizes */
+.text-body-xs { font-size: var(--font-body-xs); line-height: 1.5; }
+.text-body-sm { font-size: var(--font-body-sm); line-height: 1.5; }
+.text-body-base { font-size: var(--font-body-base); line-height: 1.5; }
+.text-body-lg { font-size: var(--font-body-lg); line-height: 1.4; }
+.text-body-xl { font-size: var(--font-body-xl); line-height: 1.4; }
+
+/* Address/hash truncation utility */
+.truncate-address {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Multi-line truncation */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Touch-friendly button sizing */
+.touch-target {
+  min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+}
+
+/* Responsive container with max-width */
+.container-responsive {
+  width: 100%;
+  max-width: 100%;
+  padding-left: max(16px, env(safe-area-inset-left, 16px));
+  padding-right: max(16px, env(safe-area-inset-right, 16px));
+}
+
+@media (min-width: 640px) {
+  .container-responsive {
+    max-width: 640px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+@media (min-width: 768px) {
+  .container-responsive {
+    max-width: 768px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container-responsive {
+    max-width: 1024px;
+  }
 }
 
 .animate-pixel-blink { animation: pixel-blink 1s steps(1) infinite; }
@@ -339,26 +448,75 @@ canvas,
    MOBILE & NATIVE STYLES
    ======================================== */
 
-/* Safe area utilities */
+/* Safe area utilities - comprehensive for iPhone notch/Dynamic Island */
 .safe-top {
-  padding-top: var(--safe-area-inset-top);
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 .safe-bottom {
-  padding-bottom: var(--safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .safe-left {
-  padding-left: var(--safe-area-inset-left);
+  padding-left: env(safe-area-inset-left, 0px);
 }
 
 .safe-right {
-  padding-right: var(--safe-area-inset-right);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Combined safe areas */
+.safe-x {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+.safe-y {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-all {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Margin-based safe areas (for fixed positioning) */
+.safe-mt {
+  margin-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-mb {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Min-height accounting for viewport units */
+.min-h-screen-safe {
+  min-height: 100vh;
+  min-height: 100dvh; /* Dynamic viewport height for mobile */
+}
+
+.h-screen-safe {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Small viewport height (excludes virtual keyboard) */
+.min-h-screen-svh {
+  min-height: 100svh;
+}
+
+/* Large viewport height (full height ignoring UI) */
+.min-h-screen-lvh {
+  min-height: 100lvh;
 }
 
 /* Touch feedback for mobile interactions */
 .touch-feedback {
   transition: transform 0.1s ease-out, opacity 0.1s ease-out;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .touch-feedback:active {
@@ -366,10 +524,22 @@ canvas,
   opacity: 0.8;
 }
 
+/* Touch-optimized button (meets 44px minimum) */
+.btn-touch {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 12px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Scrollable container with momentum */
 .scroll-container {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 /* Bottom navigation styling */
@@ -378,9 +548,24 @@ canvas,
   bottom: 0;
   left: 0;
   right: 0;
-  padding-bottom: var(--safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
   background: var(--color-pixel-bg-medium);
   border-top: 4px solid var(--color-pixel-border);
+}
+
+/* Header with safe area for notch */
+.header-safe {
+  padding-top: max(12px, env(safe-area-inset-top, 12px));
+  padding-left: max(16px, env(safe-area-inset-left, 16px));
+  padding-right: max(16px, env(safe-area-inset-right, 16px));
+}
+
+/* Modal/Sheet safe positioning */
+.modal-safe {
+  padding-bottom: max(24px, env(safe-area-inset-bottom, 24px));
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 48px);
 }
 
 /* ========================================
@@ -567,6 +752,93 @@ svg.pixel-sprite,
 }
 
 /* ========================================
+   RESPONSIVE BREAKPOINT UTILITIES
+   sm: 640px, md: 768px, lg: 1024px, xl: 1280px
+   ======================================== */
+
+/* Hide on mobile, show on tablet+ */
+.hidden-mobile {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .hidden-mobile {
+    display: block;
+  }
+
+  .flex-mobile-hidden {
+    display: flex;
+  }
+}
+
+/* Show on mobile, hide on tablet+ */
+.mobile-only {
+  display: block;
+}
+
+@media (min-width: 640px) {
+  .mobile-only {
+    display: none;
+  }
+}
+
+/* Responsive text alignment */
+.text-center-mobile {
+  text-align: center;
+}
+
+@media (min-width: 640px) {
+  .text-center-mobile {
+    text-align: left;
+  }
+}
+
+/* Responsive flex direction */
+.flex-col-mobile {
+  flex-direction: column;
+}
+
+@media (min-width: 640px) {
+  .flex-col-mobile {
+    flex-direction: row;
+  }
+}
+
+/* Responsive gap */
+.gap-responsive {
+  gap: 8px;
+}
+
+@media (min-width: 640px) {
+  .gap-responsive {
+    gap: 12px;
+  }
+}
+
+@media (min-width: 768px) {
+  .gap-responsive {
+    gap: 16px;
+  }
+}
+
+/* Responsive padding */
+.p-responsive {
+  padding: 12px;
+}
+
+@media (min-width: 640px) {
+  .p-responsive {
+    padding: 16px;
+  }
+}
+
+@media (min-width: 768px) {
+  .p-responsive {
+    padding: 24px;
+  }
+}
+
+/* ========================================
    PLATFORM-SPECIFIC OVERRIDES
    ======================================== */
 
@@ -580,6 +852,11 @@ svg.pixel-sprite,
   body {
     overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Ensure minimum font size on mobile */
+  .font-pixel {
+    font-size: max(8px, var(--font-pixel-xs));
   }
 }
 
@@ -601,5 +878,24 @@ svg.pixel-sprite,
 
   ::-webkit-scrollbar-thumb:hover {
     background: var(--color-pixel-primary);
+  }
+}
+
+/* High DPI screens - ensure pixel-perfect rendering */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .font-pixel {
+    -webkit-font-smoothing: none;
+    -moz-osx-font-smoothing: unset;
+  }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

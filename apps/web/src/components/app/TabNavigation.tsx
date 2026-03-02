@@ -40,7 +40,7 @@ export function TabNavigation({
   return (
     <nav
       className={clsx(
-        "flex border-b-4 border-pixel-border bg-pixel-bg-medium",
+        "flex border-b-4 border-pixel-border bg-pixel-bg-medium safe-x",
         className,
       )}
     >
@@ -52,15 +52,17 @@ export function TabNavigation({
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
             className={clsx(
-              "flex-1 flex flex-col items-center gap-1 py-3 px-2",
-              "font-pixel text-[8px] uppercase transition-all",
+              "flex-1 flex flex-col items-center gap-1",
+              "py-3 px-2 min-h-[52px] sm:min-h-[56px]",
+              "font-pixel text-pixel-2xs uppercase transition-all",
               "border-r-2 border-pixel-border last:border-r-0",
+              "active:scale-95",
               isActive
                 ? "bg-pixel-bg-dark text-pixel-primary border-b-4 border-b-pixel-primary -mb-1"
                 : "text-pixel-text-muted hover:text-pixel-text hover:bg-pixel-bg-dark/50",
             )}
           >
-            <span className="text-lg">
+            <span className="text-lg sm:text-xl">
               {isActive ? tab.activeIcon : tab.icon}
             </span>
             <span className="hidden sm:block">{tab.label}</span>

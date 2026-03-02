@@ -963,6 +963,254 @@ app.get("/api/leaderboard/stats/:address", async (c) => {
 });
 
 // =============================================================================
+// NFT COUNTER API
+// =============================================================================
+
+/**
+ * GET /api/nft/counter - Get current NFT counter
+ */
+app.get("/api/nft/counter", async (c) => {
+  try {
+    const redis = getRedis(c.env);
+    const count = await redis.get<number>("nft:minted:count");
+
+    return c.json<ApiResponse<{ count: number }>>({
+      success: true,
+      data: { count: count ?? 0 },
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    console.error("[NFT] Counter get error:", error);
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Failed to get counter",
+        timestamp: Date.now(),
+      },
+      500,
+    );
+  }
+});
+
+/**
+ * POST /api/nft/reserve - Reserve next NFT ID (atomic increment)
+ * Returns the reserved token ID for minting
+ */
+app.post("/api/nft/reserve", async (c) => {
+  try {
+    const redis = getRedis(c.env);
+
+    // Atomic increment - ensures no duplicates
+    const newCount = await redis.incr("nft:minted:count");
+
+    // Max supply check
+    const MAX_SUPPLY = 10_000;
+    if (newCount > MAX_SUPPLY) {
+      // Roll back the increment
+      await redis.decr("nft:minted:count");
+      return c.json<ApiResponse>(
+        {
+          success: false,
+          error: "Max supply reached",
+          timestamp: Date.now(),
+        },
+        400,
+      );
+    }
+
+    console.log(`[NFT] Reserved token ID: ${newCount}`);
+
+    return c.json<ApiResponse<{ tokenId: number; totalMinted: number }>>({
+      success: true,
+      data: {
+        tokenId: newCount,
+        totalMinted: newCount,
+      },
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    console.error("[NFT] Reserve error:", error);
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Failed to reserve NFT ID",
+        timestamp: Date.now(),
+      },
+      500,
+    );
+  }
+});
+
+/**
+ * POST /api/nft/confirm/:tokenId - Confirm NFT was minted successfully
+ * Called after transaction is broadcast
+ */
+app.post("/api/nft/confirm/:tokenId", async (c) => {
+  const tokenId = parseInt(c.req.param("tokenId"), 10);
+  const body = await c.req.json<{ txid: string; address: string }>();
+
+  if (!tokenId || isNaN(tokenId)) {
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Invalid token ID",
+        timestamp: Date.now(),
+      },
+      400,
+    );
+  }
+
+  try {
+    const redis = getRedis(c.env);
+
+    // Store mint record
+    await redis.hset(`nft:minted:${tokenId}`, {
+      tokenId,
+      txid: body.txid,
+      address: body.address,
+      mintedAt: Date.now(),
+    });
+
+    console.log(`[NFT] Confirmed token ID: ${tokenId}, txid: ${body.txid}`);
+
+    return c.json<ApiResponse>({
+      success: true,
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    console.error("[NFT] Confirm error:", error);
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Failed to confirm mint",
+        timestamp: Date.now(),
+      },
+      500,
+    );
+  }
+});
+
+// =============================================================================
+// ADMIN ENDPOINTS (Testnet Only)
+// =============================================================================
+
+/**
+ * DELETE /api/admin/reset/:address - Reset a user's data (testnet only)
+ * Requires X-Admin-Key header matching ADMIN_KEY secret
+ */
+app.delete("/api/admin/reset/:address", async (c) => {
+  const address = c.req.param("address");
+
+  // Simple admin key check (set via wrangler secret put ADMIN_KEY)
+  const adminKey = c.req.header("X-Admin-Key");
+  const expectedKey = c.env.ADMIN_KEY;
+
+  // If no admin key configured, allow in development only
+  if (expectedKey && adminKey !== expectedKey) {
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Unauthorized",
+        timestamp: Date.now(),
+      },
+      401,
+    );
+  }
+
+  if (!address || !isValidBitcoinAddress(address)) {
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Invalid Bitcoin address",
+        timestamp: Date.now(),
+      },
+      400,
+    );
+  }
+
+  try {
+    // Reset balance in Durable Object
+    const balanceId = c.env.VIRTUAL_BALANCE.idFromName(address);
+    const balanceStub = c.env.VIRTUAL_BALANCE.get(balanceId);
+    await balanceStub.fetch(
+      new Request(`http://internal/balance/${address}/reset`, {
+        method: "DELETE",
+      }),
+    );
+
+    // Clear user from Redis leaderboards
+    const redis = getRedis(c.env);
+    await redis.del(`user:${address}:stats`);
+
+    console.log(`[Admin] Reset complete for ${address}`);
+
+    return c.json<ApiResponse>({
+      success: true,
+      data: { address, reset: true },
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    console.error("[Admin] Reset error:", error);
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Reset failed",
+        timestamp: Date.now(),
+      },
+      500,
+    );
+  }
+});
+
+/**
+ * DELETE /api/admin/reset-all - Reset all leaderboards (testnet only)
+ */
+app.delete("/api/admin/reset-all", async (c) => {
+  const adminKey = c.req.header("X-Admin-Key");
+  const expectedKey = c.env.ADMIN_KEY;
+
+  if (expectedKey && adminKey !== expectedKey) {
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Unauthorized",
+        timestamp: Date.now(),
+      },
+      401,
+    );
+  }
+
+  try {
+    const redis = getRedis(c.env);
+
+    // Reset all leaderboards
+    await resetDailyLeaderboard(redis);
+    await resetWeeklyLeaderboard(redis);
+
+    // Flush all keys (will recreate leaderboard structure)
+    await redis.flushdb();
+
+    console.log("[Admin] Full reset complete");
+
+    return c.json<ApiResponse>({
+      success: true,
+      data: { reset: "all" },
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    console.error("[Admin] Reset-all error:", error);
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Reset failed",
+        timestamp: Date.now(),
+      },
+      500,
+    );
+  }
+});
+
+// =============================================================================
 // SCHEDULED TASKS (Cron)
 // =============================================================================
 

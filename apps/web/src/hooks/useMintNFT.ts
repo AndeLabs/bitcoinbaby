@@ -89,6 +89,43 @@ export function useMintNFT(): UseMintNFTReturn {
     setError(null);
 
     try {
+      // Reserve next NFT ID from server (atomic counter)
+      const API_URL =
+        process.env.NODE_ENV === "production"
+          ? "https://bitcoinbaby-api-prod.andeanlabs-58f.workers.dev"
+          : "https://bitcoinbaby-api-prod.andeanlabs-58f.workers.dev"; // Same for testnet
+
+      const reserveResponse = await fetch(`${API_URL}/api/nft/reserve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!reserveResponse.ok) {
+        const errData = await reserveResponse.json().catch(() => ({}));
+        throw new Error(
+          (errData as { error?: string }).error ||
+            "Failed to reserve NFT ID - max supply reached?",
+        );
+      }
+
+      const reserveData = (await reserveResponse.json()) as {
+        success: boolean;
+        data?: { tokenId: number; totalMinted: number };
+        error?: string;
+      };
+
+      if (!reserveData.success || !reserveData.data) {
+        throw new Error(reserveData.error || "Failed to reserve NFT ID");
+      }
+
+      const reservedTokenId = reserveData.data.tokenId;
+      console.log(
+        `[MintNFT] Reserved token ID: ${reservedTokenId} (total minted: ${reserveData.data.totalMinted})`,
+      );
+
+      // Set the minted count so the service creates the correct tokenId
+      mintService.setMintedCount(reservedTokenId - 1);
+
       // Get UTXOs for the transaction
       const utxos = await mempoolClient.getUTXOs(wallet.address);
 
@@ -132,6 +169,16 @@ export function useMintNFT(): UseMintNFTReturn {
         "nft_mint",
         `Genesis Baby #${mintResult.nft?.tokenId ?? "?"} mint`,
       );
+
+      // Confirm the mint with server (non-blocking)
+      fetch(`${API_URL}/api/nft/confirm/${reservedTokenId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          txid: broadcastTxid,
+          address: wallet.address,
+        }),
+      }).catch((err) => console.warn("[MintNFT] Failed to confirm mint:", err));
 
       setLastMinted(mintResult.nft!);
       setTxid(broadcastTxid);

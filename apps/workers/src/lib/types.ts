@@ -30,6 +30,7 @@ export interface Env {
   // Secrets
   SCROLLS_API_KEY?: string;
   BATCH_WALLET_SEED?: string;
+  ADMIN_KEY?: string;
 }
 
 // =============================================================================

@@ -95,19 +95,39 @@ export async function validateMiningProof(
     return { valid: false, reason: "Invalid blockData format" };
   }
   const embeddedNonceStr = blockDataParts[blockDataParts.length - 1];
-  // Support both decimal and hex nonce formats
-  // WebGPU sends lowercase hex (e.g., "1a2b"), CPU sends decimal
-  // Detect hex by: starts with 0x OR contains hex letters a-f
-  const isHex =
-    embeddedNonceStr.startsWith("0x") || /[a-fA-F]/.test(embeddedNonceStr);
-  const embeddedNonce = isHex
-    ? parseInt(embeddedNonceStr.replace("0x", ""), 16)
-    : parseInt(embeddedNonceStr, 10);
 
-  if (isNaN(embeddedNonce) || embeddedNonce !== proof.nonce) {
+  // Support both decimal and hex nonce formats
+  // WebGPU sends lowercase hex (e.g., "1a2b" or "999"), CPU sends decimal
+  // FIX: Try both interpretations since hex nonces with only 0-9 digits
+  // (like "999" for decimal 2457) were incorrectly parsed as decimal
+  let embeddedNonce: number;
+
+  // Check for explicit hex prefix first
+  if (embeddedNonceStr.startsWith("0x")) {
+    embeddedNonce = parseInt(embeddedNonceStr.slice(2), 16);
+  } else {
+    // Try both hex and decimal interpretation
+    const asHex = parseInt(embeddedNonceStr, 16);
+    const asDecimal = parseInt(embeddedNonceStr, 10);
+
+    // Use whichever matches proof.nonce
+    if (!isNaN(asHex) && asHex === proof.nonce) {
+      embeddedNonce = asHex;
+    } else if (!isNaN(asDecimal) && asDecimal === proof.nonce) {
+      embeddedNonce = asDecimal;
+    } else {
+      // Neither matches - report the mismatch with both interpretations
+      return {
+        valid: false,
+        reason: `Nonce mismatch: blockData "${embeddedNonceStr}" (hex=${asHex}, dec=${asDecimal}) doesn't match proof.nonce=${proof.nonce}`,
+      };
+    }
+  }
+
+  if (isNaN(embeddedNonce)) {
     return {
       valid: false,
-      reason: `Nonce mismatch: blockData contains ${embeddedNonceStr}, proof claims ${proof.nonce}`,
+      reason: `Invalid nonce format: "${embeddedNonceStr}"`,
     };
   }
 

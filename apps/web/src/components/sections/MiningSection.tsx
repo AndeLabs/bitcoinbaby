@@ -177,12 +177,14 @@ export function MiningSection() {
   }, [isRunning, isPaused]);
 
   return (
-    <div className="p-4 md:p-8 bg-pixel-bg-dark">
+    <div className="p-responsive safe-x bg-pixel-bg-dark min-h-screen-safe">
       <div className="max-w-4xl mx-auto">
         {/* Section Header */}
         <div className="mb-6">
-          <h2 className="font-pixel text-xl text-pixel-primary">MINING</h2>
-          <p className="font-pixel-body text-sm text-pixel-text-muted mt-1">
+          <h2 className="font-pixel text-pixel-lg text-pixel-primary">
+            MINING
+          </h2>
+          <p className="font-pixel-body text-body-sm text-pixel-text-muted mt-1">
             Earn $BABY tokens with Proof of Useful Work
           </p>
         </div>
@@ -190,12 +192,12 @@ export function MiningSection() {
         {/* PoUW Info Banner */}
         <div className="mb-6 p-4 bg-gradient-to-r from-pixel-primary/10 to-pixel-secondary/10 border-4 border-pixel-primary/50">
           <div className="flex items-start gap-3">
-            <span className="text-2xl">🧠</span>
-            <div>
-              <h3 className="font-pixel text-[10px] text-pixel-primary uppercase mb-1">
+            <span className="text-2xl sm:text-3xl">🧠</span>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-pixel text-pixel-xs text-pixel-primary uppercase mb-1">
                 Proof of Useful Work
               </h3>
-              <p className="font-pixel-body text-xs text-pixel-text leading-relaxed">
+              <p className="font-pixel-body text-body-sm text-pixel-text leading-relaxed">
                 Your computing power is not wasted on meaningless algorithms. We
                 are building a system where mining energy{" "}
                 <span className="text-pixel-secondary font-semibold">
@@ -203,7 +205,7 @@ export function MiningSection() {
                 </span>
                 . Every hash contributes to a collective AI model.
               </p>
-              <p className="font-pixel text-[8px] text-pixel-text-muted mt-2">
+              <p className="font-pixel text-pixel-2xs text-pixel-text-muted mt-2">
                 Current phase: Traditional mining | Next phase: AI Training
               </p>
             </div>
@@ -213,13 +215,13 @@ export function MiningSection() {
         {/* Connection Warning */}
         {!wallet && (
           <div className="mb-6 p-4 bg-pixel-bg-medium border-4 border-pixel-warning text-center">
-            <p className="font-pixel text-[9px] text-pixel-warning uppercase mb-2">
+            <p className="font-pixel text-pixel-xs text-pixel-warning uppercase mb-2">
               Wallet Not Connected
             </p>
-            <p className="font-pixel-body text-sm text-pixel-text-muted mb-4">
+            <p className="font-pixel-body text-body-sm text-pixel-text-muted mb-4">
               Connect your wallet to start earning $BABY tokens
             </p>
-            <p className="font-pixel text-[8px] text-pixel-primary">
+            <p className="font-pixel text-pixel-2xs text-pixel-primary">
               Go to Wallet tab to connect
             </p>
           </div>
@@ -229,12 +231,14 @@ export function MiningSection() {
         {virtualBalanceError && (
           <div className="mb-4 p-3 bg-pixel-error/20 border-4 border-pixel-error">
             <div className="flex items-center gap-2">
-              <span className="font-pixel text-sm text-pixel-error">⚠</span>
-              <div>
-                <p className="font-pixel text-[9px] text-pixel-error uppercase">
+              <span className="font-pixel text-pixel-sm text-pixel-error">
+                ⚠
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-pixel text-pixel-xs text-pixel-error uppercase">
                   Balance Sync Error
                 </p>
-                <p className="font-pixel-body text-xs text-pixel-text-muted mt-1">
+                <p className="font-pixel-body text-body-xs text-pixel-text-muted mt-1">
                   {virtualBalanceError}. Mining rewards are still being tracked
                   locally.
                 </p>
@@ -247,12 +251,14 @@ export function MiningSection() {
         {wallet && !workersApiAvailable && !virtualBalanceLoading && (
           <div className="mb-4 p-3 bg-pixel-warning/20 border-4 border-pixel-warning">
             <div className="flex items-center gap-2">
-              <span className="font-pixel text-sm text-pixel-warning">⚠</span>
-              <div>
-                <p className="font-pixel text-[9px] text-pixel-warning uppercase">
+              <span className="font-pixel text-pixel-sm text-pixel-warning">
+                ⚠
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-pixel text-pixel-xs text-pixel-warning uppercase">
                   Offline Mode
                 </p>
-                <p className="font-pixel-body text-xs text-pixel-text-muted mt-1">
+                <p className="font-pixel-body text-body-xs text-pixel-text-muted mt-1">
                   Cannot connect to balance server. Mining locally only.
                 </p>
               </div>
@@ -262,13 +268,13 @@ export function MiningSection() {
 
         {/* Balance Panel */}
         {wallet && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
             {/* Virtual Balance (Primary) - Animated Counter */}
             <div
-              className={`bg-pixel-bg-medium border-4 p-4 ${virtualBalanceError ? "border-pixel-warning" : "border-pixel-success"}`}
+              className={`bg-pixel-bg-medium border-4 p-3 sm:p-4 ${virtualBalanceError ? "border-pixel-warning" : "border-pixel-success"}`}
             >
               <div className="flex items-center gap-1 mb-2">
-                <span className="font-pixel text-[7px] text-pixel-text-muted uppercase">
+                <span className="font-pixel text-pixel-2xs text-pixel-text-muted uppercase truncate">
                   $BABY Balance
                 </span>
                 <HelpTooltip
@@ -278,7 +284,7 @@ export function MiningSection() {
                 />
               </div>
               {virtualBalanceLoading ? (
-                <div className="font-pixel text-lg text-pixel-text-muted animate-pulse">
+                <div className="font-pixel text-pixel-base text-pixel-text-muted animate-pulse">
                   ---
                 </div>
               ) : (
@@ -295,7 +301,7 @@ export function MiningSection() {
                   }
                 />
               )}
-              <div className="font-pixel text-[8px] text-pixel-text-muted mt-1">
+              <div className="font-pixel text-pixel-2xs text-pixel-text-muted mt-1 truncate">
                 {virtualBalanceError
                   ? "Last known balance"
                   : "Available to withdraw"}
@@ -303,9 +309,9 @@ export function MiningSection() {
             </div>
 
             {/* Total Mined */}
-            <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4">
+            <div className="bg-pixel-bg-medium border-4 border-pixel-border p-3 sm:p-4">
               <div className="flex items-center gap-1 mb-2">
-                <span className="font-pixel text-[7px] text-pixel-text-muted uppercase">
+                <span className="font-pixel text-pixel-2xs text-pixel-text-muted uppercase truncate">
                   Total Mined
                 </span>
                 <HelpTooltip
@@ -314,18 +320,18 @@ export function MiningSection() {
                   size="sm"
                 />
               </div>
-              <div className="font-pixel text-lg text-pixel-primary">
+              <div className="font-pixel text-pixel-base text-pixel-primary">
                 {totalMined.toLocaleString()}
               </div>
-              <div className="font-pixel text-[8px] text-pixel-text-muted">
+              <div className="font-pixel text-pixel-2xs text-pixel-text-muted truncate">
                 All-time earnings
               </div>
             </div>
 
             {/* Session Shares */}
-            <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4">
+            <div className="bg-pixel-bg-medium border-4 border-pixel-border p-3 sm:p-4">
               <div className="flex items-center gap-1 mb-2">
-                <span className="font-pixel text-[7px] text-pixel-text-muted uppercase">
+                <span className="font-pixel text-pixel-2xs text-pixel-text-muted uppercase truncate">
                   Session Shares
                 </span>
                 <HelpTooltip
@@ -334,12 +340,12 @@ export function MiningSection() {
                   size="sm"
                 />
               </div>
-              <div className="font-pixel text-lg text-pixel-secondary">
+              <div className="font-pixel text-pixel-base text-pixel-secondary">
                 {sessionShares}
               </div>
               <button
                 onClick={() => setShowSyncDebug(!showSyncDebug)}
-                className="font-pixel text-[8px] text-pixel-text-muted hover:text-pixel-primary cursor-pointer underline"
+                className="font-pixel text-pixel-2xs text-pixel-text-muted hover:text-pixel-primary cursor-pointer underline truncate max-w-full"
               >
                 {isSubmitting
                   ? "Syncing..."
@@ -350,7 +356,7 @@ export function MiningSection() {
 
               {/* Sync Debug Panel */}
               {showSyncDebug && syncState && (
-                <div className="mt-3 p-2 bg-pixel-bg-dark/50 rounded text-[8px] space-y-1">
+                <div className="mt-3 p-2 bg-pixel-bg-dark/50 rounded font-pixel text-pixel-2xs space-y-1">
                   <div className="flex justify-between">
                     <span>Online:</span>
                     <span
@@ -399,10 +405,10 @@ export function MiningSection() {
                   <button
                     onClick={handleForceSync}
                     disabled={forceSyncTriggered}
-                    className={`w-full mt-2 py-2 font-pixel text-[10px] rounded cursor-pointer border-2 transition-all ${
+                    className={`w-full mt-2 py-2 min-h-[36px] font-pixel text-pixel-xs rounded cursor-pointer border-2 transition-all active:scale-95 ${
                       forceSyncTriggered
                         ? "bg-green-500 border-green-400 text-white animate-pulse"
-                        : "bg-pixel-primary hover:bg-pixel-primary/80 active:scale-95 text-black border-pixel-primary/50"
+                        : "bg-pixel-primary hover:bg-pixel-primary/80 text-black border-pixel-primary/50"
                     }`}
                   >
                     {forceSyncTriggered ? "SYNCING..." : "FORCE SYNC"}
@@ -412,9 +418,9 @@ export function MiningSection() {
             </div>
 
             {/* On-Chain Balance */}
-            <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4">
+            <div className="bg-pixel-bg-medium border-4 border-pixel-border p-3 sm:p-4">
               <div className="flex items-center gap-1 mb-2">
-                <span className="font-pixel text-[7px] text-pixel-text-muted uppercase">
+                <span className="font-pixel text-pixel-2xs text-pixel-text-muted uppercase truncate">
                   On-Chain $BABY
                 </span>
                 <HelpTooltip
@@ -423,10 +429,10 @@ export function MiningSection() {
                   size="sm"
                 />
               </div>
-              <div className="font-pixel text-lg text-pixel-warning">
+              <div className="font-pixel text-pixel-base text-pixel-warning">
                 {onChainBalance.toLocaleString()}
               </div>
-              <div className="font-pixel text-[8px] text-pixel-text-muted">
+              <div className="font-pixel text-pixel-2xs text-pixel-text-muted truncate">
                 Withdrawn to Bitcoin
               </div>
             </div>
@@ -460,17 +466,17 @@ export function MiningSection() {
                         : "border-pixel-border bg-pixel-bg-medium"
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="font-pixel text-[9px] text-pixel-text">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-pixel text-pixel-xs text-pixel-text truncate">
                       {notification.title}
                     </span>
                     {notification.reward && (
-                      <span className="font-pixel text-[9px] text-pixel-success">
+                      <span className="font-pixel text-pixel-xs text-pixel-success whitespace-nowrap">
                         +{notification.reward.toString()} $BABY
                       </span>
                     )}
                   </div>
-                  <p className="font-pixel-body text-xs text-pixel-text-muted mt-1">
+                  <p className="font-pixel-body text-body-xs text-pixel-text-muted mt-1 line-clamp-2">
                     {notification.message}
                   </p>
                 </div>
@@ -478,7 +484,7 @@ export function MiningSection() {
             </div>
           ) : (
             <div className="h-[80px] flex items-center justify-center">
-              <span className="font-pixel text-[8px] text-pixel-text-muted">
+              <span className="font-pixel text-pixel-2xs text-pixel-text-muted text-center">
                 Mining activity will appear here
               </span>
             </div>
@@ -486,12 +492,12 @@ export function MiningSection() {
         </div>
 
         {/* Mining Visualization */}
-        <div className="bg-pixel-bg-medium border-4 border-pixel-border p-6 mb-6 shadow-[8px_8px_0_0_#000]">
+        <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4 sm:p-6 mb-6 shadow-[8px_8px_0_0_#000]">
           <div className="flex flex-col items-center">
             {/* Mining Icon */}
-            <div className="relative w-24 h-24 mb-4">
+            <div className="relative w-20 h-20 sm:w-24 sm:h-24 mb-4">
               <div
-                className={`w-full h-full flex items-center justify-center text-5xl ${
+                className={`w-full h-full flex items-center justify-center text-4xl sm:text-5xl ${
                   isRunning && !isPaused ? "animate-bounce" : ""
                 }`}
               >
@@ -503,9 +509,9 @@ export function MiningSection() {
             </div>
 
             {/* Hashrate Display */}
-            <div className="text-center mb-6">
+            <div className="text-center mb-6 w-full">
               <div className="flex items-center justify-center gap-2 mb-1">
-                <span className="font-pixel text-3xl text-pixel-primary">
+                <span className="font-pixel text-pixel-xl text-pixel-primary">
                   {formatHashrate(displayEffectiveHashrate)}
                 </span>
                 <HelpTooltip
@@ -516,16 +522,16 @@ export function MiningSection() {
                 />
               </div>
               {nftBoost > 0 && (
-                <div className="flex items-center justify-center gap-2">
-                  <span className="font-pixel text-[8px] text-pixel-text-muted">
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  <span className="font-pixel text-pixel-2xs text-pixel-text-muted">
                     Base: {formatHashrate(displayHashrate)}
                   </span>
-                  <span className="font-pixel text-[8px] text-pixel-success">
+                  <span className="font-pixel text-pixel-2xs text-pixel-success">
                     +{nftBoost}% NFT Boost
                   </span>
                 </div>
               )}
-              <div className="font-pixel text-[8px] text-pixel-text-muted mt-2 uppercase">
+              <div className="font-pixel text-pixel-2xs text-pixel-text-muted mt-2 uppercase">
                 {minerType === "webgpu" ? "WebGPU Mining" : "CPU Mining"}
                 {capabilities?.webgpu && minerType === "cpu" && (
                   <span className="text-pixel-secondary ml-2">
@@ -596,7 +602,7 @@ export function MiningSection() {
         {capabilities && (
           <div className="bg-pixel-bg-medium border-4 border-pixel-border p-4">
             <div className="flex items-center gap-2 mb-3">
-              <h3 className="font-pixel text-[8px] text-pixel-text-muted uppercase">
+              <h3 className="font-pixel text-pixel-2xs text-pixel-text-muted uppercase">
                 Device Capabilities
               </h3>
               <HelpTooltip
@@ -609,27 +615,27 @@ export function MiningSection() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
               <div className="p-2">
                 <div
-                  className={`font-pixel text-[10px] ${capabilities.webgpu ? "text-pixel-success" : "text-pixel-text-muted"}`}
+                  className={`font-pixel text-pixel-xs ${capabilities.webgpu ? "text-pixel-success" : "text-pixel-text-muted"}`}
                 >
                   {capabilities.webgpu ? "✓" : "✗"} WebGPU
                 </div>
               </div>
               <div className="p-2">
                 <div
-                  className={`font-pixel text-[10px] ${capabilities.workers ? "text-pixel-success" : "text-pixel-text-muted"}`}
+                  className={`font-pixel text-pixel-xs ${capabilities.workers ? "text-pixel-success" : "text-pixel-text-muted"}`}
                 >
                   {capabilities.workers ? "✓" : "✗"} Workers
                 </div>
               </div>
               <div className="p-2">
                 <div
-                  className={`font-pixel text-[10px] ${capabilities.webgl ? "text-pixel-success" : "text-pixel-text-muted"}`}
+                  className={`font-pixel text-pixel-xs ${capabilities.webgl ? "text-pixel-success" : "text-pixel-text-muted"}`}
                 >
                   {capabilities.webgl ? "✓" : "✗"} WebGL
                 </div>
               </div>
               <div className="p-2">
-                <div className="font-pixel text-[10px] text-pixel-text">
+                <div className="font-pixel text-pixel-xs text-pixel-text">
                   {capabilities.cores} Cores
                 </div>
               </div>
@@ -637,15 +643,15 @@ export function MiningSection() {
 
             {/* Blockchain Submission Status */}
             <div className="mt-4 pt-4 border-t-2 border-pixel-border">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <div
-                  className={`w-2 h-2 rounded-full ${
+                  className={`w-2 h-2 rounded-full flex-shrink-0 ${
                     canSubmitToBlockchain
                       ? "bg-pixel-success"
                       : "bg-pixel-text-muted"
                   }`}
                 />
-                <span className="font-pixel text-[8px] text-pixel-text-muted">
+                <span className="font-pixel text-pixel-2xs text-pixel-text-muted">
                   {canSubmitToBlockchain
                     ? "Blockchain submission ready (has BTC for fees)"
                     : "Virtual-only mode (no BTC for fees)"}
