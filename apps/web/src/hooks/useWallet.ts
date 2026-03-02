@@ -178,9 +178,6 @@ export function useWallet(): UseWalletReturn {
     setWallet: setStoreWallet,
     disconnect: disconnectStore,
     setSigningFunctions: storeSetSigningFunctions,
-    isLocked: storeIsLocked,
-    isConnected: storeIsConnected,
-    wallet: storeWallet,
   } = useWalletStore();
 
   // Internal wallet instance

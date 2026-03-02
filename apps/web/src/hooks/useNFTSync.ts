@@ -226,15 +226,15 @@ export function useNFTSync(): UseNFTSyncReturn {
  */
 export function useInvalidateNFTs() {
   const queryClient = useQueryClient();
-  const wallet = useWalletStore((s) => s.wallet);
+  const walletAddress = useWalletStore((s) => s.wallet?.address);
 
   return useCallback(() => {
-    if (wallet?.address) {
+    if (walletAddress) {
       queryClient.invalidateQueries({
-        queryKey: getNFTQueryKey(wallet.address),
+        queryKey: getNFTQueryKey(walletAddress),
       });
     }
-  }, [queryClient, wallet?.address]);
+  }, [queryClient, walletAddress]);
 }
 
 export default useNFTSync;

@@ -125,11 +125,6 @@ export function MiningProvider({ children }: MiningProviderProps) {
     };
   }, []);
 
-  // SharedWorker error state
-  const [sharedWorkerError, setSharedWorkerError] = useState<string | null>(
-    null,
-  );
-
   // Listen to SharedWorker state (if supported)
   useEffect(() => {
     if (!sharedWorkerSupported || typeof SharedWorker === "undefined") return;
@@ -147,7 +142,6 @@ export function MiningProvider({ children }: MiningProviderProps) {
             ? error.message
             : "SharedWorker failed to load";
         console.error("[MiningProvider] SharedWorker error:", errorMessage);
-        setSharedWorkerError(errorMessage);
 
         // Reset shared worker state on error
         setSharedWorkerState({
@@ -163,14 +157,8 @@ export function MiningProvider({ children }: MiningProviderProps) {
         // Handle error messages from worker
         if (type === "error") {
           console.error("[MiningProvider] SharedWorker reported error:", data);
-          setSharedWorkerError(
-            typeof data === "string" ? data : "Worker error",
-          );
           return;
         }
-
-        // Clear error on successful communication
-        setSharedWorkerError(null);
 
         if (type === "state" || type === "stats") {
           setSharedWorkerState((prev) => ({
@@ -192,7 +180,6 @@ export function MiningProvider({ children }: MiningProviderProps) {
           "[MiningProvider] SharedWorker port message error:",
           error,
         );
-        setSharedWorkerError("Failed to communicate with mining worker");
       };
 
       worker.port.start();
@@ -208,8 +195,6 @@ export function MiningProvider({ children }: MiningProviderProps) {
         "[MiningProvider] SharedWorker initialization failed:",
         errorMessage,
       );
-      // Defer setState to avoid cascading renders in effect
-      queueMicrotask(() => setSharedWorkerError(errorMessage));
     }
   }, [sharedWorkerSupported]);
 
