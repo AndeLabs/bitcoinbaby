@@ -1210,6 +1210,63 @@ app.delete("/api/admin/reset-all", async (c) => {
   }
 });
 
+/**
+ * POST /api/admin/nft/sync - Sync NFT counter with on-chain data
+ * Sets the counter to match actual on-chain mints
+ */
+app.post("/api/admin/nft/sync", async (c) => {
+  const adminKey = c.req.header("X-Admin-Key");
+  const expectedKey = c.env.ADMIN_KEY;
+
+  if (expectedKey && adminKey !== expectedKey) {
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Unauthorized",
+        timestamp: Date.now(),
+      },
+      401,
+    );
+  }
+
+  try {
+    const body = await c.req.json<{ count: number }>();
+    const count = body.count;
+
+    if (typeof count !== "number" || count < 0 || count > 10000) {
+      return c.json<ApiResponse>(
+        {
+          success: false,
+          error: "Invalid count (must be 0-10000)",
+          timestamp: Date.now(),
+        },
+        400,
+      );
+    }
+
+    const redis = getRedis(c.env);
+    await redis.set("nft:minted:count", count);
+
+    console.log(`[Admin] NFT counter synced to: ${count}`);
+
+    return c.json<ApiResponse<{ count: number }>>({
+      success: true,
+      data: { count },
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    console.error("[Admin] NFT sync error:", error);
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: "Sync failed",
+        timestamp: Date.now(),
+      },
+      500,
+    );
+  }
+});
+
 // =============================================================================
 // SCHEDULED TASKS (Cron)
 // =============================================================================

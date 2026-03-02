@@ -14,7 +14,11 @@ import {
   Psbt,
   type BabyNFTState,
 } from "@bitcoinbaby/bitcoin";
-import { useWalletStore, usePendingTxStore } from "@bitcoinbaby/core";
+import {
+  useWalletStore,
+  usePendingTxStore,
+  getApiClient,
+} from "@bitcoinbaby/core";
 
 // =============================================================================
 // TYPES
@@ -90,37 +94,20 @@ export function useMintNFT(): UseMintNFTReturn {
 
     try {
       // Reserve next NFT ID from server (atomic counter)
-      const API_URL =
-        process.env.NODE_ENV === "production"
-          ? "https://bitcoinbaby-api-prod.andeanlabs-58f.workers.dev"
-          : "https://bitcoinbaby-api-prod.andeanlabs-58f.workers.dev"; // Same for testnet
+      // Uses centralized API client for proper environment handling
+      const apiClient = getApiClient();
+      const reserveResult = await apiClient.reserveNFT();
 
-      const reserveResponse = await fetch(`${API_URL}/api/nft/reserve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!reserveResponse.ok) {
-        const errData = await reserveResponse.json().catch(() => ({}));
+      if (!reserveResult.success || !reserveResult.data) {
         throw new Error(
-          (errData as { error?: string }).error ||
+          reserveResult.error ||
             "Failed to reserve NFT ID - max supply reached?",
         );
       }
 
-      const reserveData = (await reserveResponse.json()) as {
-        success: boolean;
-        data?: { tokenId: number; totalMinted: number };
-        error?: string;
-      };
-
-      if (!reserveData.success || !reserveData.data) {
-        throw new Error(reserveData.error || "Failed to reserve NFT ID");
-      }
-
-      const reservedTokenId = reserveData.data.tokenId;
+      const reservedTokenId = reserveResult.data.tokenId;
       console.log(
-        `[MintNFT] Reserved token ID: ${reservedTokenId} (total minted: ${reserveData.data.totalMinted})`,
+        `[MintNFT] Reserved token ID: ${reservedTokenId} (total minted: ${reserveResult.data.totalMinted})`,
       );
 
       // Set the minted count so the service creates the correct tokenId
@@ -171,14 +158,9 @@ export function useMintNFT(): UseMintNFTReturn {
       );
 
       // Confirm the mint with server (non-blocking)
-      fetch(`${API_URL}/api/nft/confirm/${reservedTokenId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          txid: broadcastTxid,
-          address: wallet.address,
-        }),
-      }).catch((err) => console.warn("[MintNFT] Failed to confirm mint:", err));
+      apiClient
+        .confirmNFTMint(reservedTokenId, broadcastTxid, wallet.address)
+        .catch((err) => console.warn("[MintNFT] Failed to confirm mint:", err));
 
       setLastMinted(mintResult.nft!);
       setTxid(broadcastTxid);

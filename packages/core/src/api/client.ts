@@ -413,6 +413,60 @@ export class BitcoinBabyClient {
     );
     return response.json() as Promise<ApiResponse<UserStats | null>>;
   }
+
+  // ===========================================================================
+  // NFT API
+  // ===========================================================================
+
+  /**
+   * Get current NFT counter (total minted)
+   */
+  async getNFTCounter(): Promise<ApiResponse<{ count: number }>> {
+    const response = await fetchWithRetry(`${this.baseUrl}/api/nft/counter`);
+    return response.json() as Promise<ApiResponse<{ count: number }>>;
+  }
+
+  /**
+   * Reserve next NFT ID (atomic increment)
+   * Returns the reserved token ID for minting
+   * No retry - atomic operation must not be duplicated
+   */
+  async reserveNFT(): Promise<
+    ApiResponse<{ tokenId: number; totalMinted: number }>
+  > {
+    const response = await fetchWithRetry(
+      `${this.baseUrl}/api/nft/reserve`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      },
+      0, // No retries - atomic counter
+    );
+    return response.json() as Promise<
+      ApiResponse<{ tokenId: number; totalMinted: number }>
+    >;
+  }
+
+  /**
+   * Confirm NFT mint after successful broadcast
+   * Records the txid and address for tracking
+   */
+  async confirmNFTMint(
+    tokenId: number,
+    txid: string,
+    address: string,
+  ): Promise<ApiResponse<{ confirmed: boolean }>> {
+    const response = await fetchWithRetry(
+      `${this.baseUrl}/api/nft/confirm/${tokenId}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ txid, address }),
+      },
+      1, // Single retry - idempotent
+    );
+    return response.json() as Promise<ApiResponse<{ confirmed: boolean }>>;
+  }
 }
 
 // =============================================================================
