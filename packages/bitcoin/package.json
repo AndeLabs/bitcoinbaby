@@ -17,9 +17,9 @@
   "dependencies": {
     "@noble/hashes": "^1.8.0",
     "@noble/secp256k1": "^3.0.0",
-    "bip32": "^4.0.0",
+    "bip32": "^5.0.1",
     "bip39": "^3.1.0",
-    "bitcoinjs-lib": "^6.1.7",
+    "bitcoinjs-lib": "^7.0.1",
     "bs58check": "^4.0.0",
     "charms-js": "^3.4.3",
     "ecpair": "^3.0.1",
