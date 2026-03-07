@@ -15,7 +15,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@noble/hashes": "^1.8.0",
+    "@noble/hashes": "^2.0.1",
     "@noble/secp256k1": "^3.0.0",
     "bip32": "^4.0.0",
     "bip39": "^3.1.0",
